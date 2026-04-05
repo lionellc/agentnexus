@@ -16,7 +16,7 @@ describe("useShellStore persist", () => {
       mobileSidebarOpen: false,
       mobileDetailOpen: false,
       promptViewMode: "list",
-      skillDetailTab: "preview",
+      skillDetailTab: "overview",
       settingsCategory: "general",
       searchHits: [],
     });

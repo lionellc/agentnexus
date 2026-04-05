@@ -427,6 +427,10 @@ function findButtons(text: string): HTMLButtonElement[] {
   ) as HTMLButtonElement[];
 }
 
+function findButtonByTitle(title: string): HTMLButtonElement | undefined {
+  return document.querySelector(`button[title="${title}"]`) as HTMLButtonElement | undefined;
+}
+
 function clickRuleItem(name: string): void {
   const node = Array.from(document.querySelectorAll("div,span,p")).find((element) =>
     element.textContent?.trim() === name,
@@ -609,7 +613,7 @@ describe("WorkbenchApp agents interactions", () => {
     });
 
     await act(async () => {
-      findButton("删除")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButtonByTitle("删除规则文件")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(document.body.textContent).toContain("确认彻底删除");
 
@@ -643,6 +647,6 @@ describe("WorkbenchApp agents interactions", () => {
     expect(previewMock).toHaveBeenCalled();
     expect(document.body.textContent).toContain("平台文件预览");
     expect(document.body.textContent).toContain("读取成功");
-    expect(document.body.textContent).toContain("# codex rules");
+    expect(document.body.textContent).toContain("codex rules");
   });
 });

@@ -1,5 +1,6 @@
 use std::{
     collections::{HashMap, HashSet},
+    fs,
     path::{Path, PathBuf},
 };
 
@@ -17,8 +18,9 @@ use crate::{
         ExternalSourceCheckInput, MetricsByAssetInput, PromptCreateInput, PromptDeleteInput,
         PromptRenderInput, PromptRestoreInput, PromptSearchInput, PromptUpdateInput, RatingInput,
         ReleaseCreateInput, ReleaseRollbackInput, RuntimeFlags, RuntimeFlagsInput, SkillAsset,
-        SkillsBatchInput, SkillsScanInput, TargetUpsertInput, UsageEventInput, Workspace,
-        WorkspaceActivateInput, WorkspaceCreateInput, WorkspaceUpdateInput,
+        SkillsBatchInput, SkillsFileReadInput, SkillsFileTreeInput, SkillsOpenInput,
+        SkillsScanInput, TargetUpsertInput, UsageEventInput, Workspace, WorkspaceActivateInput,
+        WorkspaceCreateInput, WorkspaceUpdateInput,
     },
     error::AppError,
     execution_plane::{
@@ -31,6 +33,29 @@ use crate::{
     },
     utils::{compare_version, now_rfc3339, render_template, sha256_hex},
 };
+
+fn default_agent_root_dir(agent_type: &str) -> String {
+    let normalized = agent_type.trim().to_lowercase();
+    let suffix = match normalized.as_str() {
+        "codex" => Some(".codex"),
+        "claude" => Some(".claude"),
+        _ => None,
+    };
+    if let Some(suffix) = suffix {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(suffix).to_string_lossy().to_string();
+        }
+    }
+    String::new()
+}
+
+fn default_agent_rule_file(agent_type: &str) -> String {
+    match agent_type.trim().to_lowercase().as_str() {
+        "codex" => "AGENTS.md".to_string(),
+        "claude" => "CLAUDE.md".to_string(),
+        _ => "AGENTS.md".to_string(),
+    }
+}
 
 #[tauri::command]
 pub fn workspace_create(
@@ -72,14 +97,18 @@ pub fn workspace_create(
         ],
     )?;
     for agent_type in ["codex", "claude"] {
+        let default_root = default_agent_root_dir(agent_type);
+        let default_rule_file = default_agent_rule_file(agent_type);
         conn.execute(
-            "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at)
-             VALUES (?1, ?2, ?3, '', 1, ?4, ?5)
+            "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)
              ON CONFLICT(workspace_id, agent_type) DO NOTHING",
             params![
                 Uuid::new_v4().to_string(),
                 workspace.id.clone(),
                 agent_type,
+                default_root,
+                default_rule_file,
                 workspace.created_at.clone(),
                 workspace.updated_at.clone()
             ],
@@ -815,6 +844,281 @@ pub fn distribution_detect_drift(
     })
 }
 
+fn derive_skill_source_parent(source: &str) -> String {
+    let path = Path::new(source);
+    path.parent()
+        .and_then(|parent| parent.file_name())
+        .or_else(|| path.file_name())
+        .map(|name| name.to_string_lossy().to_string())
+        .filter(|name| !name.trim().is_empty())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
+fn detect_skill_symlink(local_path: &str) -> bool {
+    fs::symlink_metadata(local_path)
+        .map(|metadata| metadata.file_type().is_symlink())
+        .unwrap_or(false)
+}
+
+fn get_skill_root_by_id(conn: &Connection, skill_id: &str) -> Result<PathBuf, AppError> {
+    let local_path = conn
+        .query_row(
+            "SELECT local_path FROM skills_assets WHERE id = ?1",
+            params![skill_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::invalid_argument("skill 不存在"))?;
+    let root = PathBuf::from(local_path);
+    if !root.exists() {
+        return Err(AppError::invalid_argument("skill 目录不存在"));
+    }
+    if !root.is_dir() {
+        return Err(AppError::invalid_argument("skill 路径不是目录"));
+    }
+    root.canonicalize()
+        .map_err(|err| AppError::internal(format!("读取 skill 目录失败: {err}")))
+}
+
+fn normalize_rel_path(path: &Path) -> String {
+    path.to_string_lossy().replace('\\', "/")
+}
+
+fn list_skill_tree_entries(root: &Path, current: &Path) -> Result<Vec<Value>, AppError> {
+    let mut entries = Vec::new();
+    for item in fs::read_dir(current)? {
+        let entry = match item {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let file_name = entry.file_name().to_string_lossy().to_string();
+        if file_name == ".DS_Store" {
+            continue;
+        }
+
+        let file_type = match entry.file_type() {
+            Ok(value) => value,
+            Err(_) => continue,
+        };
+        let is_symlink = file_type.is_symlink();
+        let is_dir = !is_symlink && file_type.is_dir();
+        let absolute = entry.path();
+        let relative = absolute
+            .strip_prefix(root)
+            .map(normalize_rel_path)
+            .unwrap_or_else(|_| file_name.clone());
+        let mut node = json!({
+            "name": file_name,
+            "relativePath": relative,
+            "isDir": is_dir,
+            "isSymlink": is_symlink,
+        });
+        if is_dir {
+            let children = list_skill_tree_entries(root, &absolute)?;
+            node["children"] = json!(children);
+        }
+        entries.push(node);
+    }
+
+    entries.sort_by(|left, right| {
+        let left_is_dir = left.get("isDir").and_then(Value::as_bool).unwrap_or(false);
+        let right_is_dir = right.get("isDir").and_then(Value::as_bool).unwrap_or(false);
+        match (left_is_dir, right_is_dir) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => {
+                let left_name = left
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_lowercase();
+                let right_name = right
+                    .get("name")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_lowercase();
+                left_name.cmp(&right_name)
+            }
+        }
+    });
+
+    Ok(entries)
+}
+
+fn resolve_skill_child_path(root: &Path, relative_path: &str) -> Result<PathBuf, AppError> {
+    let trimmed = relative_path.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::invalid_argument("relative_path 不能为空"));
+    }
+    if Path::new(trimmed).is_absolute() {
+        return Err(AppError::invalid_argument("relative_path 必须是相对路径"));
+    }
+    let scoped = ensure_safe_target_path(root, Path::new(trimmed))?;
+    if !scoped.exists() {
+        return Err(AppError::invalid_argument("文件不存在"));
+    }
+    let canonical = scoped
+        .canonicalize()
+        .map_err(|err| AppError::internal(format!("读取文件路径失败: {err}")))?;
+    if !canonical.starts_with(root) {
+        return Err(AppError::path_out_of_scope("文件路径超出 skill 根目录"));
+    }
+    Ok(canonical)
+}
+
+fn detect_file_language(path: &Path) -> String {
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    match ext.as_str() {
+        "md" | "mdx" => "markdown".to_string(),
+        "py" => "python".to_string(),
+        "js" | "mjs" | "cjs" => "javascript".to_string(),
+        "ts" | "mts" | "cts" => "typescript".to_string(),
+        "tsx" => "tsx".to_string(),
+        "jsx" => "jsx".to_string(),
+        "json" => "json".to_string(),
+        "yaml" | "yml" => "yaml".to_string(),
+        "toml" => "toml".to_string(),
+        "rs" => "rust".to_string(),
+        "sh" => "bash".to_string(),
+        "go" => "go".to_string(),
+        "java" => "java".to_string(),
+        "c" => "c".to_string(),
+        "cpp" | "cc" | "cxx" => "cpp".to_string(),
+        "h" | "hpp" => "c".to_string(),
+        "css" => "css".to_string(),
+        "html" | "htm" => "html".to_string(),
+        "xml" => "xml".to_string(),
+        "sql" => "sql".to_string(),
+        _ => ext,
+    }
+}
+
+fn is_supported_preview_file(path: &Path) -> bool {
+    let ext = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    matches!(
+        ext.as_str(),
+        "md" | "mdx"
+            | "txt"
+            | "py"
+            | "js"
+            | "mjs"
+            | "cjs"
+            | "ts"
+            | "mts"
+            | "cts"
+            | "tsx"
+            | "jsx"
+            | "json"
+            | "yaml"
+            | "yml"
+            | "toml"
+            | "rs"
+            | "sh"
+            | "go"
+            | "java"
+            | "c"
+            | "cpp"
+            | "cc"
+            | "cxx"
+            | "h"
+            | "hpp"
+            | "css"
+            | "html"
+            | "htm"
+            | "xml"
+            | "sql"
+    )
+}
+
+fn normalize_open_mode(mode: Option<String>) -> String {
+    mode.unwrap_or_else(|| "finder".to_string())
+        .trim()
+        .to_lowercase()
+}
+
+#[cfg(target_os = "macos")]
+fn run_open_with_mode(path: &Path, mode: &str) -> Result<(), AppError> {
+    let open_target = if matches!(mode, "terminal" | "iterm2") && path.is_file() {
+        path.parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| path.to_path_buf())
+    } else {
+        path.to_path_buf()
+    };
+
+    let mut cmd = std::process::Command::new("open");
+    match mode {
+        "default" => {
+            cmd.arg(&open_target);
+        }
+        "finder" => {
+            cmd.arg("-R").arg(&open_target);
+        }
+        "vscode" => {
+            cmd.arg("-a").arg("Visual Studio Code").arg(&open_target);
+        }
+        "cursor" => {
+            cmd.arg("-a").arg("Cursor").arg(&open_target);
+        }
+        "zed" => {
+            cmd.arg("-a").arg("Zed").arg(&open_target);
+        }
+        "terminal" => {
+            cmd.arg("-a").arg("Terminal").arg(&open_target);
+        }
+        "iterm2" => {
+            cmd.arg("-a").arg("iTerm").arg(&open_target);
+        }
+        "xcode" => {
+            cmd.arg("-a").arg("Xcode").arg(&open_target);
+        }
+        "goland" => {
+            cmd.arg("-a").arg("GoLand").arg(&open_target);
+        }
+        _ => return Err(AppError::invalid_argument("不支持的打开方式")),
+    };
+    let status = cmd
+        .status()
+        .map_err(|err| AppError::internal(format!("执行 open 失败: {err}")))?;
+    if !status.success() {
+        return Err(AppError::internal("执行 open 失败"));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn run_open_with_mode(path: &Path, _mode: &str) -> Result<(), AppError> {
+    let status = std::process::Command::new("xdg-open")
+        .arg(path)
+        .status()
+        .map_err(|err| AppError::internal(format!("执行 xdg-open 失败: {err}")))?;
+    if !status.success() {
+        return Err(AppError::internal("执行 xdg-open 失败"));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn run_open_with_mode(path: &Path, _mode: &str) -> Result<(), AppError> {
+    let path_text = path.to_string_lossy().to_string();
+    let status = std::process::Command::new("cmd")
+        .args(["/C", "start", "", &path_text])
+        .status()
+        .map_err(|err| AppError::internal(format!("执行 start 失败: {err}")))?;
+    if !status.success() {
+        return Err(AppError::internal("执行 start 失败"));
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub fn skills_scan(
     state: State<'_, AppState>,
@@ -920,6 +1224,101 @@ pub fn skills_asset_detail(
         "asset": asset,
         "versions": versions,
     }))
+}
+
+#[tauri::command]
+pub fn skills_files_tree(
+    state: State<'_, AppState>,
+    input: SkillsFileTreeInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let root = get_skill_root_by_id(&conn, &input.skill_id)?;
+    let entries = list_skill_tree_entries(&root, &root)?;
+    Ok(json!({
+        "rootPath": normalize_rel_path(&root),
+        "entries": entries,
+    }))
+}
+
+#[tauri::command]
+pub fn skills_file_read(
+    state: State<'_, AppState>,
+    input: SkillsFileReadInput,
+) -> Result<Value, AppError> {
+    const MAX_PREVIEW_BYTES: u64 = 1024 * 1024;
+
+    let conn = state.open()?;
+    let root = get_skill_root_by_id(&conn, &input.skill_id)?;
+    let path = resolve_skill_child_path(&root, &input.relative_path)?;
+    if path.is_dir() {
+        return Err(AppError::invalid_argument("目标是目录，无法预览"));
+    }
+
+    let relative_path = path
+        .strip_prefix(&root)
+        .map(normalize_rel_path)
+        .unwrap_or_else(|_| input.relative_path.trim().to_string());
+    let language = detect_file_language(&path);
+    if !is_supported_preview_file(&path) {
+        return Ok(json!({
+            "relativePath": relative_path,
+            "absolutePath": normalize_rel_path(&path),
+            "language": language,
+            "supported": false,
+            "content": "",
+            "message": "该文件类型暂不支持预览",
+        }));
+    }
+
+    if let Ok(metadata) = fs::metadata(&path) {
+        if metadata.len() > MAX_PREVIEW_BYTES {
+            return Ok(json!({
+                "relativePath": relative_path,
+                "absolutePath": normalize_rel_path(&path),
+                "language": language,
+                "supported": false,
+                "content": "",
+                "message": "文件过大，暂不支持预览",
+            }));
+        }
+    }
+
+    match fs::read_to_string(&path) {
+        Ok(content) => Ok(json!({
+            "relativePath": relative_path,
+            "absolutePath": normalize_rel_path(&path),
+            "language": language,
+            "supported": true,
+            "content": content,
+            "message": "",
+        })),
+        Err(_) => Ok(json!({
+            "relativePath": relative_path,
+            "absolutePath": normalize_rel_path(&path),
+            "language": language,
+            "supported": false,
+            "content": "",
+            "message": "该文件不是可预览文本",
+        })),
+    }
+}
+
+#[tauri::command]
+pub fn skills_open(state: State<'_, AppState>, input: SkillsOpenInput) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let root = get_skill_root_by_id(&conn, &input.skill_id)?;
+    let mode = normalize_open_mode(input.mode);
+    let path = if let Some(relative_path) = input.relative_path {
+        if relative_path.trim().is_empty() {
+            root.clone()
+        } else {
+            resolve_skill_child_path(&root, &relative_path)?
+        }
+    } else {
+        root.clone()
+    };
+    run_open_with_mode(&path, &mode)?;
+    Ok(json!({ "ok": true }))
 }
 
 #[tauri::command]
@@ -1124,6 +1523,12 @@ pub fn prompt_update(
 
     let prompt = get_prompt_asset_row(&tx, &input.prompt_id)?;
     let next_version = prompt.active_version + 1;
+    let name = input.name.map(|item| item.trim().to_string());
+    if let Some(candidate) = name.as_ref() {
+        if candidate.is_empty() {
+            return Err(AppError::invalid_argument("prompt 标题不能为空"));
+        }
+    }
     let tags = input.tags.unwrap_or(prompt.tags.clone());
     let category = input.category.unwrap_or(prompt.category.clone());
     let favorite = input.favorite.unwrap_or(prompt.favorite);
@@ -1143,10 +1548,11 @@ pub fn prompt_update(
 
     tx.execute(
         "UPDATE prompts_assets
-         SET tags = ?2, category = ?3, favorite = ?4, active_version = ?5, updated_at = ?6
+         SET name = COALESCE(?2, name), tags = ?3, category = ?4, favorite = ?5, active_version = ?6, updated_at = ?7
          WHERE id = ?1",
         params![
             prompt.id,
+            name,
             serde_json::to_string(&tags).map_err(|err| AppError::internal(err.to_string()))?,
             category,
             bool_to_int(favorite),
@@ -1220,7 +1626,10 @@ pub fn prompt_list(
 }
 
 #[tauri::command]
-pub fn prompt_versions(state: State<'_, AppState>, prompt_id: String) -> Result<Vec<Value>, AppError> {
+pub fn prompt_versions(
+    state: State<'_, AppState>,
+    prompt_id: String,
+) -> Result<Vec<Value>, AppError> {
     let conn = state.open()?;
     get_prompt_asset_row(&conn, &prompt_id)?;
 
@@ -1233,8 +1642,8 @@ pub fn prompt_versions(state: State<'_, AppState>, prompt_id: String) -> Result<
 
     let rows = stmt.query_map(params![prompt_id], |row| {
         let metadata_raw: String = row.get(2)?;
-        let metadata = serde_json::from_str::<Value>(&metadata_raw)
-            .unwrap_or(Value::String(metadata_raw));
+        let metadata =
+            serde_json::from_str::<Value>(&metadata_raw).unwrap_or(Value::String(metadata_raw));
 
         Ok(json!({
             "version": row.get::<_, i64>(0)?,
@@ -2208,14 +2617,21 @@ fn get_skill_asset(conn: &Connection, skill_id: &str) -> Result<SkillAsset, AppE
 }
 
 fn skill_asset_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SkillAsset> {
+    let source: String = row.get(5)?;
+    let local_path: String = row.get(6)?;
+    let source_parent = derive_skill_source_parent(&source);
+    let is_symlink = detect_skill_symlink(&local_path);
+
     Ok(SkillAsset {
         id: row.get(0)?,
         identity: row.get(1)?,
         name: row.get(2)?,
         version: row.get(3)?,
         latest_version: row.get(4)?,
-        source: row.get(5)?,
-        local_path: row.get(6)?,
+        source,
+        source_parent,
+        local_path,
+        is_symlink,
         update_candidate: row.get::<_, i64>(7)? == 1,
         last_used_at: row.get(8)?,
         created_at: row.get(9)?,

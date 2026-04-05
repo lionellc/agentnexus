@@ -3,12 +3,15 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Button, Textarea } from "../../../shared/ui";
 
 type MarkdownMode = "edit" | "preview" | "split";
+type MarkdownLanguage = "zh" | "en";
 
 type MarkdownPreviewProps = {
   content: string;
   minHeight?: number;
   maxHeight?: number;
   className?: string;
+  language?: MarkdownLanguage;
+  emptyText?: string;
 };
 
 type MarkdownEditorProps = {
@@ -18,6 +21,9 @@ type MarkdownEditorProps = {
   maxHeight?: number;
   placeholder?: string;
   readOnly?: boolean;
+  modeLabels?: Partial<Record<MarkdownMode, string>>;
+  language?: MarkdownLanguage;
+  previewEmptyText?: string;
 };
 
 function renderInline(text: string, keyPrefix: string): ReactNode[] {
@@ -239,15 +245,18 @@ export function MarkdownPreview({
   minHeight = 240,
   maxHeight = 560,
   className,
+  language = "zh",
+  emptyText,
 }: MarkdownPreviewProps) {
   const nodes = useMemo(() => parseMarkdown(content), [content]);
+  const effectiveEmptyText = emptyText ?? (language === "en" ? "(No content)" : "(无内容)");
   return (
     <div
-      className={`overflow-auto rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 ${className ?? ""}`}
+      className={`overflow-x-hidden overflow-y-auto rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 ${className ?? ""}`}
       style={{ minHeight, maxHeight }}
     >
       <div className="space-y-3 break-words [overflow-wrap:anywhere]">
-        {nodes.length === 0 ? <div className="text-slate-400">(无内容)</div> : nodes}
+        {nodes.length === 0 ? <div className="text-slate-400">{effectiveEmptyText}</div> : nodes}
       </div>
     </div>
   );
@@ -260,8 +269,16 @@ export function MarkdownEditor({
   maxHeight = 560,
   placeholder,
   readOnly = false,
+  modeLabels,
+  language = "zh",
+  previewEmptyText,
 }: MarkdownEditorProps) {
   const [mode, setMode] = useState<MarkdownMode>("split");
+  const labels: Record<MarkdownMode, string> = {
+    edit: modeLabels?.edit ?? (language === "en" ? "Edit" : "编辑"),
+    preview: modeLabels?.preview ?? (language === "en" ? "Preview" : "预览"),
+    split: modeLabels?.split ?? (language === "en" ? "Split" : "分栏"),
+  };
   const effectiveMode = readOnly ? "split" : mode;
   const showEditor = effectiveMode === "edit" || effectiveMode === "split";
   const showPreview = effectiveMode === "preview" || effectiveMode === "split";
@@ -277,7 +294,7 @@ export function MarkdownEditor({
             variant={mode === "edit" ? "default" : "outline"}
             onClick={() => setMode("edit")}
           >
-            编辑
+            {labels.edit}
           </Button>
           <Button
             type="button"
@@ -285,7 +302,7 @@ export function MarkdownEditor({
             variant={mode === "preview" ? "default" : "outline"}
             onClick={() => setMode("preview")}
           >
-            预览
+            {labels.preview}
           </Button>
           <Button
             type="button"
@@ -293,7 +310,7 @@ export function MarkdownEditor({
             variant={mode === "split" ? "default" : "outline"}
             onClick={() => setMode("split")}
           >
-            分栏
+            {labels.split}
           </Button>
         </div>
       ) : null}
@@ -312,7 +329,13 @@ export function MarkdownEditor({
         ) : null}
 
         {showPreview ? (
-          <MarkdownPreview content={value} minHeight={minHeight} maxHeight={maxHeight} />
+          <MarkdownPreview
+            content={value}
+            minHeight={minHeight}
+            maxHeight={maxHeight}
+            language={language}
+            emptyText={previewEmptyText}
+          />
         ) : null}
       </div>
     </div>

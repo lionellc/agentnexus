@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { appDataDir } from "@tauri-apps/api/path";
 
 import {
   agentConnectionApi,
@@ -12,6 +13,7 @@ import {
 } from "../services/api";
 import type {
   AgentConnection,
+  AgentConnectionDeleteInput,
   AgentConnectionToggleInput,
   AgentConnectionUpsertInput,
   DistributionTarget,
@@ -30,6 +32,21 @@ export type SettingsSaveResult = {
   ok: boolean;
   message: string;
 };
+
+const LANGUAGE_STORAGE_KEY = "agentnexus.app.language";
+
+function isEnglishLanguage(): boolean {
+  try {
+    const language = globalThis.localStorage?.getItem(LANGUAGE_STORAGE_KEY)?.trim()?.toLowerCase() ?? "";
+    return language === "en" || language.startsWith("en-");
+  } catch {
+    return false;
+  }
+}
+
+function message(zh: string, en: string): string {
+  return isEnglishLanguage() ? en : zh;
+}
 
 type SettingsState = {
   workspaces: Workspace[];
@@ -50,6 +67,7 @@ type SettingsState = {
   loadConnections: (workspaceId?: string) => Promise<AgentConnection[]>;
   upsertConnection: (input: AgentConnectionUpsertInput) => Promise<SettingsSaveResult>;
   toggleConnection: (input: AgentConnectionToggleInput) => Promise<SettingsSaveResult>;
+  deleteConnection: (input: AgentConnectionDeleteInput) => Promise<SettingsSaveResult>;
   upsertTarget: (input: TargetUpsertInput) => Promise<SettingsSaveResult>;
   updateRuntimeFlags: (next: RuntimeFlags) => Promise<SettingsSaveResult>;
   setWebDav: (next: WebDavConfig) => void;
@@ -76,6 +94,17 @@ function isAbsolutePath(path: string): boolean {
     return true;
   }
   return /^[A-Za-z]:[\\/]/.test(trimmed);
+}
+
+function isValidRuleFilePath(path: string): boolean {
+  const trimmed = path.trim();
+  if (!trimmed) {
+    return false;
+  }
+  if (trimmed.startsWith("/") || /^[A-Za-z]:[\\/]/.test(trimmed)) {
+    return false;
+  }
+  return !trimmed.split(/[\\/]+/).some((segment) => segment === "..");
 }
 
 function createFormState<T>(values: T): FormState<T> {
@@ -133,6 +162,27 @@ function toRuntimeFlagsForm(runtimeFlags?: RuntimeFlags): RuntimeFlagsFormValues
   return { ...runtimeFlags };
 }
 
+async function resolveSingleProjectWorkspace(): Promise<Workspace[]> {
+  let workspaces = await workspaceApi.list();
+  if (workspaces.length === 0) {
+    const defaultDir = await appDataDir();
+    const created = await workspaceApi.create({
+      name: message("默认项目", "Default Project"),
+      rootPath: defaultDir,
+    });
+    const activated = await workspaceApi.activate(created.id);
+    return [{ ...activated, active: true }];
+  }
+
+  const currentActive = workspaces.find((item) => item.active);
+  if (currentActive) {
+    return [{ ...currentActive, active: true }];
+  }
+
+  const activated = await workspaceApi.activate(workspaces[0].id);
+  return [{ ...activated, active: true }];
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   workspaces: [],
   activeWorkspaceId: null,
@@ -155,8 +205,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loadAll: async () => {
     set({ loading: true });
     try {
-      const [workspaces, runtimeFlags] = await Promise.all([workspaceApi.list(), runtimeApi.getFlags()]);
-      const activeWorkspace = workspaces.find((item) => item.active) ?? workspaces[0] ?? null;
+      const [workspaces, runtimeFlags] = await Promise.all([
+        resolveSingleProjectWorkspace(),
+        runtimeApi.getFlags(),
+      ]);
+      const activeWorkspace = workspaces[0] ?? null;
       const [targets, connections] = activeWorkspace
         ? await Promise.all([targetApi.list(activeWorkspace.id), agentConnectionApi.list(activeWorkspace.id)])
         : [[], []];
@@ -216,11 +269,26 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     return connections;
   },
   upsertConnection: async (input) => {
-    if (!isAbsolutePath(input.rootDir)) {
-      return { ok: false, message: "根目录必须是绝对路径" };
+    const rootDir = input.rootDir.trim();
+    const enabled = input.enabled ?? true;
+    if (enabled) {
+      if (!isAbsolutePath(rootDir)) {
+        return { ok: false, message: message("启用 Agent 时根目录必须是绝对路径", "Root directory must be an absolute path when enabling agent") };
+      }
+    } else if (rootDir && !isAbsolutePath(rootDir)) {
+      return { ok: false, message: message("根目录必须是绝对路径", "Root directory must be an absolute path") };
+    }
+    const ruleFile = (input.ruleFile ?? "").trim();
+    if (!isValidRuleFilePath(ruleFile)) {
+      return { ok: false, message: message("规则文件必须是相对路径，且不能包含 ..", "Rule file must be a relative path and cannot contain ..") };
     }
 
-    const connection = await agentConnectionApi.upsert(input);
+    const connection = await agentConnectionApi.upsert({
+      ...input,
+      rootDir,
+      ruleFile,
+      enabled,
+    });
     set((state) => {
       const nextConnections = state.connections.filter(
         (item) => !(item.workspaceId === connection.workspaceId && item.platform === connection.platform),
@@ -228,7 +296,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       nextConnections.push(connection);
       return { connections: nextConnections };
     });
-    return { ok: true, message: "连接配置已保存" };
+    return { ok: true, message: message("连接配置已保存", "Connection settings saved") };
   },
   toggleConnection: async (input) => {
     const connection = await agentConnectionApi.toggle(input);
@@ -237,20 +305,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         item.workspaceId === connection.workspaceId && item.platform === connection.platform ? connection : item,
       ),
     }));
-    return { ok: true, message: input.enabled ? "连接已启用" : "连接已禁用" };
+    return {
+      ok: true,
+      message: input.enabled ? message("连接已启用", "Connection enabled") : message("连接已禁用", "Connection disabled"),
+    };
+  },
+  deleteConnection: async (input) => {
+    const connections = await agentConnectionApi.delete(input);
+    set({ connections });
+    return { ok: true, message: message("连接已删除", "Connection deleted") };
   },
   upsertTarget: async (input) => {
     if (!validateTargetPath(input.targetPath)) {
-      return { ok: false, message: "目标路径不合法" };
+      return { ok: false, message: message("目标路径不合法", "Invalid target path") };
     }
     if (input.skillsPath && !validateTargetPath(input.skillsPath)) {
-      return { ok: false, message: "Skills 路径不合法" };
+      return { ok: false, message: message("Skills 路径不合法", "Invalid skills path") };
     }
 
     await targetApi.upsert(input);
     const targets = await targetApi.list(input.workspaceId);
     set({ targets, targetForm: createFormState(toTargetForm(targets[0])) });
-    return { ok: true, message: "保存成功" };
+    return { ok: true, message: message("保存成功", "Saved successfully") };
   },
   updateRuntimeFlags: async (next) => {
     const updated = await runtimeApi.updateFlags({
@@ -260,7 +336,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     });
     set({ runtimeFlags: updated });
     set({ runtimeFlagsForm: createFormState(toRuntimeFlagsForm(updated)) });
-    return { ok: true, message: "已更新" };
+    return { ok: true, message: message("已更新", "Updated") };
   },
   setWebDav: (webdav) => {
     saveWebDavConfig(webdav);
@@ -278,14 +354,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   testWebDav: async () => {
     const { webdav } = get();
     if (!webdav.enabled) {
-      return { ok: false, message: "请先启用 WebDAV" };
+      return { ok: false, message: message("请先启用 WebDAV", "Please enable WebDAV first") };
     }
     if (!webdav.endpoint.trim()) {
-      return { ok: false, message: "请输入服务器地址" };
+      return { ok: false, message: message("请输入服务器地址", "Please enter the server URL") };
     }
 
     await securityApi.checkExternalSource(webdav.endpoint);
-    return { ok: true, message: "连接测试成功" };
+    return { ok: true, message: message("连接测试成功", "Connection test passed") };
   },
   uploadWebDav: async () => {
     const state = get();
@@ -297,7 +373,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const updated: WebDavConfig = { ...state.webdav, lastSyncAt: new Date().toISOString() };
     saveWebDavConfig(updated);
     set({ webdav: updated });
-    return { ok: true, message: "上传完成（本地模拟）" };
+    return { ok: true, message: message("上传完成（本地模拟）", "Upload completed (local simulation)") };
   },
   downloadWebDav: async () => {
     const state = get();
@@ -309,7 +385,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const updated: WebDavConfig = { ...state.webdav, lastSyncAt: new Date().toISOString() };
     saveWebDavConfig(updated);
     set({ webdav: updated });
-    return { ok: true, message: "下载完成（本地模拟）" };
+    return { ok: true, message: message("下载完成（本地模拟）", "Download completed (local simulation)") };
   },
   setDirty: (section, isDirty) =>
     set((state) => ({

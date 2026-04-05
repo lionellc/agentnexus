@@ -24,6 +24,7 @@ pub fn discover_skills(directories: &[PathBuf]) -> Result<Vec<DiscoveredSkill>, 
             continue;
         }
         for entry in WalkDir::new(root)
+            .follow_links(true)
             .into_iter()
             .filter_map(|item| item.ok())
             .filter(|item| item.file_type().is_file())
@@ -58,10 +59,15 @@ pub fn discover_skills(directories: &[PathBuf]) -> Result<Vec<DiscoveredSkill>, 
 }
 
 pub fn default_skill_directories(workspace_root: &Path) -> Vec<PathBuf> {
-    let mut dirs = vec![workspace_root.join(".codex/skills")];
+    let mut dirs = vec![
+        workspace_root.join(".codex"),
+        workspace_root.join(".claude"),
+        workspace_root.join(".agents"),
+    ];
     if let Some(home) = dirs::home_dir() {
-        dirs.push(home.join(".codex/skills"));
-        dirs.push(home.join(".agents/skills"));
+        dirs.push(home.join(".codex"));
+        dirs.push(home.join(".claude"));
+        dirs.push(home.join(".agents"));
     }
     dirs
 }
@@ -96,6 +102,7 @@ fn normalize_identity(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::path::Path;
 
     use super::discover_skills;
 
@@ -109,5 +116,29 @@ mod tests {
         let list = discover_skills(&[workspace.path().to_path_buf()]).expect("scan skills");
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].version, "1.2.3");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scan_skill_from_symlink_directory() {
+        let workspace = tempfile::tempdir().expect("temp workspace");
+        let actual_skill = workspace.path().join("actual-skill");
+        fs::create_dir_all(&actual_skill).expect("create actual skill");
+        fs::write(actual_skill.join("SKILL.md"), "version: \"2.0.0\"\n").expect("write skill file");
+
+        let linked_skill = workspace
+            .path()
+            .join(".codex")
+            .join("skills")
+            .join("find-skills");
+        fs::create_dir_all(linked_skill.parent().expect("linked skill parent"))
+            .expect("create linked parent");
+        std::os::unix::fs::symlink(&actual_skill, &linked_skill).expect("create symlink");
+
+        let list = discover_skills(&[workspace.path().join(".codex")]).expect("scan skills");
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].name, "find-skills");
+        assert_eq!(list[0].version, "2.0.0");
+        assert_eq!(Path::new(&list[0].local_path), linked_skill.as_path());
     }
 }

@@ -1,24 +1,19 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
+import { Menu } from "lucide-react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
-import { Sheet, SheetContent } from "../../shared/ui";
+import { Button, Sheet, SheetContent } from "../../shared/ui";
 import { Sidebar } from "./Sidebar";
-import { TopBar } from "./TopBar";
-import type { MainModule } from "./types";
-import type { GlobalSearchHit } from "../../shared/stores";
+import type { AppLanguage, MainModule } from "./types";
 
 export function AppShell({
   activeModule,
+  language,
   onChangeModule,
   promptCount,
   skillCount,
   agentRulesCount,
-  searchQuery,
-  onSearchQuery,
-  searchHits,
-  onSelectSearchHit,
-  onQuickCreate,
   onOpenSettings,
-  onToggleTheme,
   sidebarOpen,
   onSidebarOpen,
   mobileDetailOpen,
@@ -28,17 +23,12 @@ export function AppShell({
   detail,
 }: {
   activeModule: MainModule;
+  language: AppLanguage;
   onChangeModule: (module: MainModule) => void;
   promptCount: number;
   skillCount: number;
   agentRulesCount: number;
-  searchQuery: string;
-  onSearchQuery: (query: string) => void;
-  searchHits: GlobalSearchHit[];
-  onSelectSearchHit: (hit: GlobalSearchHit) => void;
-  onQuickCreate: () => void;
   onOpenSettings: () => void;
-  onToggleTheme: () => void;
   sidebarOpen: boolean;
   onSidebarOpen: (open: boolean) => void;
   mobileDetailOpen: boolean;
@@ -47,18 +37,36 @@ export function AppShell({
   center: ReactNode;
   detail: ReactNode;
 }) {
+  const macDragBarHeight = 40;
   const isDesktop = typeof window !== "undefined" ? window.innerWidth >= 1024 : false;
+  const isMac = typeof navigator !== "undefined" ? /mac/i.test(navigator.platform) : false;
+  const showMacDragBar = isMac && isDesktop;
   const mobileSheetEnabled = !isDesktop;
   const layoutClass = showDetailPanel
-    ? "grid h-full grid-cols-1 lg:grid-cols-[248px_1fr_480px]"
-    : "grid h-full grid-cols-1 lg:grid-cols-[248px_1fr]";
+    ? "grid h-full grid-cols-1 lg:grid-cols-[264px_1fr_480px]"
+    : "grid h-full grid-cols-1 lg:grid-cols-[264px_1fr]";
+
+  const handleMacDragMouseDown = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) {
+      return;
+    }
+    event.preventDefault();
+    void getCurrentWindow().startDragging().catch(() => {});
+  };
 
   return (
-    <div className="h-screen bg-slate-100 text-slate-900">
-      <div className={layoutClass}>
+    <div className="relative h-screen overflow-hidden bg-background text-foreground">
+      {showMacDragBar ? (
+        <div
+          className="absolute inset-x-0 top-0 z-40 h-10 border-b border-border bg-background/90"
+          onMouseDown={handleMacDragMouseDown}
+        />
+      ) : null}
+      <div className={layoutClass} style={showMacDragBar ? { paddingTop: `${macDragBarHeight}px` } : undefined}>
         <div className="hidden lg:block">
           <Sidebar
             activeModule={activeModule}
+            language={language}
             onChangeModule={onChangeModule}
             promptCount={promptCount}
             skillCount={skillCount}
@@ -78,6 +86,7 @@ export function AppShell({
           <SheetContent side="left" className="p-0 lg:hidden">
             <Sidebar
               activeModule={activeModule}
+              language={language}
               onChangeModule={(module) => {
                 onChangeModule(module);
                 onSidebarOpen(false);
@@ -93,17 +102,13 @@ export function AppShell({
           </SheetContent>
         </Sheet>
 
-        <div className="flex min-w-0 flex-col border-r border-slate-200 bg-slate-100">
-          <TopBar
-            query={searchQuery}
-            onQueryChange={onSearchQuery}
-            hits={searchHits}
-            onSelectHit={onSelectSearchHit}
-            onQuickCreate={onQuickCreate}
-            onToggleTheme={onToggleTheme}
-            onToggleSidebar={() => onSidebarOpen(true)}
-          />
-          <main className="min-h-0 flex-1 overflow-auto p-4">{center}</main>
+        <div className="flex h-full min-w-0 flex-col border-r border-border bg-background">
+          <div className="border-b border-border bg-background/85 px-4 py-2 backdrop-blur-sm lg:hidden">
+            <Button variant="outline" size="icon" onClick={() => onSidebarOpen(true)}>
+              <Menu className="h-4 w-4" />
+            </Button>
+          </div>
+          <main className="min-h-0 flex-1 overflow-y-auto p-4">{center}</main>
         </div>
 
         {showDetailPanel ? (
@@ -117,11 +122,11 @@ export function AppShell({
               }}
             >
               <SheetContent side="right" className="w-full max-w-[92vw] p-0 lg:hidden">
-                <div className="h-full overflow-auto bg-white">{detail}</div>
+                <div className="h-full overflow-auto bg-card">{detail}</div>
               </SheetContent>
             </Sheet>
 
-            <aside className="hidden min-h-0 overflow-auto bg-white lg:block">{detail}</aside>
+            <aside className="hidden h-full min-h-0 overflow-y-auto bg-card lg:block">{detail}</aside>
           </>
         ) : null}
       </div>

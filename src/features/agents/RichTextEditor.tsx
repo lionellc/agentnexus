@@ -2,18 +2,45 @@ import { useEffect, useRef } from "react";
 
 import { Button } from "../../shared/ui";
 
+type RichTextEditorLanguage = "zh" | "en";
+
+type RichTextEditorLabels = {
+  bold: string;
+  italic: string;
+  underline: string;
+  unorderedList: string;
+  heading: string;
+  paragraph: string;
+};
+
 type RichTextEditorProps = {
   value: string;
   onChange: (next: string) => void;
   minHeight?: number;
+  language?: RichTextEditorLanguage;
+  labels?: Partial<RichTextEditorLabels>;
 };
 
 function applyCommand(command: string, value?: string): void {
   document.execCommand(command, false, value);
 }
 
-export function RichTextEditor({ value, onChange, minHeight = 320 }: RichTextEditorProps) {
+export function RichTextEditor({
+  value,
+  onChange,
+  minHeight = 320,
+  language = "zh",
+  labels,
+}: RichTextEditorProps) {
   const editorRef = useRef<HTMLDivElement | null>(null);
+  const effectiveLabels: RichTextEditorLabels = {
+    bold: labels?.bold ?? (language === "en" ? "Bold" : "加粗"),
+    italic: labels?.italic ?? (language === "en" ? "Italic" : "斜体"),
+    underline: labels?.underline ?? (language === "en" ? "Underline" : "下划线"),
+    unorderedList: labels?.unorderedList ?? (language === "en" ? "Bullet List" : "无序列表"),
+    heading: labels?.heading ?? (language === "en" ? "Heading" : "标题"),
+    paragraph: labels?.paragraph ?? (language === "en" ? "Paragraph" : "正文"),
+  };
 
   useEffect(() => {
     const node = editorRef.current;
@@ -29,13 +56,13 @@ export function RichTextEditor({ value, onChange, minHeight = 320 }: RichTextEdi
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("bold")}>
-          加粗
+          {effectiveLabels.bold}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("italic")}>
-          斜体
+          {effectiveLabels.italic}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("underline")}>
-          下划线
+          {effectiveLabels.underline}
         </Button>
         <Button
           type="button"
@@ -43,13 +70,13 @@ export function RichTextEditor({ value, onChange, minHeight = 320 }: RichTextEdi
           variant="outline"
           onClick={() => applyCommand("insertUnorderedList")}
         >
-          无序列表
+          {effectiveLabels.unorderedList}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("formatBlock", "h2")}>
-          标题
+          {effectiveLabels.heading}
         </Button>
         <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("formatBlock", "p")}>
-          正文
+          {effectiveLabels.paragraph}
         </Button>
       </div>
 
@@ -64,4 +91,3 @@ export function RichTextEditor({ value, onChange, minHeight = 320 }: RichTextEdi
     </div>
   );
 }
-

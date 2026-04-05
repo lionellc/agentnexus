@@ -1,4 +1,7 @@
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Component, Path, PathBuf},
+};
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -23,6 +26,7 @@ pub struct AgentConnectionDto {
     pub workspace_id: String,
     pub agent_type: String,
     pub root_dir: String,
+    pub rule_file: String,
     pub enabled: bool,
     pub resolved_path: Option<String>,
     pub created_at: String,
@@ -109,6 +113,7 @@ pub struct AgentConnectionUpsertInput {
     pub workspace_id: String,
     pub agent_type: String,
     pub root_dir: String,
+    pub rule_file: Option<String>,
     pub enabled: bool,
 }
 
@@ -118,6 +123,13 @@ pub struct AgentConnectionToggleInput {
     pub workspace_id: String,
     pub agent_type: String,
     pub enabled: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConnectionDeleteInput {
+    pub workspace_id: String,
+    pub agent_type: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -149,6 +161,14 @@ pub struct AgentRuleAssetPublishInput {
 pub struct AgentRuleAssetDeleteInput {
     pub workspace_id: String,
     pub asset_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuleAssetRenameInput {
+    pub workspace_id: String,
+    pub asset_id: String,
+    pub name: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -202,8 +222,9 @@ pub fn agent_connection_upsert(
     ensure_workspace_exists(&conn, &input.workspace_id)?;
     ensure_default_agent_connections(&conn, &input.workspace_id)?;
 
-    let agent_type = normalize_agent_type(&input.agent_type)?.to_string();
+    let agent_type = normalize_agent_type(&input.agent_type)?;
     let root_dir = input.root_dir.trim().to_string();
+    let rule_file = normalize_rule_file(input.rule_file.as_deref(), &agent_type)?;
     if input.enabled {
         validate_enabled_root_dir(&root_dir)?;
     } else if !root_dir.is_empty() {
@@ -221,10 +242,11 @@ pub fn agent_connection_upsert(
     let id = existing_id.unwrap_or_else(|| Uuid::new_v4().to_string());
 
     conn.execute(
-        "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(workspace_id, agent_type) DO UPDATE SET
             root_dir = excluded.root_dir,
+            rule_file = excluded.rule_file,
             enabled = excluded.enabled,
             updated_at = excluded.updated_at",
         params![
@@ -232,6 +254,7 @@ pub fn agent_connection_upsert(
             input.workspace_id,
             agent_type,
             root_dir,
+            rule_file,
             bool_to_int(input.enabled),
             now,
             now,
@@ -250,7 +273,7 @@ pub fn agent_connection_toggle(
     ensure_workspace_exists(&conn, &input.workspace_id)?;
     ensure_default_agent_connections(&conn, &input.workspace_id)?;
 
-    let agent_type = normalize_agent_type(&input.agent_type)?.to_string();
+    let agent_type = normalize_agent_type(&input.agent_type)?;
     let connection = get_agent_connection(&conn, &input.workspace_id, &agent_type)?;
 
     if input.enabled {
@@ -271,6 +294,33 @@ pub fn agent_connection_toggle(
 }
 
 #[tauri::command]
+pub fn agent_connection_delete(
+    state: State<'_, AppState>,
+    input: AgentConnectionDeleteInput,
+) -> Result<Vec<AgentConnectionDto>, AppError> {
+    let conn = state.open()?;
+    ensure_workspace_exists(&conn, &input.workspace_id)?;
+    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+
+    let agent_type = normalize_agent_type(&input.agent_type)?;
+    if matches!(agent_type.as_str(), AGENT_CODEX | AGENT_CLAUDE) {
+        return Err(AppError::invalid_argument(
+            "codex/claude 为内置连接，禁止删除",
+        ));
+    }
+
+    let affected = conn.execute(
+        "DELETE FROM agent_connections WHERE workspace_id = ?1 AND agent_type = ?2",
+        params![input.workspace_id, agent_type],
+    )?;
+    if affected == 0 {
+        return Err(AppError::invalid_argument("Agent 连接不存在"));
+    }
+
+    list_agent_connections(&conn, &input.workspace_id)
+}
+
+#[tauri::command]
 pub fn agent_connection_preview(
     state: State<'_, AppState>,
     input: AgentRulePreviewInput,
@@ -279,11 +329,15 @@ pub fn agent_connection_preview(
     ensure_workspace_exists(&conn, &input.workspace_id)?;
     ensure_default_agent_connections(&conn, &input.workspace_id)?;
 
-    let agent_type = normalize_agent_type(&input.agent_type)?.to_string();
+    let agent_type = normalize_agent_type(&input.agent_type)?;
     let connection = get_agent_connection(&conn, &input.workspace_id, &agent_type)?;
     validate_enabled_root_dir(&connection.root_dir)?;
 
-    let resolved_path = resolve_rule_file_path(&connection.root_dir, &agent_type)?;
+    let resolved_path = resolve_rule_file_path(
+        &connection.root_dir,
+        &connection.rule_file,
+        &connection.agent_type,
+    )?;
     let resolved_path_str = resolved_path.to_string_lossy().to_string();
 
     match fs::read_to_string(&resolved_path) {
@@ -427,12 +481,35 @@ pub fn agent_rule_asset_delete(
 }
 
 #[tauri::command]
+pub fn agent_rule_asset_rename(
+    state: State<'_, AppState>,
+    input: AgentRuleAssetRenameInput,
+) -> Result<AgentRuleAssetDto, AppError> {
+    let conn = state.open()?;
+    ensure_workspace_exists(&conn, &input.workspace_id)?;
+    get_asset_latest_bundle(&conn, &input.workspace_id, &input.asset_id)?;
+    let name = input.name.trim();
+    if name.is_empty() {
+        return Err(AppError::invalid_argument("规则名称不能为空"));
+    }
+    let now = now_rfc3339();
+    conn.execute(
+        "UPDATE global_rule_assets
+         SET name = ?3, updated_at = ?4
+         WHERE id = ?1 AND workspace_id = ?2",
+        params![input.asset_id, input.workspace_id, name, now],
+    )?;
+    get_asset_summary(&conn, &input.asset_id)
+}
+
+#[tauri::command]
 pub fn agent_rule_publish_version(
     state: State<'_, AppState>,
     input: AgentRuleAssetPublishInput,
 ) -> Result<AgentRuleVersionDto, AppError> {
     let mut conn = state.open()?;
-    let (workspace_id, next_version) = get_asset_workspace_and_next_version(&conn, &input.asset_id)?;
+    let (workspace_id, next_version) =
+        get_asset_workspace_and_next_version(&conn, &input.asset_id)?;
     ensure_workspace_exists(&conn, &workspace_id)?;
 
     let now = now_rfc3339();
@@ -522,7 +599,8 @@ pub fn agent_rule_apply(
     ensure_default_agent_connections(&conn, &input.workspace_id)?;
 
     let bundle = get_asset_latest_bundle(&conn, &input.workspace_id, &input.asset_id)?;
-    let targets = list_enabled_connections(&conn, &input.workspace_id, input.agent_types.as_deref())?;
+    let targets =
+        list_enabled_connections(&conn, &input.workspace_id, input.agent_types.as_deref())?;
     if targets.is_empty() {
         return Err(AppError::invalid_argument("未找到可应用的 Agent 连接"));
     }
@@ -625,9 +703,10 @@ pub fn agent_rule_retry(
         return Err(AppError::invalid_argument("没有可重试的失败目标"));
     }
 
-    let version = source.3.parse::<i64>().map_err(|_| {
-        AppError::invalid_argument("原始任务 release_version 非法，无法重试")
-    })?;
+    let version = source
+        .3
+        .parse::<i64>()
+        .map_err(|_| AppError::invalid_argument("原始任务 release_version 非法，无法重试"))?;
 
     let bundle = get_asset_version_bundle(&conn, &source.1, &asset_id, version)?;
     let targets = list_enabled_connections(&conn, &source.1, Some(failed_agents.as_slice()))?;
@@ -691,43 +770,52 @@ pub fn agent_rule_refresh(
     for (agent_type, expected_hash) in tagged {
         let connection = get_agent_connection(&conn, &bundle.workspace_id, &agent_type)?;
         let (status, message, actual_hash, resolved_path) =
-            match validate_enabled_root_dir(&connection.root_dir)
-                .and_then(|_| resolve_rule_file_path(&connection.root_dir, &agent_type))
-            {
-            Ok(path) => {
-                let resolved_path = path.to_string_lossy().to_string();
-                match sha256_file(&path) {
-                    Ok(current_hash) => {
-                        if current_hash == expected_hash {
-                            (
-                                "clean".to_string(),
-                                "ok".to_string(),
-                                current_hash,
-                                resolved_path,
-                            )
-                        } else {
-                            (
-                                "drifted".to_string(),
-                                "content_mismatch".to_string(),
-                                current_hash,
-                                resolved_path,
-                            )
+            match validate_enabled_root_dir(&connection.root_dir).and_then(|_| {
+                resolve_rule_file_path(
+                    &connection.root_dir,
+                    &connection.rule_file,
+                    &connection.agent_type,
+                )
+            }) {
+                Ok(path) => {
+                    let resolved_path = path.to_string_lossy().to_string();
+                    match sha256_file(&path) {
+                        Ok(current_hash) => {
+                            if current_hash == expected_hash {
+                                (
+                                    "clean".to_string(),
+                                    "ok".to_string(),
+                                    current_hash,
+                                    resolved_path,
+                                )
+                            } else {
+                                (
+                                    "drifted".to_string(),
+                                    "content_mismatch".to_string(),
+                                    current_hash,
+                                    resolved_path,
+                                )
+                            }
+                        }
+                        Err(err) => {
+                            let message = if err.message.contains("No such file") {
+                                "not_found".to_string()
+                            } else if err.message.contains("Permission denied") {
+                                "permission_denied".to_string()
+                            } else {
+                                err.message
+                            };
+                            ("error".to_string(), message, String::new(), resolved_path)
                         }
                     }
-                    Err(err) => {
-                        let message = if err.message.contains("No such file") {
-                            "not_found".to_string()
-                        } else if err.message.contains("Permission denied") {
-                            "permission_denied".to_string()
-                        } else {
-                            err.message
-                        };
-                        ("error".to_string(), message, String::new(), resolved_path)
-                    }
                 }
-            }
-            Err(err) => ("error".to_string(), err.message, String::new(), String::new()),
-        };
+                Err(err) => (
+                    "error".to_string(),
+                    err.message,
+                    String::new(),
+                    String::new(),
+                ),
+            };
 
         update_tag_status(
             &conn,
@@ -781,6 +869,7 @@ struct ConnectionRow {
     workspace_id: String,
     agent_type: String,
     root_dir: String,
+    rule_file: String,
     enabled: bool,
     created_at: String,
     updated_at: String,
@@ -810,50 +899,126 @@ fn ensure_workspace_exists(conn: &Connection, workspace_id: &str) -> Result<(), 
 fn ensure_default_agent_connections(conn: &Connection, workspace_id: &str) -> Result<(), AppError> {
     let now = now_rfc3339();
     for agent_type in [AGENT_CODEX, AGENT_CLAUDE] {
+        let default_root = default_agent_root_dir(agent_type);
+        let default_rule_file = default_rule_file_name(agent_type);
         conn.execute(
-            "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at)
-             VALUES (?1, ?2, ?3, '', 1, ?4, ?5)
-             ON CONFLICT(workspace_id, agent_type) DO NOTHING",
-            params![Uuid::new_v4().to_string(), workspace_id, agent_type, now, now],
+            "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)
+             ON CONFLICT(workspace_id, agent_type) DO UPDATE SET
+               root_dir = CASE
+                 WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                 THEN excluded.root_dir
+                 ELSE agent_connections.root_dir
+               END,
+               rule_file = CASE
+                 WHEN trim(COALESCE(agent_connections.rule_file, '')) = ''
+                 THEN excluded.rule_file
+                 ELSE agent_connections.rule_file
+               END,
+               updated_at = CASE
+                 WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                   OR trim(COALESCE(agent_connections.rule_file, '')) = ''
+                 THEN excluded.updated_at
+                 ELSE agent_connections.updated_at
+               END",
+            params![
+                Uuid::new_v4().to_string(),
+                workspace_id,
+                agent_type,
+                default_root,
+                default_rule_file,
+                now,
+                now
+            ],
         )?;
     }
     Ok(())
 }
 
-fn normalize_agent_type(agent_type: &str) -> Result<&'static str, AppError> {
+fn normalize_agent_type(agent_type: &str) -> Result<String, AppError> {
+    let normalized = agent_type.trim().to_lowercase();
+    if normalized.is_empty() {
+        return Err(AppError::invalid_argument("agent_type 不能为空"));
+    }
+    let valid = normalized
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-');
+    if !valid {
+        return Err(AppError::invalid_argument("agent_type 仅允许字母/数字/-/_"));
+    }
+    Ok(normalized)
+}
+
+fn default_rule_file_name(agent_type: &str) -> String {
     match agent_type.trim().to_lowercase().as_str() {
-        AGENT_CODEX => Ok(AGENT_CODEX),
-        AGENT_CLAUDE => Ok(AGENT_CLAUDE),
-        _ => Err(AppError::invalid_argument("仅支持 codex/claude")),
+        AGENT_CODEX => "AGENTS.md".to_string(),
+        AGENT_CLAUDE => "CLAUDE.md".to_string(),
+        _ => "AGENTS.md".to_string(),
     }
 }
 
-fn relative_rule_path(agent_type: &str) -> Result<&'static str, AppError> {
-    match normalize_agent_type(agent_type)? {
-        AGENT_CODEX => Ok(".codex/AGENTS.md"),
-        AGENT_CLAUDE => Ok(".claude/CLAUDE.md"),
-        _ => Err(AppError::invalid_argument("未知 agent_type")),
+fn default_agent_root_dir(agent_type: &str) -> String {
+    let suffix = match agent_type.trim().to_lowercase().as_str() {
+        AGENT_CODEX => Some(".codex"),
+        AGENT_CLAUDE => Some(".claude"),
+        _ => None,
+    };
+    if let Some(suffix) = suffix {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(suffix).to_string_lossy().to_string();
+        }
     }
+    String::new()
+}
+
+fn normalize_rule_file(rule_file: Option<&str>, agent_type: &str) -> Result<String, AppError> {
+    let candidate = rule_file
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string)
+        .unwrap_or_else(|| default_rule_file_name(agent_type));
+    let path = Path::new(&candidate);
+    if path.is_absolute() {
+        return Err(AppError::invalid_argument("rule_file 必须是相对路径"));
+    }
+    for component in path.components() {
+        if matches!(
+            component,
+            Component::ParentDir | Component::RootDir | Component::Prefix(_)
+        ) {
+            return Err(AppError::invalid_argument("rule_file 路径不合法"));
+        }
+    }
+    Ok(candidate)
 }
 
 fn validate_enabled_root_dir(root_dir: &str) -> Result<(), AppError> {
     if root_dir.trim().is_empty() {
-        return Err(AppError::invalid_argument("启用 Agent 时 root_dir 不能为空"));
+        return Err(AppError::invalid_argument(
+            "启用 Agent 时 root_dir 不能为空",
+        ));
     }
     validate_absolute_root_dir(root_dir)?;
     Ok(())
 }
 
-fn resolve_rule_file_path(root_dir: &str, agent_type: &str) -> Result<PathBuf, AppError> {
+fn resolve_rule_file_path(
+    root_dir: &str,
+    rule_file: &str,
+    agent_type: &str,
+) -> Result<PathBuf, AppError> {
     let root = validate_absolute_root_dir(root_dir)?;
-    Ok(root.join(relative_rule_path(agent_type)?))
+    let normalized_rule_file = normalize_rule_file(Some(rule_file), agent_type)?;
+    Ok(root.join(normalized_rule_file))
 }
 
 fn connection_row_to_dto(row: ConnectionRow) -> AgentConnectionDto {
+    let normalized_rule_file = normalize_rule_file(Some(&row.rule_file), &row.agent_type)
+        .unwrap_or_else(|_| default_rule_file_name(&row.agent_type));
     let resolved_path = if row.root_dir.trim().is_empty() {
         None
     } else {
-        resolve_rule_file_path(&row.root_dir, &row.agent_type)
+        resolve_rule_file_path(&row.root_dir, &normalized_rule_file, &row.agent_type)
             .ok()
             .map(|path| path.to_string_lossy().to_string())
     };
@@ -863,6 +1028,7 @@ fn connection_row_to_dto(row: ConnectionRow) -> AgentConnectionDto {
         workspace_id: row.workspace_id,
         agent_type: row.agent_type,
         root_dir: row.root_dir,
+        rule_file: normalized_rule_file,
         enabled: row.enabled,
         resolved_path,
         created_at: row.created_at,
@@ -875,7 +1041,7 @@ fn list_agent_connections(
     workspace_id: &str,
 ) -> Result<Vec<AgentConnectionDto>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at
+        "SELECT id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at
          FROM agent_connections
          WHERE workspace_id = ?1
          ORDER BY agent_type ASC",
@@ -887,9 +1053,10 @@ fn list_agent_connections(
             workspace_id: row.get(1)?,
             agent_type: row.get(2)?,
             root_dir: row.get(3)?,
-            enabled: row.get::<_, i64>(4)? == 1,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
+            rule_file: row.get(4)?,
+            enabled: row.get::<_, i64>(5)? == 1,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
         })
     })?;
 
@@ -907,7 +1074,7 @@ fn get_agent_connection(
 ) -> Result<AgentConnectionDto, AppError> {
     let row = conn
         .query_row(
-            "SELECT id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at
+            "SELECT id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at
              FROM agent_connections
              WHERE workspace_id = ?1 AND agent_type = ?2",
             params![workspace_id, agent_type],
@@ -917,9 +1084,10 @@ fn get_agent_connection(
                     workspace_id: row.get(1)?,
                     agent_type: row.get(2)?,
                     root_dir: row.get(3)?,
-                    enabled: row.get::<_, i64>(4)? == 1,
-                    created_at: row.get(5)?,
-                    updated_at: row.get(6)?,
+                    rule_file: row.get(4)?,
+                    enabled: row.get::<_, i64>(5)? == 1,
+                    created_at: row.get(6)?,
+                    updated_at: row.get(7)?,
                 })
             },
         )
@@ -1059,7 +1227,7 @@ fn list_asset_tags(
     asset_id: &str,
 ) -> Result<Vec<AgentRuleTagDto>, AppError> {
     let mut stmt = conn.prepare(
-        "SELECT t.agent_type, t.drift_status, t.drift_reason, t.last_checked_at, c.root_dir
+        "SELECT t.agent_type, t.drift_status, t.drift_reason, t.last_checked_at, c.root_dir, c.rule_file
          FROM global_rule_agent_tags t
          LEFT JOIN agent_connections c
            ON c.workspace_id = t.workspace_id AND c.agent_type = t.agent_type
@@ -1074,16 +1242,17 @@ fn list_asset_tags(
             row.get::<_, String>(2)?,
             row.get::<_, Option<String>>(3)?,
             row.get::<_, Option<String>>(4)?.unwrap_or_default(),
+            row.get::<_, Option<String>>(5)?.unwrap_or_default(),
         ))
     })?;
 
     let mut tags = Vec::new();
     for row in rows {
-        let (agent_type, drift_status, drift_reason, last_checked_at, root_dir) = row?;
+        let (agent_type, drift_status, drift_reason, last_checked_at, root_dir, rule_file) = row?;
         let resolved_path = if root_dir.trim().is_empty() {
             None
         } else {
-            resolve_rule_file_path(&root_dir, &agent_type)
+            resolve_rule_file_path(&root_dir, &rule_file, &agent_type)
                 .ok()
                 .map(|path| path.to_string_lossy().to_string())
         };
@@ -1108,7 +1277,7 @@ fn list_enabled_connections(
     let normalized_filter = if let Some(types) = agent_types {
         let mut normalized = Vec::new();
         for item in types {
-            normalized.push(normalize_agent_type(item)?.to_string());
+            normalized.push(normalize_agent_type(item)?);
         }
         Some(normalized)
     } else {
@@ -1116,7 +1285,7 @@ fn list_enabled_connections(
     };
 
     let mut stmt = conn.prepare(
-        "SELECT id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at
+        "SELECT id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at
          FROM agent_connections
          WHERE workspace_id = ?1 AND enabled = 1
          ORDER BY agent_type ASC",
@@ -1128,16 +1297,18 @@ fn list_enabled_connections(
             workspace_id: row.get(1)?,
             agent_type: row.get(2)?,
             root_dir: row.get(3)?,
-            enabled: row.get::<_, i64>(4)? == 1,
-            created_at: row.get(5)?,
-            updated_at: row.get(6)?,
+            rule_file: row.get(4)?,
+            enabled: row.get::<_, i64>(5)? == 1,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
         })
     })?;
 
     for row in query_rows {
         let item = row?;
         if let Some(filter) = &normalized_filter {
-            if !filter.contains(&item.agent_type) {
+            let current = item.agent_type.to_lowercase();
+            if !filter.contains(&current) {
                 continue;
             }
         }
@@ -1176,7 +1347,8 @@ fn run_apply_job(
 
     let mut records = Vec::new();
     for target in targets {
-        let resolved = resolve_rule_file_path(&target.root_dir, &target.agent_type);
+        let resolved =
+            resolve_rule_file_path(&target.root_dir, &target.rule_file, &target.agent_type);
         let mut record = AgentRuleApplyRecordDto {
             id: Uuid::new_v4().to_string(),
             agent_type: target.agent_type.clone(),
@@ -1191,7 +1363,8 @@ fn run_apply_job(
         match resolved {
             Ok(path) => {
                 record.resolved_path = path.to_string_lossy().to_string();
-                match distribute_agents(&bundle.content, &bundle.content_hash, &path, "copy", true) {
+                match distribute_agents(&bundle.content, &bundle.content_hash, &path, "copy", true)
+                {
                     Ok(exec) => {
                         record.status = exec.status;
                         record.message = exec.message;
@@ -1358,7 +1531,10 @@ fn summarize_apply_status(records: &[AgentRuleApplyRecordDto]) -> String {
         return "failed".to_string();
     }
 
-    let success = records.iter().filter(|record| record.status == "success").count();
+    let success = records
+        .iter()
+        .filter(|record| record.status == "success")
+        .count();
     if success == records.len() {
         return "success".to_string();
     }
@@ -1373,12 +1549,18 @@ fn summarize_refresh_status(records: &[AgentRuleApplyRecordDto]) -> String {
         return "failed".to_string();
     }
 
-    let clean = records.iter().filter(|record| record.status == "clean").count();
+    let clean = records
+        .iter()
+        .filter(|record| record.status == "clean")
+        .count();
     let drifted = records
         .iter()
         .filter(|record| record.status == "drifted")
         .count();
-    let error = records.iter().filter(|record| record.status == "error").count();
+    let error = records
+        .iter()
+        .filter(|record| record.status == "error")
+        .count();
 
     if clean == records.len() {
         return "success".to_string();
@@ -1403,7 +1585,7 @@ fn bool_to_int(value: bool) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_agent_type, relative_rule_path, resolve_rule_file_path, summarize_apply_status,
+        normalize_agent_type, normalize_rule_file, resolve_rule_file_path, summarize_apply_status,
         summarize_refresh_status, AgentRuleApplyRecordDto,
     };
 
@@ -1424,37 +1606,52 @@ mod tests {
     fn normalize_agent_type_works() {
         assert_eq!(normalize_agent_type("codex").expect("codex"), "codex");
         assert_eq!(normalize_agent_type("CLAUDE").expect("claude"), "claude");
-        assert_eq!(normalize_agent_type("  CoDeX  ").expect("trim+case"), "codex");
+        assert_eq!(
+            normalize_agent_type("  CoDeX  ").expect("trim+case"),
+            "codex"
+        );
         assert_eq!(normalize_agent_type(" claude ").expect("trim"), "claude");
+        assert_eq!(normalize_agent_type("cursor").expect("custom"), "cursor");
         assert!(normalize_agent_type("").is_err());
-        assert!(normalize_agent_type("cursor").is_err());
+        assert!(normalize_agent_type("cursor role").is_err());
     }
 
     #[test]
-    fn relative_path_mapping_is_fixed() {
-        assert_eq!(relative_rule_path("codex").expect("codex path"), ".codex/AGENTS.md");
-        assert_eq!(relative_rule_path("claude").expect("claude path"), ".claude/CLAUDE.md");
-        assert!(relative_rule_path("gpt").is_err());
+    fn normalize_rule_file_works() {
+        assert_eq!(
+            normalize_rule_file(Some("AGENTS.md"), "codex").expect("codex"),
+            "AGENTS.md"
+        );
+        assert_eq!(
+            normalize_rule_file(Some("roles/CURSOR.md"), "cursor").expect("custom"),
+            "roles/CURSOR.md"
+        );
+        assert_eq!(
+            normalize_rule_file(None, "claude").expect("default"),
+            "CLAUDE.md"
+        );
+        assert!(normalize_rule_file(Some("../bad.md"), "codex").is_err());
+        assert!(normalize_rule_file(Some("/abs/path.md"), "codex").is_err());
     }
 
     #[test]
-    fn resolve_rule_file_path_handles_mapping_and_root_boundary() {
-        let codex_path =
-            resolve_rule_file_path("/tmp/workspace", "codex").expect("codex path should resolve");
+    fn resolve_rule_file_path_handles_root_boundary() {
+        let codex_path = resolve_rule_file_path("/tmp/workspace/.codex", "AGENTS.md", "codex")
+            .expect("codex path should resolve");
         assert_eq!(
             codex_path.to_string_lossy(),
             "/tmp/workspace/.codex/AGENTS.md"
         );
 
-        let claude_path = resolve_rule_file_path("/tmp/workspace", "  CLAUDE  ")
+        let claude_path = resolve_rule_file_path("/tmp/workspace/.claude", "CLAUDE.md", "claude")
             .expect("claude path should resolve");
         assert_eq!(
             claude_path.to_string_lossy(),
             "/tmp/workspace/.claude/CLAUDE.md"
         );
 
-        assert!(resolve_rule_file_path("relative/path", "codex").is_err());
-        assert!(resolve_rule_file_path("/tmp/workspace", "unknown-agent").is_err());
+        assert!(resolve_rule_file_path("relative/path", "AGENTS.md", "codex").is_err());
+        assert!(resolve_rule_file_path("/tmp/workspace", "../escape.md", "codex").is_err());
     }
 
     #[test]

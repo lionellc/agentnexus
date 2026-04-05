@@ -20,6 +20,14 @@ export interface WorkspaceActivateInput {
   id: string;
 }
 
+export interface WorkspaceUpdateInput {
+  id: string;
+  name?: string;
+  rootPath?: string;
+  installMode?: InstallMode;
+  platformOverrides?: Record<string, string>;
+}
+
 export interface RuntimeFlags {
   localMode: boolean;
   externalSourcesEnabled: boolean;
@@ -60,6 +68,7 @@ export interface AgentConnection {
   workspaceId: string;
   platform: AgentPlatform;
   rootDir: string;
+  ruleFile: string;
   enabled: boolean;
   resolvedPath: string | null;
   createdAt: string;
@@ -70,6 +79,7 @@ export interface AgentConnectionUpsertInput {
   workspaceId: string;
   platform: AgentPlatform;
   rootDir: string;
+  ruleFile?: string;
   enabled?: boolean;
 }
 
@@ -77,4 +87,9 @@ export interface AgentConnectionToggleInput {
   workspaceId: string;
   platform: AgentPlatform;
   enabled: boolean;
+}
+
+export interface AgentConnectionDeleteInput {
+  workspaceId: string;
+  platform: AgentPlatform;
 }

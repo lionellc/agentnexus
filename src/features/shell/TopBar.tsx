@@ -4,6 +4,13 @@ import { Menu, Moon, Plus, Search, Sun } from "lucide-react";
 import { Button, Input } from "../../shared/ui";
 import type { GlobalSearchHit } from "../../shared/stores";
 
+type TopBarLanguage = "zh" | "en";
+
+type TopBarLabels = {
+  searchPlaceholder: string;
+  createButton: string;
+};
+
 export function TopBar({
   query,
   onQueryChange,
@@ -12,6 +19,8 @@ export function TopBar({
   onQuickCreate,
   onToggleTheme,
   onToggleSidebar,
+  language = "zh",
+  labels,
 }: {
   query: string;
   onQueryChange: (query: string) => void;
@@ -20,8 +29,16 @@ export function TopBar({
   onQuickCreate: () => void;
   onToggleTheme: () => void;
   onToggleSidebar: () => void;
+  language?: TopBarLanguage;
+  labels?: Partial<TopBarLabels>;
 }) {
   const [activeIndex, setActiveIndex] = useState(-1);
+  const effectiveLabels: TopBarLabels = {
+    searchPlaceholder:
+      labels?.searchPlaceholder ??
+      (language === "en" ? "Search Prompt / Skill / Agent rules..." : "搜索 Prompt / Skill / Agent 规则..."),
+    createButton: labels?.createButton ?? (language === "en" ? "New" : "新建"),
+  };
 
   useEffect(() => {
     setActiveIndex(hits.length > 0 ? 0 : -1);
@@ -39,7 +56,7 @@ export function TopBar({
           <Input
             value={query}
             onChange={(event) => onQueryChange(event.currentTarget.value)}
-            placeholder="搜索 Prompt / Skill / Agent 规则..."
+            placeholder={effectiveLabels.searchPlaceholder}
             className="pl-9"
             onKeyDown={(event) => {
               if (hits.length === 0) {
@@ -104,7 +121,7 @@ export function TopBar({
 
         <Button onClick={onQuickCreate}>
           <Plus className="mr-1 h-4 w-4" />
-          新建
+          {effectiveLabels.createButton}
         </Button>
 
         <Button variant="ghost" size="icon" onClick={onToggleTheme}>

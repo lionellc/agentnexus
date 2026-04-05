@@ -22,6 +22,7 @@ export interface PromptCreateInput {
 
 export interface PromptUpdateInput {
   promptId: string;
+  name?: string;
   content: string;
   tags?: string[];
   category?: string;

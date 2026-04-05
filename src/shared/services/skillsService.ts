@@ -3,6 +3,12 @@ import type {
   SkillsAssetDetail,
   SkillsBatchInput,
   SkillsBatchResult,
+  SkillsFileReadInput,
+  SkillsFileReadResult,
+  SkillsFileTreeInput,
+  SkillsFileTreeResult,
+  SkillsOpenInput,
+  SkillsOpenResult,
   SkillsScanInput,
 } from "../types";
 
@@ -19,6 +25,29 @@ export const skillsService = {
 
   assetDetail(skillId: string): Promise<SkillsAssetDetail> {
     return invokeCommand("skills_asset_detail", { skillId });
+  },
+
+  filesTree(input: SkillsFileTreeInput): Promise<SkillsFileTreeResult> {
+    return invokeCommand("skills_files_tree", { input });
+  },
+
+  fileRead(input: SkillsFileReadInput): Promise<SkillsFileReadResult> {
+    return invokeCommand("skills_file_read", {
+      input: {
+        skillId: input.skillId,
+        relativePath: input.relativePath,
+      },
+    });
+  },
+
+  open(input: SkillsOpenInput): Promise<SkillsOpenResult> {
+    return invokeCommand("skills_open", {
+      input: {
+        skillId: input.skillId,
+        relativePath: input.relativePath,
+        mode: input.mode,
+      },
+    });
   },
 
   distribute(input: SkillsBatchInput): Promise<SkillsBatchResult> {

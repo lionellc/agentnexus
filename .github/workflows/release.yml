@@ -1,0 +1,288 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional release tag (e.g. v0.1.1)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release-macos:
+    runs-on: macos-14
+    env:
+      TAURI_SIGNING_PRIVATE_KEY_B64: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_B64 }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      CODESIGN_IDENTITY: ${{ vars.CODESIGN_IDENTITY }}
+      NOTARY_PROFILE_NAME: ${{ vars.NOTARY_PROFILE_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release metadata
+        run: |
+          set -euo pipefail
+          INPUT_TAG="${{ github.event.inputs.release_tag }}"
+          if [ -n "${INPUT_TAG:-}" ]; then
+            if [[ "${INPUT_TAG}" != v* ]]; then
+              echo "Invalid release_tag: ${INPUT_TAG} (must start with v)"
+              exit 1
+            fi
+            TAG="${INPUT_TAG}"
+            VERSION="${TAG#v}"
+          elif [[ "${GITHUB_REF:-}" == refs/tags/v* && "${GITHUB_REF_NAME:-}" == v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          else
+            VERSION=$(python3 - <<'PY'
+            import json
+            from pathlib import Path
+            data = json.loads(Path("src-tauri/tauri.conf.json").read_text())
+            print(data["version"])
+            PY
+            )
+            TAG="v${VERSION}"
+          fi
+
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Resolved release: tag=${TAG}, version=${VERSION}"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Import signing certificate
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CODESIGN_IDENTITY:-}" ]; then
+            echo "Missing repo variable: CODESIGN_IDENTITY"
+            exit 1
+          fi
+          if [ -z "${APPLE_CERTIFICATE_P12:-}" ] || [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ]; then
+            echo "Missing APPLE_CERTIFICATE_P12 or APPLE_CERTIFICATE_PASSWORD secret"
+            exit 1
+          fi
+          KEYCHAIN=build.keychain
+          CERT_PATH=cert.p12
+
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > "$CERT_PATH" 2>/dev/null || \
+            echo "$APPLE_CERTIFICATE_P12" | base64 -D > "$CERT_PATH"
+
+          security create-keychain -p "" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "" "$KEYCHAIN"
+          security import "$CERT_PATH" -k "$KEYCHAIN" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security list-keychains -d user -s "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
+
+      - name: Configure notarytool credentials
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_PRIVATE_KEY_B64: ${{ secrets.APPLE_API_PRIVATE_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NOTARY_PROFILE_NAME:-}" ]; then
+            echo "Missing repo variable: NOTARY_PROFILE_NAME"
+            exit 1
+          fi
+          if [ -z "${APPLE_API_KEY_ID:-}" ] || [ -z "${APPLE_API_ISSUER_ID:-}" ] || [ -z "${APPLE_API_PRIVATE_KEY_B64:-}" ]; then
+            echo "Missing APPLE_API_KEY_ID / APPLE_API_ISSUER_ID / APPLE_API_PRIVATE_KEY_B64 secret"
+            exit 1
+          fi
+
+          mkdir -p private_keys
+          echo "$APPLE_API_PRIVATE_KEY_B64" | base64 --decode > private_keys/AuthKey.p8 2>/dev/null || \
+            echo "$APPLE_API_PRIVATE_KEY_B64" | base64 -D > private_keys/AuthKey.p8
+
+          xcrun notarytool store-credentials "$NOTARY_PROFILE_NAME" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --key "private_keys/AuthKey.p8"
+
+      - name: Write Tauri signing key
+        run: |
+          set -euo pipefail
+          if [ -z "${TAURI_SIGNING_PRIVATE_KEY_B64:-}" ]; then
+            echo "Missing TAURI_SIGNING_PRIVATE_KEY_B64 secret"
+            exit 1
+          fi
+          mkdir -p "$HOME/.tauri"
+          echo "$TAURI_SIGNING_PRIVATE_KEY_B64" | base64 --decode > "$HOME/.tauri/agentnexus.key"
+
+      - name: Build app bundle
+        run: |
+          set -euo pipefail
+          export TAURI_SIGNING_PRIVATE_KEY
+          TAURI_SIGNING_PRIVATE_KEY="$(cat "$HOME/.tauri/agentnexus.key")"
+          npm run tauri -- build --bundles app
+
+      - name: Codesign app bundle
+        run: |
+          set -euo pipefail
+          APP_BUNDLE="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -type d -name '*.app' | sort | head -n 1)"
+          if [ -z "${APP_BUNDLE:-}" ]; then
+            echo "No macOS .app bundle found for codesign"
+            find src-tauri/target/release/bundle -type d | sort
+            exit 1
+          fi
+          codesign --force --deep --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP_BUNDLE"
+          codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+
+      - name: Notarize and staple app
+        run: |
+          set -euo pipefail
+          APP_BUNDLE="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -type d -name '*.app' | sort | head -n 1)"
+          if [ -z "${APP_BUNDLE:-}" ]; then
+            echo "No macOS .app bundle found for notarization"
+            find src-tauri/target/release/bundle -type d | sort
+            exit 1
+          fi
+          ditto -c -k --keepParent "$APP_BUNDLE" app-notary.zip
+          xcrun notarytool submit app-notary.zip --keychain-profile "$NOTARY_PROFILE_NAME" --wait
+          xcrun stapler staple "$APP_BUNDLE"
+          spctl -a -vvv --type execute "$APP_BUNDLE"
+
+      - name: Collect release artifacts
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_VERSION}"
+          mkdir -p release-artifacts
+          DMG_ROOT="$(mktemp -d)"
+
+          APP_BUNDLE="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -type d -name '*.app' | sort | head -n 1)"
+          if [ -z "${APP_BUNDLE:-}" ]; then
+            echo "No macOS .app bundle found."
+            find src-tauri/target/release/bundle -type d | sort
+            exit 1
+          fi
+
+          APP_ARCHIVE="$(find src-tauri/target/release/bundle/macos -type f -name '*.app.tar.gz' | sort | head -n 1)"
+          if [ -z "${APP_ARCHIVE:-}" ]; then
+            echo "No updater archive (*.app.tar.gz) found."
+            find src-tauri/target/release/bundle -type f | sort
+            exit 1
+          fi
+
+          APP_SIG="${APP_ARCHIVE}.sig"
+          if [ ! -f "$APP_SIG" ]; then
+            echo "Missing updater signature: $APP_SIG"
+            exit 1
+          fi
+
+          cp "$APP_ARCHIVE" release-artifacts/
+          cp "$APP_SIG" release-artifacts/
+
+          ditto -c -k --keepParent "$APP_BUNDLE" release-artifacts/agentnexus.zip
+
+          ditto "$APP_BUNDLE" "${DMG_ROOT}/$(basename "$APP_BUNDLE")"
+
+          if [ "$(uname -m)" = "arm64" ]; then
+            MAC_ARCH="aarch64"
+          else
+            MAC_ARCH="x86_64"
+          fi
+          hdiutil create -volname "agentnexus" \
+            -srcfolder "$DMG_ROOT" \
+            -ov -format UDZO \
+            "release-artifacts/agentnexus_${VERSION}_${MAC_ARCH}.dmg"
+          rm -rf "$DMG_ROOT"
+
+          APP_ARCHIVE_NAME="$(basename "$APP_ARCHIVE")"
+          if [[ "$APP_ARCHIVE_NAME" == *"x86_64"* ]]; then
+            PLATFORM_KEY="darwin-x86_64"
+          elif [[ "$APP_ARCHIVE_NAME" == *"aarch64"* || "$APP_ARCHIVE_NAME" == *"arm64"* ]]; then
+            PLATFORM_KEY="darwin-aarch64"
+          elif [ "$(uname -m)" = "arm64" ]; then
+            PLATFORM_KEY="darwin-aarch64"
+          else
+            PLATFORM_KEY="darwin-x86_64"
+          fi
+
+          echo "APP_ARCHIVE_NAME=$APP_ARCHIVE_NAME" >> "$GITHUB_ENV"
+          echo "APP_SIG_NAME=$(basename "$APP_SIG")" >> "$GITHUB_ENV"
+          echo "PLATFORM_KEY=$PLATFORM_KEY" >> "$GITHUB_ENV"
+
+      - name: Build latest.json
+        run: |
+          set -euo pipefail
+          VERSION="${RELEASE_VERSION}"
+          TAG="${RELEASE_TAG}"
+          APP_SIG=$(cat "release-artifacts/${APP_SIG_NAME}")
+
+          python3 - <<PY
+          import json
+          from datetime import datetime, timezone
+
+          version = "${VERSION}"
+          tag = "${TAG}"
+          app_archive_name = "${APP_ARCHIVE_NAME}"
+          app_signature = """${APP_SIG}""".strip()
+          platform_key = "${PLATFORM_KEY}"
+
+          latest = {
+              "version": version,
+              "notes": f"Release {tag}",
+              "pub_date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "platforms": {
+                  platform_key: {
+                      "url": f"https://github.com/lionellc/agentnexus/releases/download/{tag}/{app_archive_name}",
+                      "signature": app_signature,
+                  }
+              },
+          }
+
+          with open("release-artifacts/latest.json", "w", encoding="utf-8") as fp:
+              json.dump(latest, fp, ensure_ascii=False, indent=2)
+              fp.write("\n")
+          PY
+
+          {
+            echo "# ${TAG}"
+            echo
+            echo "- Automated release for ${TAG}."
+          } > release-artifacts/release-notes.md
+
+      - name: Create or update GitHub release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="${RELEASE_TAG}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release-artifacts/* --clobber
+            gh release edit "$TAG" --notes-file release-artifacts/release-notes.md
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes-file release-artifacts/release-notes.md \
+              --target "$GITHUB_SHA" \
+              release-artifacts/*
+          fi

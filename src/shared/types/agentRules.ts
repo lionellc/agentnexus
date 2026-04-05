@@ -116,6 +116,12 @@ export interface AgentRuleAssetDeleteInput {
   assetId: string;
 }
 
+export interface AgentRuleAssetRenameInput {
+  workspaceId: string;
+  assetId: string;
+  name: string;
+}
+
 export interface AgentRuleVersion {
   id: string;
   assetId: string;

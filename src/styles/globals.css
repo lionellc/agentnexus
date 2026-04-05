@@ -23,6 +23,27 @@
   --radius: 0.5rem;
 }
 
+.dark {
+  color-scheme: dark;
+  --background: 222 22% 12%;
+  --foreground: 210 24% 95%;
+  --card: 222 20% 15%;
+  --card-foreground: 210 24% 95%;
+  --primary: 217 92% 67%;
+  --primary-foreground: 222 24% 12%;
+  --secondary: 219 18% 22%;
+  --secondary-foreground: 210 24% 95%;
+  --muted: 219 18% 19%;
+  --muted-foreground: 215 16% 74%;
+  --accent: 219 18% 24%;
+  --accent-foreground: 210 24% 95%;
+  --destructive: 0 72% 58%;
+  --destructive-foreground: 210 24% 98%;
+  --border: 219 16% 28%;
+  --input: 219 16% 28%;
+  --ring: 217 82% 74%;
+}
+
 * {
   @apply border-border;
 }
@@ -32,4 +53,80 @@ body {
   margin: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial,
     "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+@layer utilities {
+  .dark .bg-white,
+  .dark .bg-slate-50,
+  .dark .bg-slate-100 {
+    background-color: hsl(222 20% 15%) !important;
+  }
+
+  .dark .bg-slate-200,
+  .dark .bg-slate-300 {
+    background-color: hsl(219 18% 22%) !important;
+  }
+
+  .dark .hover\:bg-white:hover,
+  .dark .hover\:bg-slate-50:hover,
+  .dark .hover\:bg-slate-100:hover {
+    background-color: hsl(219 18% 24%) !important;
+  }
+
+  .dark .hover\:bg-slate-200:hover,
+  .dark .hover\:bg-slate-300:hover {
+    background-color: hsl(219 18% 28%) !important;
+  }
+
+  .dark .border-slate-100,
+  .dark .border-slate-200,
+  .dark .border-slate-300 {
+    border-color: hsl(219 16% 30%) !important;
+  }
+
+  .dark .hover\:border-slate-100:hover,
+  .dark .hover\:border-slate-200:hover,
+  .dark .hover\:border-slate-300:hover {
+    border-color: hsl(219 16% 38%) !important;
+  }
+
+  .dark .text-slate-700,
+  .dark .text-slate-800,
+  .dark .text-slate-900 {
+    color: hsl(210 24% 95%) !important;
+  }
+
+  .dark .text-slate-500,
+  .dark .text-slate-600 {
+    color: hsl(215 16% 74%) !important;
+  }
+
+  .dark .hover\:text-slate-700:hover,
+  .dark .hover\:text-slate-800:hover,
+  .dark .hover\:text-slate-900:hover {
+    color: hsl(210 24% 98%) !important;
+  }
+
+  .dark .hover\:text-slate-500:hover,
+  .dark .hover\:text-slate-600:hover {
+    color: hsl(210 22% 86%) !important;
+  }
+
+  .overlay-backdrop {
+    background: rgba(6, 8, 12, 0.55);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+
+  .app.reduced-transparency .overlay-backdrop {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: rgba(6, 8, 12, 0.55);
+  }
+
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .overlay-backdrop {
+      background: rgba(6, 8, 12, 0.55);
+    }
+  }
 }

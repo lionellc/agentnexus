@@ -158,11 +158,34 @@ pub struct SkillAsset {
     pub version: String,
     pub latest_version: String,
     pub source: String,
+    pub source_parent: String,
     pub local_path: String,
+    pub is_symlink: bool,
     pub update_candidate: bool,
     pub last_used_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsFileTreeInput {
+    pub skill_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsFileReadInput {
+    pub skill_id: String,
+    pub relative_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsOpenInput {
+    pub skill_id: String,
+    pub relative_path: Option<String>,
+    pub mode: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -360,6 +383,7 @@ pub struct PromptCreateInput {
 #[serde(rename_all = "camelCase")]
 pub struct PromptUpdateInput {
     pub prompt_id: String,
+    pub name: Option<String>,
     pub content: String,
     pub tags: Option<Vec<String>>,
     pub category: Option<String>,

@@ -28,6 +28,7 @@ describe("Sidebar", () => {
       root.render(
         <Sidebar
           activeModule="prompts"
+          language="zh-CN"
           onChangeModule={onChangeModule}
           promptCount={1}
           skillCount={2}

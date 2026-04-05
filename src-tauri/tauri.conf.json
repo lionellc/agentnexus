@@ -13,8 +13,13 @@
     "windows": [
       {
         "title": "agentnexus",
-        "width": 800,
-        "height": 600
+        "width": 1360,
+        "height": 860,
+        "minWidth": 1120,
+        "minHeight": 760,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true
       }
     ],
     "security": {
@@ -24,6 +29,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -31,5 +37,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVGRDQxRUVCMDg0NkMwRTkKUldUcHdFWUk2eDdVWDE2MjNzS0JPS1hETE5YcS9JZW93VWNBU0J1MDV0UzZxbC9jb2NZcmxnNkEK",
+      "endpoints": [
+        "https://github.com/lionellc/agentnexus/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

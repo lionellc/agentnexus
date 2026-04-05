@@ -7,15 +7,22 @@ export type Column<T> = {
   className?: string;
 };
 
-export function DataTable<T>({ columns, rows, rowKey }: { columns: Column<T>[]; rows: T[]; rowKey: (row: T) => string }) {
+type DataTableProps<T> = {
+  columns: Column<T>[];
+  rows: T[];
+  rowKey: (row: T) => string;
+  onRowClick?: (row: T) => void;
+};
+
+export function DataTable<T>({ columns, rows, rowKey, onRowClick }: DataTableProps<T>) {
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="overflow-auto">
         <table className="min-w-full border-collapse text-left text-sm">
-          <thead className="bg-slate-50 text-slate-600">
+          <thead className="bg-muted text-muted-foreground">
             <tr>
               {columns.map((column) => (
-                <th key={column.key} className={`border-b border-slate-200 px-3 py-2 font-semibold ${column.className ?? ""}`}>
+                <th key={column.key} className={`border-b border-border px-3 py-2 font-semibold ${column.className ?? ""}`}>
                   {column.title}
                 </th>
               ))}
@@ -23,9 +30,13 @@ export function DataTable<T>({ columns, rows, rowKey }: { columns: Column<T>[]; 
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={rowKey(row)} className="hover:bg-slate-50">
+              <tr
+                key={rowKey(row)}
+                className={`group hover:bg-muted/60 ${onRowClick ? "cursor-pointer" : ""}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 {columns.map((column) => (
-                  <td key={`${rowKey(row)}-${column.key}`} className={`border-b border-slate-100 px-3 py-2 align-top ${column.className ?? ""}`}>
+                  <td key={`${rowKey(row)}-${column.key}`} className={`border-b border-border px-3 py-2 align-top ${column.className ?? ""}`}>
                     {column.render(row)}
                   </td>
                 ))}

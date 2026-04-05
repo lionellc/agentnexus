@@ -47,7 +47,7 @@ export const useShellStore = create<ShellState>()(
       mobileSidebarOpen: false,
       mobileDetailOpen: false,
       promptViewMode: "list",
-      skillDetailTab: "preview",
+      skillDetailTab: "overview",
       settingsCategory: "general",
       searchHits: [],
       setActiveModule: (activeModule) => set({ activeModule }),

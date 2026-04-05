@@ -4,7 +4,11 @@ use rusqlite::{params, Connection, OptionalExtension};
 use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
-use crate::{domain::models::RuntimeFlags, error::AppError, utils::{now_rfc3339, sha256_hex}};
+use crate::{
+    domain::models::RuntimeFlags,
+    error::AppError,
+    utils::{now_rfc3339, sha256_hex},
+};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -228,6 +232,7 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
             workspace_id TEXT NOT NULL,
             agent_type TEXT NOT NULL,
             root_dir TEXT NOT NULL DEFAULT '',
+            rule_file TEXT NOT NULL DEFAULT '',
             enabled INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
@@ -313,6 +318,7 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     )?;
 
     run_backfill_once(conn)?;
+    run_agent_connection_rule_file_migration_once(conn)?;
     run_global_rules_migration_once(conn)?;
 
     Ok(())
@@ -395,19 +401,143 @@ fn ensure_default_agent_connection(
     agent_type: &str,
     now: &str,
 ) -> Result<(), AppError> {
+    let default_root = default_agent_root_dir(agent_type);
+    let default_rule_file = default_agent_rule_file(agent_type);
     conn.execute(
-        "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at)
-         VALUES (?1, ?2, ?3, '', 1, ?4, ?5)
-         ON CONFLICT(workspace_id, agent_type) DO NOTHING",
+        "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)
+         ON CONFLICT(workspace_id, agent_type) DO UPDATE SET
+            root_dir = CASE
+                WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                THEN excluded.root_dir
+                ELSE agent_connections.root_dir
+            END,
+            rule_file = CASE
+                WHEN trim(COALESCE(agent_connections.rule_file, '')) = ''
+                THEN excluded.rule_file
+                ELSE agent_connections.rule_file
+            END,
+            updated_at = CASE
+                WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                  OR trim(COALESCE(agent_connections.rule_file, '')) = ''
+                THEN excluded.updated_at
+                ELSE agent_connections.updated_at
+            END",
         params![
             Uuid::new_v4().to_string(),
             workspace_id,
             agent_type,
+            default_root,
+            default_rule_file,
             now,
             now
         ],
     )?;
     Ok(())
+}
+
+fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, AppError> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(1))?;
+    for row in rows {
+        if row?.eq_ignore_ascii_case(column) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+fn run_agent_connection_rule_file_migration_once(conn: &Connection) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM migration_meta WHERE key = 'migrate_agent_connections_rule_file_v1'",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(());
+    }
+
+    if !column_exists(conn, "agent_connections", "rule_file")? {
+        conn.execute(
+            "ALTER TABLE agent_connections ADD COLUMN rule_file TEXT NOT NULL DEFAULT ''",
+            [],
+        )?;
+    }
+
+    let now = now_rfc3339();
+    let mut stmt = conn.prepare("SELECT id FROM workspaces ORDER BY created_at ASC")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut workspace_ids = Vec::new();
+    for row in rows {
+        workspace_ids.push(row?);
+    }
+
+    for workspace_id in workspace_ids {
+        for agent_type in ["codex", "claude"] {
+            let default_root = default_agent_root_dir(agent_type);
+            let default_rule_file = default_agent_rule_file(agent_type);
+            conn.execute(
+                "UPDATE agent_connections
+                 SET root_dir = CASE
+                       WHEN trim(COALESCE(root_dir, '')) = '' THEN ?3
+                       ELSE root_dir
+                     END,
+                     rule_file = CASE
+                       WHEN trim(COALESCE(rule_file, '')) = '' THEN ?4
+                       ELSE rule_file
+                     END,
+                     updated_at = CASE
+                       WHEN trim(COALESCE(root_dir, '')) = ''
+                         OR trim(COALESCE(rule_file, '')) = ''
+                       THEN ?5
+                       ELSE updated_at
+                     END
+                 WHERE workspace_id = ?1 AND agent_type = ?2",
+                params![
+                    workspace_id,
+                    agent_type,
+                    default_root,
+                    default_rule_file,
+                    now
+                ],
+            )?;
+            ensure_default_agent_connection(conn, &workspace_id, agent_type, &now)?;
+        }
+    }
+
+    conn.execute(
+        "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
+        params![
+            "migrate_agent_connections_rule_file_v1",
+            "done",
+            now_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn default_agent_root_dir(agent_type: &str) -> String {
+    let normalized = agent_type.trim().to_lowercase();
+    let suffix = match normalized.as_str() {
+        "codex" => Some(".codex"),
+        "claude" => Some(".claude"),
+        _ => None,
+    };
+
+    if let Some(suffix) = suffix {
+        if let Some(home) = dirs::home_dir() {
+            return home.join(suffix).to_string_lossy().to_string();
+        }
+    }
+    String::new()
+}
+
+fn default_agent_rule_file(agent_type: &str) -> String {
+    match agent_type.trim().to_lowercase().as_str() {
+        "codex" => "AGENTS.md".to_string(),
+        "claude" => "CLAUDE.md".to_string(),
+        _ => "AGENTS.md".to_string(),
+    }
 }
 
 fn migrate_legacy_agent_doc(

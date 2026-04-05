@@ -10,6 +10,21 @@ import type {
   AgentRuleRelease,
 } from "../types";
 
+const LANGUAGE_STORAGE_KEY = "agentnexus.app.language";
+
+function isEnglishLanguage(): boolean {
+  try {
+    const language = globalThis.localStorage?.getItem(LANGUAGE_STORAGE_KEY)?.trim()?.toLowerCase() ?? "";
+    return language === "en" || language.startsWith("en-");
+  } catch {
+    return false;
+  }
+}
+
+function message(zh: string, en: string): string {
+  return isEnglishLanguage() ? en : zh;
+}
+
 const EMPTY_DRAFT: AgentRuleDraft = {
   content: "",
   contentHash: "",
@@ -21,6 +36,7 @@ type AgentRuleConnection = {
   workspaceId: string;
   agentType: string;
   rootDir: string;
+  ruleFile?: string;
   enabled: boolean;
   resolvedPath?: string | null;
   updatedAt?: string;
@@ -99,6 +115,7 @@ type AgentRulesState = {
   loadModuleData: (workspaceId: string) => Promise<void>;
   loadAssets: (workspaceId: string) => Promise<void>;
   createAsset: (workspaceId: string, name: string, content: string) => Promise<AgentRuleAsset>;
+  renameAsset: (workspaceId: string, assetId: string, name: string) => Promise<AgentRuleAsset>;
   deleteAsset: (workspaceId: string, assetId: string) => Promise<void>;
   publishVersion: (assetId: string, content: string) => Promise<AgentRuleVersion>;
   loadVersions: (assetId: string) => Promise<void>;
@@ -132,7 +149,7 @@ function toErrorMessage(error: unknown): string {
   if (typeof error === "string") {
     return error;
   }
-  return "未知错误";
+  return message("未知错误", "Unknown error");
 }
 
 function isAgentDocNotFound(error: unknown): boolean {
@@ -357,6 +374,31 @@ export const useAgentRulesStore = create<AgentRulesState>((set, get) => ({
         };
       });
       return created;
+    } catch (error) {
+      set({ lastActionError: toErrorMessage(error) });
+      throw error;
+    }
+  },
+
+  renameAsset: async (workspaceId, assetId, name) => {
+    set({ lastActionError: null });
+    try {
+      const renamed = normalizeAsset(
+        (await callAgentApi<Record<string, unknown>>(["renameAsset", "assetRename"], {
+          workspaceId,
+          assetId,
+          name,
+        })) ?? {},
+      );
+      set((state) => {
+        const assets = state.assets.map((item) => (item.id === assetId ? { ...item, ...renamed } : item));
+        const releases = assets.map(toLegacyRelease);
+        return {
+          assets,
+          releases,
+        };
+      });
+      return renamed;
     } catch (error) {
       set({ lastActionError: toErrorMessage(error) });
       throw error;
@@ -599,6 +641,7 @@ export const useAgentRulesStore = create<AgentRulesState>((set, get) => ({
           workspaceId: String(row.workspaceId ?? row.workspace_id ?? ""),
           agentType: String(row.agentType ?? row.agent_type ?? row.platform ?? ""),
           rootDir: String(row.rootDir ?? row.root_dir ?? ""),
+          ruleFile: String(row.ruleFile ?? row.rule_file ?? ""),
           enabled: Boolean(row.enabled ?? true),
           resolvedPath:
             row.resolvedPath === null || row.resolvedPath === undefined
@@ -633,7 +676,7 @@ export const useAgentRulesStore = create<AgentRulesState>((set, get) => ({
     try {
       const selectedAssetId = get().selectedAssetId;
       if (!selectedAssetId) {
-        const created = await get().createAsset(workspaceId, "未命名规则", content);
+        const created = await get().createAsset(workspaceId, message("未命名规则", "Untitled Rule"), content);
         set({ selectedAssetId: created.id });
       } else {
         await get().publishVersion(selectedAssetId, content);
@@ -683,7 +726,7 @@ export const useAgentRulesStore = create<AgentRulesState>((set, get) => ({
   rollbackRelease: async ({ workspaceId, releaseVersion }) => {
     const assetId = get().selectedAssetId;
     if (!assetId) {
-      throw new Error("未选择规则资产");
+      throw new Error(message("未选择规则资产", "No rule asset selected"));
     }
     const rolled = await get().rollbackVersion(assetId, releaseVersion);
     return {
@@ -729,7 +772,7 @@ export const useAgentRulesStore = create<AgentRulesState>((set, get) => ({
   detectDrift: async ({ workspaceId, targetIds }) => {
     const assetId = get().selectedAssetId;
     if (!assetId) {
-      throw new Error("未选择规则资产");
+      throw new Error(message("未选择规则资产", "No rule asset selected"));
     }
     const maybeJob = await get().refreshAsset(workspaceId, assetId);
     if (maybeJob) {

@@ -1,5 +1,6 @@
 import type {
   AgentConnection,
+  AgentConnectionDeleteInput,
   AgentConnectionToggleInput,
   AgentConnectionUpsertInput,
   AgentRuleAgentTag,
@@ -12,6 +13,7 @@ import type {
   AgentRuleAsset,
   AgentRuleAssetCreateInput,
   AgentRuleAssetDeleteInput,
+  AgentRuleAssetRenameInput,
   AgentRuleDistributionJob,
   AgentRuleDistributionRetryInput,
   AgentRuleDistributionRunInput,
@@ -42,16 +44,24 @@ import type {
   SkillsAssetDetail,
   SkillsBatchInput,
   SkillsBatchResult,
+  SkillsFileReadInput,
+  SkillsFileReadResult,
+  SkillsFileTreeInput,
+  SkillsFileTreeResult,
+  SkillsOpenInput,
+  SkillsOpenResult,
   SkillsScanInput,
   TargetUpsertInput,
   Workspace,
   WorkspaceCreateInput,
+  WorkspaceUpdateInput,
 } from "../types";
 import { invokeCommand, invokeRaw } from "./tauriClient";
 
 export const workspaceApi = {
   list: () => invokeCommand("workspace_list"),
   create: (input: WorkspaceCreateInput) => invokeCommand("workspace_create", { input }),
+  update: (input: WorkspaceUpdateInput) => invokeCommand("workspace_update", { input }),
   activate: (id: string) => invokeCommand("workspace_activate", { input: { id } }),
 };
 
@@ -73,6 +83,7 @@ export const agentConnectionApi = {
       workspaceId: String(row.workspaceId ?? row.workspace_id ?? ""),
       platform: String(row.agentType ?? row.agent_type ?? ""),
       rootDir: String(row.rootDir ?? row.root_dir ?? ""),
+      ruleFile: String(row.ruleFile ?? row.rule_file ?? ""),
       enabled: Boolean(row.enabled ?? true),
       resolvedPath:
         row.resolvedPath === null || row.resolvedPath === undefined
@@ -88,6 +99,7 @@ export const agentConnectionApi = {
         workspaceId: input.workspaceId,
         agentType: input.platform,
         rootDir: input.rootDir,
+        ruleFile: input.ruleFile ?? "",
         enabled: input.enabled ?? true,
       },
     });
@@ -96,6 +108,7 @@ export const agentConnectionApi = {
       workspaceId: String(row.workspaceId ?? row.workspace_id ?? ""),
       platform: String(row.agentType ?? row.agent_type ?? ""),
       rootDir: String(row.rootDir ?? row.root_dir ?? ""),
+      ruleFile: String(row.ruleFile ?? row.rule_file ?? ""),
       enabled: Boolean(row.enabled ?? true),
       resolvedPath:
         row.resolvedPath === null || row.resolvedPath === undefined
@@ -118,6 +131,7 @@ export const agentConnectionApi = {
       workspaceId: String(row.workspaceId ?? row.workspace_id ?? ""),
       platform: String(row.agentType ?? row.agent_type ?? ""),
       rootDir: String(row.rootDir ?? row.root_dir ?? ""),
+      ruleFile: String(row.ruleFile ?? row.rule_file ?? ""),
       enabled: Boolean(row.enabled ?? true),
       resolvedPath:
         row.resolvedPath === null || row.resolvedPath === undefined
@@ -126,6 +140,28 @@ export const agentConnectionApi = {
       createdAt: String(row.createdAt ?? row.created_at ?? ""),
       updatedAt: String(row.updatedAt ?? row.updated_at ?? ""),
     };
+  },
+  delete: async (input: AgentConnectionDeleteInput): Promise<AgentConnection[]> => {
+    const rows = await invokeRaw<Array<Record<string, unknown>>>("agent_connection_delete", {
+      input: {
+        workspaceId: input.workspaceId,
+        agentType: input.platform,
+      },
+    });
+    return (rows ?? []).map((row) => ({
+      id: String(row.id ?? ""),
+      workspaceId: String(row.workspaceId ?? row.workspace_id ?? ""),
+      platform: String(row.agentType ?? row.agent_type ?? ""),
+      rootDir: String(row.rootDir ?? row.root_dir ?? ""),
+      ruleFile: String(row.ruleFile ?? row.rule_file ?? ""),
+      enabled: Boolean(row.enabled ?? true),
+      resolvedPath:
+        row.resolvedPath === null || row.resolvedPath === undefined
+          ? null
+          : String(row.resolvedPath),
+      createdAt: String(row.createdAt ?? row.created_at ?? ""),
+      updatedAt: String(row.updatedAt ?? row.updated_at ?? ""),
+    }));
   },
   preview: async (input: AgentRuleFilePreviewInput): Promise<AgentRuleFilePreviewResult> => {
     const row = await invokeRaw<Record<string, unknown>>("agent_connection_preview", {
@@ -182,6 +218,14 @@ export const agentRulesApi = {
       input: {
         workspaceId: input.workspaceId,
         assetId: input.assetId,
+      },
+    }),
+  renameAsset: (input: AgentRuleAssetRenameInput): Promise<AgentRuleAsset> =>
+    invokeRaw("agent_rule_asset_rename", {
+      input: {
+        workspaceId: input.workspaceId,
+        assetId: input.assetId,
+        name: input.name,
       },
     }),
   publishVersion: (input: AgentRulePublishVersionInput): Promise<AgentRuleVersion> =>
@@ -278,6 +322,23 @@ export const skillsApi = {
   list: () => invokeCommand("skills_list"),
   scan: (input: SkillsScanInput) => invokeCommand("skills_scan", { input }),
   detail: (skillId: string) => invokeCommand("skills_asset_detail", { skillId }),
+  filesTree: (input: SkillsFileTreeInput): Promise<SkillsFileTreeResult> =>
+    invokeCommand("skills_files_tree", { input }),
+  fileRead: (input: SkillsFileReadInput): Promise<SkillsFileReadResult> =>
+    invokeCommand("skills_file_read", {
+      input: {
+        skillId: input.skillId,
+        relativePath: input.relativePath,
+      },
+    }),
+  open: (input: SkillsOpenInput): Promise<SkillsOpenResult> =>
+    invokeCommand("skills_open", {
+      input: {
+        skillId: input.skillId,
+        relativePath: input.relativePath,
+        mode: input.mode,
+      },
+    }),
   distribute: (input: SkillsBatchInput) => invokeCommand("skills_distribute", { input }),
   uninstall: (input: SkillsBatchInput) => invokeCommand("skills_uninstall", { input }),
 };

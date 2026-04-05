@@ -50,9 +50,7 @@ pub fn validate_agent_root_dir(root_dir: &str) -> Result<PathBuf, AppError> {
 
     let raw = PathBuf::from(trimmed);
     if !raw.is_absolute() {
-        return Err(AppError::invalid_argument(
-            "agent root_dir 必须为绝对路径",
-        ));
+        return Err(AppError::invalid_argument("agent root_dir 必须为绝对路径"));
     }
 
     normalize_lexical(&raw)

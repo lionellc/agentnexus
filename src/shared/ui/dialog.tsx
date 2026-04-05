@@ -80,7 +80,7 @@ function DialogPortal({ children }: { children: React.ReactNode }) {
 }
 
 const DialogOverlay = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("fixed inset-0 z-50 bg-black/70 animate-fade-in", className)} {...props} />
+  <div ref={ref} className={cn("fixed inset-0 z-50 overlay-backdrop animate-fade-in", className)} {...props} />
 ));
 DialogOverlay.displayName = "DialogOverlay";
 

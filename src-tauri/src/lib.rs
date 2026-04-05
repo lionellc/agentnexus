@@ -10,21 +10,22 @@ use std::io;
 use tauri::Manager;
 
 use control_plane::agent_rules_v2::{
-    agent_connection_list, agent_connection_preview, agent_connection_toggle,
-    agent_connection_upsert, agent_rule_apply, agent_rule_refresh, agent_rule_retry,
-    agent_rule_status, agent_rule_asset_create, agent_rule_asset_delete, agent_rule_asset_list,
-    agent_rule_publish_version, agent_rule_rollback, agent_rule_versions,
+    agent_connection_delete, agent_connection_list, agent_connection_preview,
+    agent_connection_toggle, agent_connection_upsert, agent_rule_apply, agent_rule_asset_create,
+    agent_rule_asset_delete, agent_rule_asset_list, agent_rule_asset_rename,
+    agent_rule_publish_version, agent_rule_refresh, agent_rule_retry, agent_rule_rollback,
+    agent_rule_status, agent_rule_versions,
 };
 use control_plane::commands::{
     agent_doc_hash, agent_doc_read, agent_doc_save, audit_query, distribution_detect_drift,
     distribution_retry_failed, distribution_run, distribution_status, metrics_ingest_usage_event,
     metrics_query_by_asset, metrics_query_overview, metrics_submit_rating, prompt_create,
     prompt_delete, prompt_list, prompt_render, prompt_restore_version, prompt_search,
-    prompt_versions,
-    prompt_update, release_create, release_list, release_rollback, runtime_flags_get,
-    runtime_flags_update, security_check_external_source, skills_asset_detail, skills_distribute,
-    skills_list, skills_scan, skills_uninstall, target_list, target_upsert, workspace_activate,
-    workspace_create, workspace_list, workspace_update,
+    prompt_update, prompt_versions, release_create, release_list, release_rollback,
+    runtime_flags_get, runtime_flags_update, security_check_external_source, skills_asset_detail,
+    skills_distribute, skills_file_read, skills_files_tree, skills_list, skills_open, skills_scan,
+    skills_uninstall, target_list, target_upsert, workspace_activate, workspace_create,
+    workspace_list, workspace_update,
 };
 use db::AppState;
 
@@ -35,9 +36,15 @@ pub fn run() {
             let state =
                 AppState::from_app(&app.handle()).map_err(|err| io::Error::other(err.message))?;
             app.manage(state);
+            #[cfg(desktop)]
+            {
+                app.handle()
+                    .plugin(tauri_plugin_updater::Builder::new().build())?;
+            }
             Ok(())
         })
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             workspace_create,
             workspace_update,
@@ -50,10 +57,12 @@ pub fn run() {
             agent_connection_list,
             agent_connection_upsert,
             agent_connection_toggle,
+            agent_connection_delete,
             agent_connection_preview,
             agent_rule_asset_list,
             agent_rule_asset_create,
             agent_rule_asset_delete,
+            agent_rule_asset_rename,
             agent_rule_publish_version,
             agent_rule_versions,
             agent_rule_rollback,
@@ -74,6 +83,9 @@ pub fn run() {
             skills_scan,
             skills_list,
             skills_asset_detail,
+            skills_files_tree,
+            skills_file_read,
+            skills_open,
             skills_distribute,
             skills_uninstall,
             prompt_create,

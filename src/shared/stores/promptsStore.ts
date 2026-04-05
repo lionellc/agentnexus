@@ -3,6 +3,21 @@ import { create } from "zustand";
 import { promptApi } from "../services/api";
 import type { PromptAsset } from "../types";
 
+const LANGUAGE_STORAGE_KEY = "agentnexus.app.language";
+
+function isEnglishLanguage(): boolean {
+  try {
+    const language = globalThis.localStorage?.getItem(LANGUAGE_STORAGE_KEY)?.trim()?.toLowerCase() ?? "";
+    return language === "en" || language.startsWith("en-");
+  } catch {
+    return false;
+  }
+}
+
+function message(zh: string, en: string): string {
+  return isEnglishLanguage() ? en : zh;
+}
+
 export type PromptBatchResult = {
   action: "favorite" | "move" | "delete";
   success: number;
@@ -26,7 +41,8 @@ type PromptsState = {
   clearSelection: () => void;
   setSelection: (ids: string[]) => void;
   createPrompt: (input: { workspaceId: string; name: string; content: string; tags?: string[]; category?: string; favorite?: boolean }) => Promise<PromptAsset>;
-  updatePrompt: (input: { promptId: string; content: string; tags?: string[]; category?: string; favorite?: boolean }) => Promise<PromptAsset>;
+  updatePrompt: (input: { promptId: string; name?: string; content: string; tags?: string[]; category?: string; favorite?: boolean }) => Promise<PromptAsset>;
+  deletePrompt: (promptId: string) => Promise<void>;
   renderPrompt: (promptId: string, variables: Record<string, string>) => Promise<string>;
   fetchVersions: (promptId: string) => Promise<void>;
   restoreVersion: (promptId: string, version: number) => Promise<void>;
@@ -99,6 +115,7 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
   updatePrompt: async (input) => {
     const updated = await promptApi.update({
       promptId: input.promptId,
+      name: input.name,
       content: input.content,
       tags: normalizeTags(input.tags),
       category: input.category,
@@ -109,6 +126,21 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
       selectedPromptId: updated.id,
     }));
     return updated;
+  },
+  deletePrompt: async (promptId) => {
+    await promptApi.remove(promptId);
+    set((state) => {
+      const nextPrompts = state.prompts.filter((item) => item.id !== promptId);
+      const nextSelectedPromptId =
+        state.selectedPromptId === promptId
+          ? (nextPrompts[0]?.id ?? null)
+          : state.selectedPromptId;
+      return {
+        prompts: nextPrompts,
+        selectedPromptId: nextSelectedPromptId,
+        selectedIds: state.selectedIds.filter((id) => id !== promptId),
+      };
+    });
   },
   renderPrompt: async (promptId, variables) => {
     const result = await promptApi.render(promptId, variables);
@@ -147,7 +179,7 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
         });
         success += 1;
       } catch (error) {
-        failures.push({ id: item.id, message: error instanceof Error ? error.message : "更新失败" });
+        failures.push({ id: item.id, message: error instanceof Error ? error.message : message("更新失败", "Update failed") });
       }
     }
 
@@ -177,7 +209,7 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
         });
         success += 1;
       } catch (error) {
-        failures.push({ id: item.id, message: error instanceof Error ? error.message : "移动失败" });
+        failures.push({ id: item.id, message: error instanceof Error ? error.message : message("移动失败", "Move failed") });
       }
     }
 
@@ -200,7 +232,7 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
         await promptApi.remove(id);
         success += 1;
       } catch (error) {
-        failures.push({ id, message: error instanceof Error ? error.message : "删除失败" });
+        failures.push({ id, message: error instanceof Error ? error.message : message("删除失败", "Delete failed") });
       }
     }
 

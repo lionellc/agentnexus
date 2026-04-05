@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type {
   AgentConnection,
+  AgentConnectionDeleteInput,
   AgentConnectionToggleInput,
   AgentConnectionUpsertInput,
   AgentRuleAgentTag,
@@ -14,6 +15,7 @@ import type {
   AgentRuleAsset,
   AgentRuleAssetCreateInput,
   AgentRuleAssetDeleteInput,
+  AgentRuleAssetRenameInput,
   AgentRuleDistributionJob,
   AgentRuleDistributionRetryInput,
   AgentRuleDistributionRunInput,
@@ -48,6 +50,12 @@ import type {
   RuntimeFlags,
   RuntimeFlagsInput,
   SkillAsset,
+  SkillsFileReadInput,
+  SkillsFileReadResult,
+  SkillsFileTreeInput,
+  SkillsFileTreeResult,
+  SkillsOpenInput,
+  SkillsOpenResult,
   SkillsAssetDetail,
   SkillsBatchInput,
   SkillsBatchResult,
@@ -57,6 +65,7 @@ import type {
   Workspace,
   WorkspaceActivateInput,
   WorkspaceCreateInput,
+  WorkspaceUpdateInput,
 } from "../types";
 
 import { isRecord as isUnknownRecord } from "../types";
@@ -64,6 +73,7 @@ import { isRecord as isUnknownRecord } from "../types";
 type CommandMap = {
   workspace_list: { args: undefined; result: Workspace[] };
   workspace_create: { args: { input: WorkspaceCreateInput }; result: Workspace };
+  workspace_update: { args: { input: WorkspaceUpdateInput }; result: Workspace };
   workspace_activate: { args: { input: WorkspaceActivateInput }; result: Workspace };
   runtime_flags_get: { args: undefined; result: RuntimeFlags };
   runtime_flags_update: { args: { input: RuntimeFlagsInput }; result: RuntimeFlags };
@@ -72,10 +82,12 @@ type CommandMap = {
   agent_connection_list: { args: { workspaceId: string }; result: AgentConnection[] };
   agent_connection_upsert: { args: { input: AgentConnectionUpsertInput }; result: AgentConnection };
   agent_connection_toggle: { args: { input: AgentConnectionToggleInput }; result: AgentConnection };
+  agent_connection_delete: { args: { input: AgentConnectionDeleteInput }; result: AgentConnection[] };
   agent_connection_preview: { args: { input: AgentRuleFilePreviewInput }; result: AgentRuleFilePreviewResult };
   agent_rule_asset_list: { args: { workspaceId: string }; result: AgentRuleAsset[] };
   agent_rule_asset_create: { args: { input: AgentRuleAssetCreateInput }; result: AgentRuleAsset };
   agent_rule_asset_delete: { args: { input: AgentRuleAssetDeleteInput }; result: null };
+  agent_rule_asset_rename: { args: { input: AgentRuleAssetRenameInput }; result: AgentRuleAsset };
   agent_rule_publish_version: { args: { input: AgentRulePublishVersionInput }; result: AgentRuleVersion };
   agent_rule_versions: { args: { assetId: string }; result: AgentRuleVersion[] };
   agent_rule_rollback: { args: { input: AgentRuleRollbackVersionInput }; result: AgentRuleVersion };
@@ -100,6 +112,9 @@ type CommandMap = {
   skills_list: { args: undefined; result: SkillAsset[] };
   skills_scan: { args: { input: SkillsScanInput }; result: SkillAsset[] };
   skills_asset_detail: { args: { skillId: string }; result: SkillsAssetDetail };
+  skills_files_tree: { args: { input: SkillsFileTreeInput }; result: SkillsFileTreeResult };
+  skills_file_read: { args: { input: SkillsFileReadInput }; result: SkillsFileReadResult };
+  skills_open: { args: { input: SkillsOpenInput }; result: SkillsOpenResult };
   skills_distribute: { args: { input: SkillsBatchInput }; result: SkillsBatchResult };
   skills_uninstall: { args: { input: SkillsBatchInput }; result: SkillsBatchResult };
   prompt_list: { args: { workspaceId: string }; result: PromptAsset[] };
