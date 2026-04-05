@@ -1,0 +1,40 @@
+<svg width="1280" height="360" viewBox="0 0 1280 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="or-bg" x1="42" y1="32" x2="312" y2="304" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1220"/>
+      <stop offset="1" stop-color="#122033"/>
+    </linearGradient>
+    <linearGradient id="or-cyan" x1="96" y1="98" x2="252" y2="224" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#3CE4F2"/>
+      <stop offset="1" stop-color="#06B6D4"/>
+    </linearGradient>
+    <linearGradient id="or-green" x1="102" y1="86" x2="240" y2="260" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#45D97E"/>
+      <stop offset="1" stop-color="#16A34A"/>
+    </linearGradient>
+  </defs>
+
+  <g>
+    <rect x="40" y="32" width="272" height="272" rx="58" fill="url(#or-bg)"/>
+    <rect x="41.2" y="33.2" width="269.6" height="269.6" rx="56.8" stroke="#2E4058" stroke-width="2.4"/>
+
+    <ellipse cx="176" cy="168" rx="93" ry="62" stroke="url(#or-cyan)" stroke-width="8"/>
+    <ellipse cx="176" cy="168" rx="74" ry="96" stroke="url(#or-green)" stroke-width="7"/>
+    <ellipse cx="176" cy="168" rx="52" ry="52" stroke="#1A8D58" stroke-opacity="0.85" stroke-width="6"/>
+
+    <circle cx="83" cy="168" r="9" fill="#06B6D4"/>
+    <circle cx="269" cy="168" r="9" fill="#3CDFF0"/>
+    <circle cx="176" cy="72" r="9" fill="#4CDF88"/>
+    <circle cx="176" cy="264" r="9" fill="#16994B"/>
+
+    <path d="M137 214L171 118L196 118L229 214H205L197 188H168L160 214H137Z" fill="#F2FCF8"/>
+    <path d="M176 94L212 140L195 140L192 177L176 161L160 177L157 140L140 140L176 94Z" fill="#18B96E"/>
+  </g>
+
+  <g transform="translate(378,98)">
+    <text x="0" y="84" fill="#0B1220" font-size="104" font-weight="800" letter-spacing="-1"
+      font-family="Manrope, Montserrat, Avenir Next, Segoe UI, sans-serif">AgentPlane</text>
+    <text x="3" y="130" fill="#0F8F5A" font-size="28" font-weight="650" letter-spacing="4.4"
+      font-family="Manrope, Montserrat, Avenir Next, Segoe UI, sans-serif">ORBITAL MULTI-AGENT CONTROL</text>
+  </g>
+</svg>

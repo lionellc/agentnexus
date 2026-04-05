@@ -1,0 +1,55 @@
+<svg width="1280" height="360" viewBox="0 0 1280 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="ap-bg" x1="40" y1="32" x2="308" y2="316" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0B1D34"/>
+      <stop offset="1" stop-color="#133D63"/>
+    </linearGradient>
+    <linearGradient id="ap-ring-1" x1="110" y1="102" x2="250" y2="226" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#39D5FF"/>
+      <stop offset="1" stop-color="#22A9FF"/>
+    </linearGradient>
+    <linearGradient id="ap-ring-2" x1="94" y1="86" x2="266" y2="230" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8AE8FF"/>
+      <stop offset="1" stop-color="#34B6FF"/>
+    </linearGradient>
+    <linearGradient id="ap-accent" x1="164" y1="96" x2="252" y2="182" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD38F"/>
+      <stop offset="1" stop-color="#FF9A4D"/>
+    </linearGradient>
+    <filter id="ap-shadow" x="26" y="20" width="300" height="300" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feOffset dy="8"/>
+      <feGaussianBlur stdDeviation="8"/>
+      <feComposite in2="SourceAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.027451 0 0 0 0 0.0901961 0 0 0 0 0.176471 0 0 0 0.38 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#ap-shadow)">
+    <rect x="40" y="32" width="272" height="272" rx="64" fill="url(#ap-bg)"/>
+    <rect x="41" y="33" width="270" height="270" rx="63" stroke="#6DB9F5" stroke-opacity="0.35" stroke-width="2"/>
+
+    <path d="M86 186C102 226 141 252 184 252C219 252 251 235 272 209" stroke="url(#ap-ring-1)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M98 112C130 81 177 69 219 80C245 87 267 103 283 126" stroke="url(#ap-ring-2)" stroke-width="9" stroke-linecap="round"/>
+    <path d="M92 154C116 116 158 96 202 102C233 106 260 121 280 145" stroke="#4CC6FF" stroke-opacity="0.58" stroke-width="5" stroke-linecap="round"/>
+
+    <circle cx="98" cy="112" r="8" fill="#9EEBFF"/>
+    <circle cx="283" cy="126" r="7" fill="#65CCFF"/>
+    <circle cx="272" cy="209" r="8" fill="#2CB1FF"/>
+    <circle cx="86" cy="186" r="7" fill="#6EDCFF"/>
+
+    <path d="M136 228L168 94H193L156 228H136Z" fill="#F2FAFF"/>
+    <path d="M186 94H212L244 228H221L186 94Z" fill="#F2FAFF"/>
+    <rect x="163" y="156" width="52" height="15" rx="7.5" fill="#2CC2FF"/>
+    <path d="M191 119L249 151L194 182L204 151L191 119Z" fill="url(#ap-accent)"/>
+  </g>
+
+  <g transform="translate(378,96)">
+    <text x="0" y="84" fill="#0F172A" font-size="104" font-weight="800" letter-spacing="-1"
+      font-family="Manrope, Montserrat, Avenir Next, Segoe UI, sans-serif">AgentPlane</text>
+    <text x="4" y="130" fill="#1D4ED8" font-size="28" font-weight="600" letter-spacing="4.2"
+      font-family="Manrope, Montserrat, Avenir Next, Segoe UI, sans-serif">AGENT CONTROL PLANE</text>
+  </g>
+</svg>

@@ -1,0 +1,43 @@
+<svg width="1280" height="360" viewBox="0 0 1280 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="pr-bg" x1="42" y1="32" x2="314" y2="304" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111827"/>
+      <stop offset="1" stop-color="#1F2937"/>
+    </linearGradient>
+    <linearGradient id="pr-cyan" x1="104" y1="88" x2="256" y2="240" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#00D1C2"/>
+      <stop offset="1" stop-color="#00A3A3"/>
+    </linearGradient>
+    <linearGradient id="pr-gold" x1="164" y1="126" x2="254" y2="186" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFD86B"/>
+      <stop offset="1" stop-color="#FFB020"/>
+    </linearGradient>
+  </defs>
+
+  <g>
+    <rect x="40" y="32" width="272" height="272" rx="56" fill="url(#pr-bg)"/>
+    <rect x="41.2" y="33.2" width="269.6" height="269.6" rx="54.8" stroke="#2D445C" stroke-width="2.4"/>
+
+    <path d="M84 106L155 152L84 198V106Z" fill="#00A3A3" fill-opacity="0.82"/>
+    <path d="M156 108L241 152L156 196V108Z" fill="url(#pr-cyan)"/>
+    <path d="M241 126L280 152L241 178V126Z" fill="url(#pr-gold)"/>
+
+    <path d="M82 106L241 152L82 198" stroke="#00CFC0" stroke-opacity="0.55" stroke-width="3" stroke-linecap="round"/>
+    <path d="M84 108L84 198" stroke="#31E4D6" stroke-opacity="0.5" stroke-width="3" stroke-linecap="round"/>
+
+    <circle cx="84" cy="106" r="8" fill="#53EFE4"/>
+    <circle cx="84" cy="198" r="8" fill="#2CCFC0"/>
+    <circle cx="241" cy="152" r="8" fill="#3AE8DA"/>
+    <circle cx="280" cy="152" r="8" fill="#FFBF3D"/>
+
+    <path d="M108 243C139 229 172 222 205 222C230 222 255 226 280 234" stroke="#4DD6CA" stroke-opacity="0.65" stroke-width="6" stroke-linecap="round"/>
+    <path d="M108 243C139 257 172 264 205 264C230 264 255 260 280 252" stroke="#2AAFAF" stroke-opacity="0.72" stroke-width="6" stroke-linecap="round"/>
+  </g>
+
+  <g transform="translate(378,98)">
+    <text x="0" y="84" fill="#0B1220" font-size="104" font-weight="800" letter-spacing="-1"
+      font-family="Manrope, Montserrat, Avenir Next, Segoe UI, sans-serif">AgentPlane</text>
+    <text x="3" y="130" fill="#0F766E" font-size="28" font-weight="650" letter-spacing="4.4"
+      font-family="Manrope, Montserrat, Avenir Next, Segoe UI, sans-serif">PRISM ORCHESTRATION CONSOLE</text>
+  </g>
+</svg>

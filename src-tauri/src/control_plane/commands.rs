@@ -1,0 +1,2321 @@
+use std::{
+    collections::{HashMap, HashSet},
+    path::{Path, PathBuf},
+};
+
+use chrono::{Duration, Utc};
+use rusqlite::{params, Connection, OptionalExtension};
+use serde_json::{json, Value};
+use tauri::State;
+use uuid::Uuid;
+
+use crate::{
+    db::{load_runtime_flags, AppState},
+    domain::models::{
+        AgentDocRelease, AuditQueryInput, DistributionJobResult, DistributionRecordResult,
+        DistributionRetryInput, DistributionRunInput, DistributionTarget, DriftDetectInput,
+        ExternalSourceCheckInput, MetricsByAssetInput, PromptCreateInput, PromptDeleteInput,
+        PromptRenderInput, PromptRestoreInput, PromptSearchInput, PromptUpdateInput, RatingInput,
+        ReleaseCreateInput, ReleaseRollbackInput, RuntimeFlags, RuntimeFlagsInput, SkillAsset,
+        SkillsBatchInput, SkillsScanInput, TargetUpsertInput, UsageEventInput, Workspace,
+        WorkspaceActivateInput, WorkspaceCreateInput, WorkspaceUpdateInput,
+    },
+    error::AppError,
+    execution_plane::{
+        distribution::{detect_drift, distribute_agents, distribute_skill, uninstall_skill},
+        skills::{default_skill_directories, discover_skills, DiscoveredSkill},
+    },
+    security::{
+        ensure_safe_target_path, validate_external_source, validate_install_mode,
+        validate_workspace_root,
+    },
+    utils::{compare_version, now_rfc3339, render_template, sha256_hex},
+};
+
+#[tauri::command]
+pub fn workspace_create(
+    state: State<'_, AppState>,
+    input: WorkspaceCreateInput,
+) -> Result<Workspace, AppError> {
+    let name = input.name.trim();
+    if name.is_empty() {
+        return Err(AppError::invalid_argument("workspace 名称不能为空"));
+    }
+
+    let root = validate_workspace_root(&input.root_path)?;
+    let now = now_rfc3339();
+    let workspace = Workspace {
+        id: Uuid::new_v4().to_string(),
+        name: name.to_string(),
+        root_path: root.to_string_lossy().to_string(),
+        install_mode: "copy".to_string(),
+        platform_overrides: HashMap::new(),
+        active: false,
+        created_at: now.clone(),
+        updated_at: now.clone(),
+    };
+
+    let conn = state.open()?;
+    conn.execute(
+        "INSERT INTO workspaces(id, name, root_path, install_mode, platform_overrides, active, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            workspace.id,
+            workspace.name,
+            workspace.root_path,
+            workspace.install_mode,
+            serde_json::to_string(&workspace.platform_overrides)
+                .map_err(|err| AppError::internal(err.to_string()))?,
+            0,
+            workspace.created_at,
+            workspace.updated_at,
+        ],
+    )?;
+    for agent_type in ["codex", "claude"] {
+        conn.execute(
+            "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, enabled, created_at, updated_at)
+             VALUES (?1, ?2, ?3, '', 1, ?4, ?5)
+             ON CONFLICT(workspace_id, agent_type) DO NOTHING",
+            params![
+                Uuid::new_v4().to_string(),
+                workspace.id.clone(),
+                agent_type,
+                workspace.created_at.clone(),
+                workspace.updated_at.clone()
+            ],
+        )?;
+    }
+
+    append_audit_event(
+        &conn,
+        Some(&workspace.id),
+        "workspace_create",
+        "system",
+        json!({
+            "workspaceId": workspace.id,
+            "rootPath": workspace.root_path,
+        }),
+    )?;
+
+    Ok(workspace)
+}
+
+#[tauri::command]
+pub fn workspace_update(
+    state: State<'_, AppState>,
+    input: WorkspaceUpdateInput,
+) -> Result<Workspace, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    let mut workspace = get_workspace(&tx, &input.id)?;
+
+    if let Some(name) = input.name {
+        let trimmed = name.trim();
+        if trimmed.is_empty() {
+            return Err(AppError::invalid_argument("workspace 名称不能为空"));
+        }
+        workspace.name = trimmed.to_string();
+    }
+
+    if let Some(root_path) = input.root_path {
+        let canonical = validate_workspace_root(&root_path)?;
+        workspace.root_path = canonical.to_string_lossy().to_string();
+    }
+
+    if let Some(install_mode) = input.install_mode {
+        validate_install_mode(&install_mode)?;
+        workspace.install_mode = install_mode;
+    }
+
+    if let Some(overrides) = input.platform_overrides {
+        let root = PathBuf::from(&workspace.root_path);
+        for target_path in overrides.values() {
+            ensure_safe_target_path(&root, Path::new(target_path))?;
+        }
+        workspace.platform_overrides = overrides;
+    }
+
+    workspace.updated_at = now_rfc3339();
+
+    tx.execute(
+        "UPDATE workspaces
+         SET name = ?2, root_path = ?3, install_mode = ?4, platform_overrides = ?5, updated_at = ?6
+         WHERE id = ?1",
+        params![
+            workspace.id,
+            workspace.name,
+            workspace.root_path,
+            workspace.install_mode,
+            serde_json::to_string(&workspace.platform_overrides)
+                .map_err(|err| AppError::internal(err.to_string()))?,
+            workspace.updated_at,
+        ],
+    )?;
+
+    append_audit_event(
+        &tx,
+        Some(&workspace.id),
+        "workspace_update",
+        "system",
+        json!({
+            "workspaceId": workspace.id,
+            "installMode": workspace.install_mode,
+            "platformOverrides": workspace.platform_overrides,
+        }),
+    )?;
+
+    tx.commit()?;
+    Ok(workspace)
+}
+
+#[tauri::command]
+pub fn workspace_activate(
+    state: State<'_, AppState>,
+    input: WorkspaceActivateInput,
+) -> Result<Workspace, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    let mut workspace = get_workspace(&tx, &input.id)?;
+
+    tx.execute("UPDATE workspaces SET active = 0", [])?;
+    tx.execute(
+        "UPDATE workspaces SET active = 1, updated_at = ?2 WHERE id = ?1",
+        params![workspace.id, now_rfc3339()],
+    )?;
+
+    workspace.active = true;
+    workspace.updated_at = now_rfc3339();
+
+    append_audit_event(
+        &tx,
+        Some(&workspace.id),
+        "workspace_activate",
+        "system",
+        json!({ "workspaceId": workspace.id }),
+    )?;
+
+    tx.commit()?;
+    Ok(workspace)
+}
+
+#[tauri::command]
+pub fn workspace_list(state: State<'_, AppState>) -> Result<Vec<Workspace>, AppError> {
+    let conn = state.open()?;
+    let mut stmt = conn.prepare(
+        "SELECT id, name, root_path, install_mode, platform_overrides, active, created_at, updated_at
+         FROM workspaces ORDER BY updated_at DESC",
+    )?;
+    let rows = stmt.query_map([], workspace_from_row)?;
+
+    let mut list = Vec::new();
+    for row in rows {
+        list.push(row?);
+    }
+
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn runtime_flags_get(state: State<'_, AppState>) -> Result<RuntimeFlags, AppError> {
+    let conn = state.open()?;
+    load_runtime_flags(&conn)
+}
+
+#[tauri::command]
+pub fn runtime_flags_update(
+    state: State<'_, AppState>,
+    input: RuntimeFlagsInput,
+) -> Result<RuntimeFlags, AppError> {
+    let conn = state.open()?;
+    conn.execute(
+        "UPDATE runtime_config
+         SET local_mode = ?1, external_sources_enabled = ?2, experimental_enabled = ?3, updated_at = ?4
+         WHERE id = 1",
+        params![
+            bool_to_int(input.local_mode),
+            bool_to_int(input.external_sources_enabled),
+            bool_to_int(input.experimental_enabled),
+            now_rfc3339()
+        ],
+    )?;
+
+    let flags = load_runtime_flags(&conn)?;
+
+    append_audit_event(
+        &conn,
+        None,
+        "runtime_flags_update",
+        "system",
+        json!({
+            "localMode": flags.local_mode,
+            "externalSourcesEnabled": flags.external_sources_enabled,
+            "experimentalEnabled": flags.experimental_enabled,
+        }),
+    )?;
+
+    Ok(flags)
+}
+
+#[tauri::command]
+pub fn target_upsert(
+    state: State<'_, AppState>,
+    input: TargetUpsertInput,
+) -> Result<Value, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    let workspace = get_workspace(&tx, &input.workspace_id)?;
+    let root = PathBuf::from(&workspace.root_path);
+
+    let install_mode = input
+        .install_mode
+        .unwrap_or_else(|| workspace.install_mode.clone());
+    validate_install_mode(&install_mode)?;
+
+    let safe_target = ensure_safe_target_path(&root, Path::new(&input.target_path))?;
+
+    let default_skills = safe_target
+        .parent()
+        .unwrap_or(safe_target.as_path())
+        .join("skills");
+    let candidate_skills_path = input
+        .skills_path
+        .unwrap_or_else(|| default_skills.to_string_lossy().to_string());
+    let safe_skills = ensure_safe_target_path(&root, Path::new(&candidate_skills_path))?;
+
+    let now = now_rfc3339();
+    let target_id = input.id.unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    tx.execute(
+        "INSERT INTO distribution_targets(id, workspace_id, platform, target_path, skills_path, install_mode, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+         ON CONFLICT(id) DO UPDATE SET
+            platform = excluded.platform,
+            target_path = excluded.target_path,
+            skills_path = excluded.skills_path,
+            install_mode = excluded.install_mode,
+            updated_at = excluded.updated_at",
+        params![
+            target_id,
+            workspace.id,
+            input.platform,
+            safe_target.to_string_lossy().to_string(),
+            safe_skills.to_string_lossy().to_string(),
+            install_mode,
+            now,
+            now,
+        ],
+    )?;
+
+    let record = get_target(&tx, &target_id)?;
+
+    append_audit_event(
+        &tx,
+        Some(&workspace.id),
+        "distribution_target_upsert",
+        "system",
+        json!({
+            "targetId": record.id,
+            "platform": record.platform,
+            "installMode": record.install_mode,
+        }),
+    )?;
+
+    tx.commit()?;
+    Ok(json!(record))
+}
+
+#[tauri::command]
+pub fn target_list(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<Value>, AppError> {
+    let conn = state.open()?;
+    let targets = list_targets(&conn, &workspace_id, None)?;
+    Ok(targets
+        .into_iter()
+        .map(|target| serde_json::to_value(target).unwrap_or(Value::Null))
+        .collect())
+}
+
+#[tauri::command]
+pub fn agent_doc_read(state: State<'_, AppState>, workspace_id: String) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &workspace_id)?;
+
+    let draft = conn
+        .query_row(
+            "SELECT content, content_hash, updated_at FROM agent_doc WHERE workspace_id = ?1",
+            params![workspace_id],
+            |row| {
+                Ok(json!({
+                    "content": row.get::<_, String>(0)?,
+                    "contentHash": row.get::<_, String>(1)?,
+                    "updatedAt": row.get::<_, String>(2)?,
+                }))
+            },
+        )
+        .optional()?
+        .ok_or_else(AppError::agent_doc_not_found)?;
+
+    Ok(draft)
+}
+
+#[tauri::command]
+pub fn agent_doc_save(
+    state: State<'_, AppState>,
+    input: crate::domain::models::AgentDocSaveInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &input.workspace_id)?;
+
+    let hash = sha256_hex(&input.content);
+    let now = now_rfc3339();
+
+    conn.execute(
+        "INSERT INTO agent_doc(workspace_id, content, content_hash, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(workspace_id) DO UPDATE SET
+            content = excluded.content,
+            content_hash = excluded.content_hash,
+            updated_at = excluded.updated_at",
+        params![input.workspace_id, input.content, hash, now],
+    )?;
+
+    Ok(json!({
+        "workspaceId": input.workspace_id,
+        "contentHash": hash,
+        "updatedAt": now,
+    }))
+}
+
+#[tauri::command]
+pub fn agent_doc_hash(state: State<'_, AppState>, workspace_id: String) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let hash = conn
+        .query_row(
+            "SELECT content_hash FROM agent_doc WHERE workspace_id = ?1",
+            params![workspace_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(AppError::agent_doc_not_found)?;
+
+    Ok(json!({ "contentHash": hash }))
+}
+
+#[tauri::command]
+pub fn release_create(
+    state: State<'_, AppState>,
+    input: ReleaseCreateInput,
+) -> Result<AgentDocRelease, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    get_workspace(&tx, &input.workspace_id)?;
+
+    let (content, content_hash) = tx
+        .query_row(
+            "SELECT content, content_hash FROM agent_doc WHERE workspace_id = ?1",
+            params![input.workspace_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?
+        .ok_or_else(AppError::agent_doc_not_found)?;
+
+    tx.execute(
+        "UPDATE agent_doc_versions SET active = 0 WHERE workspace_id = ?1",
+        params![input.workspace_id],
+    )?;
+
+    let version = next_release_version(&tx, &input.workspace_id)?;
+    let now = now_rfc3339();
+    let release = AgentDocRelease {
+        id: Uuid::new_v4().to_string(),
+        workspace_id: input.workspace_id,
+        version: version.clone(),
+        title: input.title,
+        notes: input.notes.unwrap_or_default(),
+        content_hash: content_hash.clone(),
+        operator: input.operator.unwrap_or_else(|| "system".to_string()),
+        active: true,
+        created_at: now.clone(),
+    };
+
+    tx.execute(
+        "INSERT INTO agent_doc_versions(
+            id, workspace_id, version, title, notes, content, content_hash, operator, active, created_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9)",
+        params![
+            release.id,
+            release.workspace_id,
+            release.version,
+            release.title,
+            release.notes,
+            content,
+            release.content_hash,
+            release.operator,
+            release.created_at,
+        ],
+    )?;
+
+    append_audit_event(
+        &tx,
+        Some(&release.workspace_id),
+        "release_create",
+        &release.operator,
+        json!({
+            "releaseVersion": release.version,
+            "contentHash": release.content_hash,
+        }),
+    )?;
+
+    tx.commit()?;
+    Ok(release)
+}
+
+#[tauri::command]
+pub fn release_list(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<AgentDocRelease>, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &workspace_id)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, workspace_id, version, title, notes, content_hash, operator, active, created_at
+         FROM agent_doc_versions
+         WHERE workspace_id = ?1
+         ORDER BY created_at DESC",
+    )?;
+
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        Ok(AgentDocRelease {
+            id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            version: row.get(2)?,
+            title: row.get(3)?,
+            notes: row.get(4)?,
+            content_hash: row.get(5)?,
+            operator: row.get(6)?,
+            active: row.get::<_, i64>(7)? == 1,
+            created_at: row.get(8)?,
+        })
+    })?;
+
+    let mut releases = Vec::new();
+    for row in rows {
+        releases.push(row?);
+    }
+
+    Ok(releases)
+}
+
+#[tauri::command]
+pub fn release_rollback(
+    state: State<'_, AppState>,
+    input: ReleaseRollbackInput,
+) -> Result<AgentDocRelease, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    get_workspace(&tx, &input.workspace_id)?;
+
+    let (content, content_hash, title) = tx
+        .query_row(
+            "SELECT content, content_hash, title
+             FROM agent_doc_versions
+             WHERE workspace_id = ?1 AND version = ?2",
+            params![input.workspace_id, input.release_version],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )
+        .optional()?
+        .ok_or_else(AppError::release_not_found)?;
+
+    tx.execute(
+        "UPDATE agent_doc_versions SET active = 0 WHERE workspace_id = ?1",
+        params![input.workspace_id],
+    )?;
+
+    let next_version = next_release_version(&tx, &input.workspace_id)?;
+    let now = now_rfc3339();
+    let operator = input.operator.unwrap_or_else(|| "system".to_string());
+    let release = AgentDocRelease {
+        id: Uuid::new_v4().to_string(),
+        workspace_id: input.workspace_id,
+        version: next_version,
+        title: format!("rollback:{}", title),
+        notes: format!("rollback from {}", input.release_version),
+        content_hash: content_hash.clone(),
+        operator: operator.clone(),
+        active: true,
+        created_at: now.clone(),
+    };
+
+    tx.execute(
+        "INSERT INTO agent_doc_versions(
+            id, workspace_id, version, title, notes, content, content_hash, operator, active, created_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, ?9)",
+        params![
+            release.id,
+            release.workspace_id,
+            release.version,
+            release.title,
+            release.notes,
+            content,
+            release.content_hash,
+            release.operator,
+            release.created_at,
+        ],
+    )?;
+
+    tx.execute(
+        "INSERT INTO agent_doc(workspace_id, content, content_hash, updated_at)
+         VALUES (?1, ?2, ?3, ?4)
+         ON CONFLICT(workspace_id) DO UPDATE
+         SET content = excluded.content, content_hash = excluded.content_hash, updated_at = excluded.updated_at",
+        params![release.workspace_id, content, content_hash, now],
+    )?;
+
+    append_audit_event(
+        &tx,
+        Some(&release.workspace_id),
+        "release_rollback",
+        &operator,
+        json!({
+            "fromVersion": input.release_version,
+            "toVersion": release.version,
+        }),
+    )?;
+
+    tx.commit()?;
+    Ok(release)
+}
+
+#[tauri::command]
+pub fn distribution_run(
+    state: State<'_, AppState>,
+    input: DistributionRunInput,
+) -> Result<DistributionJobResult, AppError> {
+    let conn = state.open()?;
+    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let release = get_release_with_content(&conn, &workspace.id, &input.release_version)?;
+
+    if input.release_version.trim().is_empty() {
+        return Err(AppError::invalid_argument("release_version 不能为空"));
+    }
+
+    let mode = input.mode.as_deref();
+    if let Some(selected_mode) = mode {
+        validate_install_mode(selected_mode)?;
+    }
+
+    run_distribution_job(
+        &conn,
+        &workspace,
+        &release,
+        mode,
+        input.allow_fallback.unwrap_or(true),
+        input.target_ids.as_deref(),
+        None,
+        input.operator.as_deref().unwrap_or("system"),
+        "distribution_run",
+    )
+}
+
+#[tauri::command]
+pub fn distribution_status(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    limit: Option<i64>,
+) -> Result<Vec<DistributionJobResult>, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &workspace_id)?;
+
+    let max = limit.unwrap_or(20).clamp(1, 200);
+    let mut stmt = conn.prepare(
+        "SELECT id, workspace_id, release_version, mode, status, retry_of_job_id, created_at
+         FROM distribution_jobs
+         WHERE workspace_id = ?1
+         ORDER BY created_at DESC
+         LIMIT ?2",
+    )?;
+
+    let rows = stmt.query_map(params![workspace_id, max], |row| {
+        Ok(DistributionJobResult {
+            id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            release_version: row.get(2)?,
+            mode: row.get(3)?,
+            status: row.get(4)?,
+            retry_of_job_id: row.get(5)?,
+            records: Vec::new(),
+            created_at: row.get(6)?,
+        })
+    })?;
+
+    let mut jobs = Vec::new();
+    for row in rows {
+        let mut job = row?;
+        job.records = list_distribution_records(&conn, &job.id)?;
+        jobs.push(job);
+    }
+
+    Ok(jobs)
+}
+
+#[tauri::command]
+pub fn distribution_retry_failed(
+    state: State<'_, AppState>,
+    input: DistributionRetryInput,
+) -> Result<DistributionJobResult, AppError> {
+    let conn = state.open()?;
+
+    let source_job = conn
+        .query_row(
+            "SELECT id, workspace_id, release_version, mode
+             FROM distribution_jobs
+             WHERE id = ?1",
+            params![input.job_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            },
+        )
+        .optional()?
+        .ok_or_else(|| AppError::invalid_argument("原始分发任务不存在"))?;
+
+    let workspace = get_workspace(&conn, &source_job.1)?;
+    let release = get_release_with_content(&conn, &workspace.id, &source_job.2)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT target_id FROM distribution_records WHERE job_id = ?1 AND status <> 'success'",
+    )?;
+    let rows = stmt.query_map(params![source_job.0], |row| row.get::<_, String>(0))?;
+    let mut target_ids = Vec::new();
+    for row in rows {
+        target_ids.push(row?);
+    }
+
+    if target_ids.is_empty() {
+        return Err(AppError::invalid_argument("没有可重试的失败目标"));
+    }
+
+    run_distribution_job(
+        &conn,
+        &workspace,
+        &release,
+        Some(&source_job.3),
+        true,
+        Some(target_ids.as_slice()),
+        Some(&source_job.0),
+        input.operator.as_deref().unwrap_or("system"),
+        "distribution_retry_failed",
+    )
+}
+
+#[tauri::command]
+pub fn distribution_detect_drift(
+    state: State<'_, AppState>,
+    input: DriftDetectInput,
+) -> Result<DistributionJobResult, AppError> {
+    let conn = state.open()?;
+    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let release = get_active_release_with_content(&conn, &workspace.id)?;
+    let targets = list_targets(&conn, &workspace.id, input.target_ids.as_deref())?;
+
+    if targets.is_empty() {
+        return Err(AppError::invalid_argument("未找到可用分发目标"));
+    }
+
+    let job_id = Uuid::new_v4().to_string();
+    let created_at = now_rfc3339();
+
+    conn.execute(
+        "INSERT INTO distribution_jobs(id, workspace_id, release_version, mode, status, fallback_enabled, retry_of_job_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, 'detect_drift', 'running', 0, NULL, ?4, ?5)",
+        params![job_id, workspace.id, release.version, created_at, created_at],
+    )?;
+
+    let mut records = Vec::new();
+    let workspace_root = PathBuf::from(&workspace.root_path);
+
+    for target in targets {
+        let target_path = PathBuf::from(&target.target_path);
+        let safe_target = ensure_safe_target_path(&workspace_root, &target_path);
+
+        let (status, actual_hash, message) = match safe_target {
+            Ok(path) => match detect_drift(&path, &release.content_hash) {
+                Ok((result_status, hash_or_message)) => {
+                    if result_status == "failed" {
+                        (result_status, String::new(), hash_or_message)
+                    } else {
+                        (result_status, hash_or_message, "ok".to_string())
+                    }
+                }
+                Err(err) => ("failed".to_string(), String::new(), err.message),
+            },
+            Err(err) => ("failed".to_string(), String::new(), err.message),
+        };
+
+        let record = DistributionRecordResult {
+            id: Uuid::new_v4().to_string(),
+            target_id: target.id,
+            status,
+            message,
+            expected_hash: release.content_hash.clone(),
+            actual_hash,
+            used_mode: "detect_drift".to_string(),
+        };
+        insert_distribution_record(&conn, &job_id, &record)?;
+        records.push(record);
+    }
+
+    let status = summarize_status(&records, true);
+    conn.execute(
+        "UPDATE distribution_jobs SET status = ?2, updated_at = ?3 WHERE id = ?1",
+        params![job_id, status, now_rfc3339()],
+    )?;
+
+    append_audit_event(
+        &conn,
+        Some(&workspace.id),
+        "distribution_detect_drift",
+        "system",
+        json!({
+            "jobId": job_id,
+            "releaseVersion": release.version,
+            "status": status,
+            "total": records.len(),
+            "drifted": records.iter().filter(|record| record.status == "drifted").count(),
+        }),
+    )?;
+
+    Ok(DistributionJobResult {
+        id: job_id,
+        workspace_id: workspace.id,
+        release_version: release.version,
+        mode: "detect_drift".to_string(),
+        status,
+        retry_of_job_id: None,
+        records,
+        created_at,
+    })
+}
+
+#[tauri::command]
+pub fn skills_scan(
+    state: State<'_, AppState>,
+    input: SkillsScanInput,
+) -> Result<Vec<SkillAsset>, AppError> {
+    let conn = state.open()?;
+    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let workspace_root = PathBuf::from(&workspace.root_path);
+
+    let directories: Vec<PathBuf> = if let Some(input_dirs) = input.directories {
+        input_dirs.into_iter().map(PathBuf::from).collect()
+    } else {
+        default_skill_directories(&workspace_root)
+    };
+
+    let discovered = discover_skills(&directories)?;
+    let deduped = dedupe_skills(discovered);
+    let latest_versions = input.latest_versions.unwrap_or_default();
+
+    let mut assets = Vec::new();
+    for skill in deduped {
+        let local_version = skill.version.clone();
+        let latest_version = latest_versions
+            .get(&skill.identity)
+            .cloned()
+            .unwrap_or_else(|| local_version.clone());
+        let update_candidate = compare_version(&local_version, &latest_version).is_lt();
+
+        let id = upsert_skill_asset(
+            &conn,
+            &skill,
+            &latest_version,
+            update_candidate,
+            now_rfc3339(),
+        )?;
+
+        upsert_skill_version(&conn, &id, &local_version, &skill.source)?;
+
+        assets.push(get_skill_asset(&conn, &id)?);
+    }
+
+    append_audit_event(
+        &conn,
+        Some(&workspace.id),
+        "skills_scan",
+        "system",
+        json!({
+            "workspaceId": workspace.id,
+            "directories": directories,
+            "count": assets.len(),
+        }),
+    )?;
+
+    Ok(assets)
+}
+
+#[tauri::command]
+pub fn skills_list(state: State<'_, AppState>) -> Result<Vec<SkillAsset>, AppError> {
+    let conn = state.open()?;
+    let mut stmt = conn.prepare(
+        "SELECT id, identity, name, version, latest_version, source, local_path, update_candidate, last_used_at, created_at, updated_at
+         FROM skills_assets
+         ORDER BY updated_at DESC, name ASC",
+    )?;
+
+    let rows = stmt.query_map([], skill_asset_from_row)?;
+    let mut list = Vec::new();
+    for row in rows {
+        list.push(row?);
+    }
+
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn skills_asset_detail(
+    state: State<'_, AppState>,
+    skill_id: String,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let asset = get_skill_asset(&conn, &skill_id)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT version, source, installed_at
+         FROM skills_versions
+         WHERE asset_id = ?1
+         ORDER BY installed_at DESC",
+    )?;
+    let rows = stmt.query_map(params![skill_id], |row| {
+        Ok(json!({
+            "version": row.get::<_, String>(0)?,
+            "source": row.get::<_, String>(1)?,
+            "installedAt": row.get::<_, String>(2)?,
+        }))
+    })?;
+
+    let mut versions = Vec::new();
+    for row in rows {
+        versions.push(row?);
+    }
+
+    Ok(json!({
+        "asset": asset,
+        "versions": versions,
+    }))
+}
+
+#[tauri::command]
+pub fn skills_distribute(
+    state: State<'_, AppState>,
+    input: SkillsBatchInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let targets = list_targets(&conn, &workspace.id, Some(input.target_ids.as_slice()))?;
+    if targets.is_empty() {
+        return Err(AppError::invalid_argument("分发目标为空"));
+    }
+
+    let skills = list_skills_by_ids(&conn, &input.skill_ids)?;
+    if skills.is_empty() {
+        return Err(AppError::invalid_argument("skill 选择为空"));
+    }
+
+    let workspace_root = PathBuf::from(&workspace.root_path);
+    let mut rows = Vec::new();
+
+    for skill in &skills {
+        let source_dir = PathBuf::from(&skill.local_path);
+        for target in &targets {
+            let safe_skills_root =
+                ensure_safe_target_path(&workspace_root, Path::new(&target.skills_path));
+            let (status, message, used_mode) = match safe_skills_root {
+                Ok(root) => {
+                    let destination = root.join(&skill.name);
+                    match distribute_skill(&source_dir, &destination, &target.install_mode) {
+                        Ok(mode) => {
+                            conn.execute(
+                                "UPDATE skills_assets SET last_used_at = ?2, updated_at = ?2 WHERE id = ?1",
+                                params![skill.id, now_rfc3339()],
+                            )?;
+                            ("success".to_string(), "ok".to_string(), mode)
+                        }
+                        Err(err) => (
+                            "failed".to_string(),
+                            err.message,
+                            target.install_mode.clone(),
+                        ),
+                    }
+                }
+                Err(err) => (
+                    "failed".to_string(),
+                    err.message,
+                    target.install_mode.clone(),
+                ),
+            };
+
+            rows.push(json!({
+                "skillId": skill.id,
+                "skillName": skill.name,
+                "targetId": target.id,
+                "platform": target.platform,
+                "status": status,
+                "message": message,
+                "usedMode": used_mode,
+            }));
+        }
+    }
+
+    append_audit_event(
+        &conn,
+        Some(&workspace.id),
+        "skills_distribute",
+        input.operator.as_deref().unwrap_or("system"),
+        json!({
+            "workspaceId": workspace.id,
+            "skillIds": input.skill_ids,
+            "targetIds": input.target_ids,
+            "summary": summarize_json_rows(&rows),
+        }),
+    )?;
+
+    Ok(json!({
+        "results": rows,
+        "summary": summarize_json_rows(&rows),
+    }))
+}
+
+#[tauri::command]
+pub fn skills_uninstall(
+    state: State<'_, AppState>,
+    input: SkillsBatchInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let targets = list_targets(&conn, &workspace.id, Some(input.target_ids.as_slice()))?;
+    if targets.is_empty() {
+        return Err(AppError::invalid_argument("分发目标为空"));
+    }
+
+    let skills = list_skills_by_ids(&conn, &input.skill_ids)?;
+    if skills.is_empty() {
+        return Err(AppError::invalid_argument("skill 选择为空"));
+    }
+
+    let workspace_root = PathBuf::from(&workspace.root_path);
+    let mut rows = Vec::new();
+
+    for skill in &skills {
+        for target in &targets {
+            let safe_skills_root =
+                ensure_safe_target_path(&workspace_root, Path::new(&target.skills_path));
+            let (status, message) = match safe_skills_root {
+                Ok(root) => {
+                    let destination = root.join(&skill.name);
+                    match uninstall_skill(&destination) {
+                        Ok(_) => ("success".to_string(), "ok".to_string()),
+                        Err(err) => ("failed".to_string(), err.message),
+                    }
+                }
+                Err(err) => ("failed".to_string(), err.message),
+            };
+
+            rows.push(json!({
+                "skillId": skill.id,
+                "skillName": skill.name,
+                "targetId": target.id,
+                "platform": target.platform,
+                "status": status,
+                "message": message,
+            }));
+        }
+    }
+
+    append_audit_event(
+        &conn,
+        Some(&workspace.id),
+        "skills_uninstall",
+        input.operator.as_deref().unwrap_or("system"),
+        json!({
+            "workspaceId": workspace.id,
+            "skillIds": input.skill_ids,
+            "targetIds": input.target_ids,
+            "summary": summarize_json_rows(&rows),
+        }),
+    )?;
+
+    Ok(json!({
+        "results": rows,
+        "summary": summarize_json_rows(&rows),
+    }))
+}
+
+#[tauri::command]
+pub fn prompt_create(
+    state: State<'_, AppState>,
+    input: PromptCreateInput,
+) -> Result<Value, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    get_workspace(&tx, &input.workspace_id)?;
+
+    let now = now_rfc3339();
+    let prompt_id = Uuid::new_v4().to_string();
+    let tags = input.tags.unwrap_or_default();
+    let category = input.category.unwrap_or_else(|| "default".to_string());
+    let favorite = input.favorite.unwrap_or(false);
+
+    tx.execute(
+        "INSERT INTO prompts_assets(id, workspace_id, name, tags, category, favorite, active_version, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8)",
+        params![
+            prompt_id,
+            input.workspace_id,
+            input.name,
+            serde_json::to_string(&tags).map_err(|err| AppError::internal(err.to_string()))?,
+            category,
+            bool_to_int(favorite),
+            now,
+            now,
+        ],
+    )?;
+
+    tx.execute(
+        "INSERT INTO prompts_versions(asset_id, version, content, metadata, created_at)
+         VALUES (?1, 1, ?2, ?3, ?4)",
+        params![
+            prompt_id,
+            input.content,
+            json!({"action": "create"}).to_string(),
+            now,
+        ],
+    )?;
+
+    tx.commit()?;
+    get_prompt_with_active_content(&conn, &prompt_id)
+}
+
+#[tauri::command]
+pub fn prompt_update(
+    state: State<'_, AppState>,
+    input: PromptUpdateInput,
+) -> Result<Value, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    let prompt = get_prompt_asset_row(&tx, &input.prompt_id)?;
+    let next_version = prompt.active_version + 1;
+    let tags = input.tags.unwrap_or(prompt.tags.clone());
+    let category = input.category.unwrap_or(prompt.category.clone());
+    let favorite = input.favorite.unwrap_or(prompt.favorite);
+    let now = now_rfc3339();
+
+    tx.execute(
+        "INSERT INTO prompts_versions(asset_id, version, content, metadata, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            prompt.id,
+            next_version,
+            input.content,
+            json!({"action": "update"}).to_string(),
+            now,
+        ],
+    )?;
+
+    tx.execute(
+        "UPDATE prompts_assets
+         SET tags = ?2, category = ?3, favorite = ?4, active_version = ?5, updated_at = ?6
+         WHERE id = ?1",
+        params![
+            prompt.id,
+            serde_json::to_string(&tags).map_err(|err| AppError::internal(err.to_string()))?,
+            category,
+            bool_to_int(favorite),
+            next_version,
+            now,
+        ],
+    )?;
+
+    tx.commit()?;
+    get_prompt_with_active_content(&conn, &input.prompt_id)
+}
+
+#[tauri::command]
+pub fn prompt_delete(
+    state: State<'_, AppState>,
+    input: PromptDeleteInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let affected = conn.execute(
+        "DELETE FROM prompts_assets WHERE id = ?1",
+        params![input.prompt_id],
+    )?;
+
+    if affected == 0 {
+        return Err(AppError::invalid_argument("prompt 不存在"));
+    }
+
+    Ok(json!({ "deleted": true }))
+}
+
+#[tauri::command]
+pub fn prompt_list(
+    state: State<'_, AppState>,
+    workspace_id: String,
+) -> Result<Vec<Value>, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &workspace_id)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT p.id, p.workspace_id, p.name, p.tags, p.category, p.favorite, p.active_version, p.created_at, p.updated_at, v.content
+         FROM prompts_assets p
+         JOIN prompts_versions v ON v.asset_id = p.id AND v.version = p.active_version
+         WHERE p.workspace_id = ?1
+         ORDER BY p.updated_at DESC",
+    )?;
+
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        let tags_raw: String = row.get(3)?;
+        let tags: Vec<String> = serde_json::from_str(&tags_raw).unwrap_or_default();
+
+        Ok(json!({
+            "id": row.get::<_, String>(0)?,
+            "workspaceId": row.get::<_, String>(1)?,
+            "name": row.get::<_, String>(2)?,
+            "tags": tags,
+            "category": row.get::<_, String>(4)?,
+            "favorite": row.get::<_, i64>(5)? == 1,
+            "activeVersion": row.get::<_, i64>(6)?,
+            "createdAt": row.get::<_, String>(7)?,
+            "updatedAt": row.get::<_, String>(8)?,
+            "content": row.get::<_, String>(9)?,
+        }))
+    })?;
+
+    let mut list = Vec::new();
+    for row in rows {
+        list.push(row?);
+    }
+
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn prompt_versions(state: State<'_, AppState>, prompt_id: String) -> Result<Vec<Value>, AppError> {
+    let conn = state.open()?;
+    get_prompt_asset_row(&conn, &prompt_id)?;
+
+    let mut stmt = conn.prepare(
+        "SELECT version, content, metadata, created_at
+         FROM prompts_versions
+         WHERE asset_id = ?1
+         ORDER BY version DESC",
+    )?;
+
+    let rows = stmt.query_map(params![prompt_id], |row| {
+        let metadata_raw: String = row.get(2)?;
+        let metadata = serde_json::from_str::<Value>(&metadata_raw)
+            .unwrap_or(Value::String(metadata_raw));
+
+        Ok(json!({
+            "version": row.get::<_, i64>(0)?,
+            "content": row.get::<_, String>(1)?,
+            "metadata": metadata,
+            "createdAt": row.get::<_, String>(3)?,
+        }))
+    })?;
+
+    let mut list = Vec::new();
+    for row in rows {
+        list.push(row?);
+    }
+
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn prompt_restore_version(
+    state: State<'_, AppState>,
+    input: PromptRestoreInput,
+) -> Result<Value, AppError> {
+    let mut conn = state.open()?;
+    let tx = conn.transaction()?;
+
+    let prompt = get_prompt_asset_row(&tx, &input.prompt_id)?;
+    let restored_content = tx
+        .query_row(
+            "SELECT content FROM prompts_versions WHERE asset_id = ?1 AND version = ?2",
+            params![input.prompt_id, input.version],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::invalid_argument("指定版本不存在"))?;
+
+    let next_version = prompt.active_version + 1;
+    let now = now_rfc3339();
+
+    tx.execute(
+        "INSERT INTO prompts_versions(asset_id, version, content, metadata, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            prompt.id,
+            next_version,
+            restored_content,
+            json!({"action": "restore", "fromVersion": input.version}).to_string(),
+            now,
+        ],
+    )?;
+
+    tx.execute(
+        "UPDATE prompts_assets SET active_version = ?2, updated_at = ?3 WHERE id = ?1",
+        params![prompt.id, next_version, now],
+    )?;
+
+    tx.commit()?;
+    get_prompt_with_active_content(&conn, &input.prompt_id)
+}
+
+#[tauri::command]
+pub fn prompt_search(
+    state: State<'_, AppState>,
+    input: PromptSearchInput,
+) -> Result<Vec<Value>, AppError> {
+    let list = prompt_list(state, input.workspace_id)?;
+
+    let keyword = input.keyword.unwrap_or_default().to_lowercase();
+    let category = input.category.unwrap_or_default();
+    let tag_filter: HashSet<String> = input
+        .tags
+        .unwrap_or_default()
+        .into_iter()
+        .map(|item| item.to_lowercase())
+        .collect();
+
+    let mut filtered = Vec::new();
+    for item in list {
+        let matches_keyword = if keyword.is_empty() {
+            true
+        } else {
+            let name = item
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_lowercase();
+            let content = item
+                .get("content")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_lowercase();
+            name.contains(&keyword) || content.contains(&keyword)
+        };
+
+        if !matches_keyword {
+            continue;
+        }
+
+        if !category.is_empty()
+            && item
+                .get("category")
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                != category
+        {
+            continue;
+        }
+
+        if let Some(favorite_filter) = input.favorite {
+            let favorite = item
+                .get("favorite")
+                .and_then(Value::as_bool)
+                .unwrap_or(false);
+            if favorite != favorite_filter {
+                continue;
+            }
+        }
+
+        if !tag_filter.is_empty() {
+            let tags = item
+                .get("tags")
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+
+            let present: HashSet<String> = tags
+                .iter()
+                .filter_map(|entry| entry.as_str().map(|item| item.to_lowercase()))
+                .collect();
+
+            if !tag_filter.iter().all(|tag| present.contains(tag)) {
+                continue;
+            }
+        }
+
+        filtered.push(item);
+    }
+
+    Ok(filtered)
+}
+
+#[tauri::command]
+pub fn prompt_render(
+    state: State<'_, AppState>,
+    input: PromptRenderInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+
+    let content = conn
+        .query_row(
+            "SELECT v.content
+             FROM prompts_assets p
+             JOIN prompts_versions v ON v.asset_id = p.id AND v.version = p.active_version
+             WHERE p.id = ?1",
+            params![input.prompt_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?
+        .ok_or_else(|| AppError::invalid_argument("prompt 不存在"))?;
+
+    let rendered = render_template(&content, &input.variables);
+    Ok(json!({ "rendered": rendered }))
+}
+
+#[tauri::command]
+pub fn metrics_ingest_usage_event(
+    state: State<'_, AppState>,
+    input: UsageEventInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &input.workspace_id)?;
+
+    let event_id = Uuid::new_v4().to_string();
+    let ts = now_rfc3339();
+    let context = serde_json::to_string(&input.context.unwrap_or_default())
+        .map_err(|err| AppError::internal(err.to_string()))?;
+
+    conn.execute(
+        "INSERT INTO usage_events(id, workspace_id, asset_type, asset_id, version, event_type, success, context, ts)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            event_id,
+            input.workspace_id,
+            input.asset_type,
+            input.asset_id,
+            input.version,
+            input.event_type,
+            bool_to_int(input.success),
+            context,
+            ts,
+        ],
+    )?;
+
+    if input.asset_type == "skill" {
+        conn.execute(
+            "UPDATE skills_assets SET last_used_at = ?2, updated_at = ?2 WHERE id = ?1 OR identity = ?1",
+            params![input.asset_id, now_rfc3339()],
+        )?;
+    }
+
+    Ok(json!({ "eventId": event_id }))
+}
+
+#[tauri::command]
+pub fn metrics_query_overview(
+    state: State<'_, AppState>,
+    workspace_id: String,
+    days: Option<i64>,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &workspace_id)?;
+
+    let range_days = days.unwrap_or(30).clamp(1, 365);
+    let from_ts = (Utc::now() - Duration::days(range_days)).to_rfc3339();
+
+    let mut metrics_stmt = conn.prepare(
+        "SELECT asset_type, COUNT(1), SUM(success), MAX(ts)
+         FROM usage_events
+         WHERE workspace_id = ?1 AND ts >= ?2
+         GROUP BY asset_type",
+    )?;
+
+    let metric_rows = metrics_stmt.query_map(params![workspace_id, from_ts], |row| {
+        let trigger_count: i64 = row.get(1)?;
+        let success_count: i64 = row.get::<_, Option<i64>>(2)?.unwrap_or(0);
+        let success_rate = if trigger_count == 0 {
+            0.0
+        } else {
+            success_count as f64 / trigger_count as f64
+        };
+
+        Ok(json!({
+            "assetType": row.get::<_, String>(0)?,
+            "triggerCount": trigger_count,
+            "successCount": success_count,
+            "successRate": success_rate,
+            "recentTs": row.get::<_, Option<String>>(3)?,
+        }))
+    })?;
+
+    let mut metrics = Vec::new();
+    for row in metric_rows {
+        metrics.push(row?);
+    }
+
+    let mut ratings_stmt = conn.prepare(
+        "SELECT asset_type, AVG(score), COUNT(1)
+         FROM ratings
+         WHERE workspace_id = ?1
+         GROUP BY asset_type",
+    )?;
+
+    let rating_rows = ratings_stmt.query_map(params![workspace_id], |row| {
+        Ok(json!({
+            "assetType": row.get::<_, String>(0)?,
+            "avgScore": row.get::<_, Option<f64>>(1)?.unwrap_or(0.0),
+            "ratingCount": row.get::<_, i64>(2)?,
+        }))
+    })?;
+
+    let mut ratings = Vec::new();
+    for row in rating_rows {
+        ratings.push(row?);
+    }
+
+    Ok(json!({
+        "windowDays": range_days,
+        "metrics": metrics,
+        "ratings": ratings,
+    }))
+}
+
+#[tauri::command]
+pub fn metrics_query_by_asset(
+    state: State<'_, AppState>,
+    input: MetricsByAssetInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    get_workspace(&conn, &input.workspace_id)?;
+
+    let range_days = input.days.unwrap_or(30).clamp(1, 365);
+    let from_ts = (Utc::now() - Duration::days(range_days)).to_rfc3339();
+
+    let row = conn.query_row(
+        "SELECT COUNT(1), SUM(success), MAX(ts)
+             FROM usage_events
+             WHERE workspace_id = ?1
+               AND asset_type = ?2
+               AND asset_id = ?3
+               AND ts >= ?4",
+        params![
+            input.workspace_id,
+            input.asset_type,
+            input.asset_id,
+            from_ts
+        ],
+        |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, Option<i64>>(1)?.unwrap_or(0),
+                row.get::<_, Option<String>>(2)?,
+            ))
+        },
+    )?;
+
+    let success_rate = if row.0 == 0 {
+        0.0
+    } else {
+        row.1 as f64 / row.0 as f64
+    };
+
+    let rating = conn.query_row(
+        "SELECT AVG(score), COUNT(1)
+             FROM ratings
+             WHERE workspace_id = ?1 AND asset_type = ?2 AND asset_id = ?3",
+        params![input.workspace_id, input.asset_type, input.asset_id],
+        |row| {
+            Ok((
+                row.get::<_, Option<f64>>(0)?.unwrap_or(0.0),
+                row.get::<_, i64>(1)?,
+            ))
+        },
+    )?;
+
+    Ok(json!({
+        "triggerCount": row.0,
+        "successCount": row.1,
+        "successRate": success_rate,
+        "recentTs": row.2,
+        "avgScore": rating.0,
+        "ratingCount": rating.1,
+    }))
+}
+
+#[tauri::command]
+pub fn metrics_submit_rating(
+    state: State<'_, AppState>,
+    input: RatingInput,
+) -> Result<Value, AppError> {
+    if input.score < 1 || input.score > 5 {
+        return Err(AppError::invalid_argument("评分范围必须在 1-5"));
+    }
+
+    let conn = state.open()?;
+    get_workspace(&conn, &input.workspace_id)?;
+
+    let id = Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO ratings(id, workspace_id, asset_type, asset_id, version, score, comment, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        params![
+            id,
+            input.workspace_id,
+            input.asset_type,
+            input.asset_id,
+            input.version,
+            input.score,
+            input.comment.unwrap_or_default(),
+            now_rfc3339(),
+        ],
+    )?;
+
+    Ok(json!({ "ratingId": id }))
+}
+
+#[tauri::command]
+pub fn audit_query(
+    state: State<'_, AppState>,
+    input: AuditQueryInput,
+) -> Result<Vec<Value>, AppError> {
+    let conn = state.open()?;
+    let limit = input.limit.unwrap_or(50).clamp(1, 500);
+
+    let mut list = Vec::new();
+    if let Some(workspace_id) = input.workspace_id {
+        let mut stmt = conn.prepare(
+            "SELECT id, workspace_id, event_type, operator, payload, created_at
+             FROM audit_events
+             WHERE workspace_id = ?1
+             ORDER BY created_at DESC
+             LIMIT ?2",
+        )?;
+        let rows = stmt.query_map(params![workspace_id, limit], audit_row_to_json)?;
+        for row in rows {
+            list.push(row?);
+        }
+    } else {
+        let mut stmt = conn.prepare(
+            "SELECT id, workspace_id, event_type, operator, payload, created_at
+             FROM audit_events
+             ORDER BY created_at DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit], audit_row_to_json)?;
+        for row in rows {
+            list.push(row?);
+        }
+    }
+
+    Ok(list)
+}
+
+#[tauri::command]
+pub fn security_check_external_source(input: ExternalSourceCheckInput) -> Result<Value, AppError> {
+    let parsed = validate_external_source(&input.url)?;
+    Ok(json!({
+        "ok": true,
+        "normalizedUrl": parsed.to_string(),
+    }))
+}
+
+fn run_distribution_job(
+    conn: &Connection,
+    workspace: &Workspace,
+    release: &ReleaseBundle,
+    mode_override: Option<&str>,
+    allow_fallback: bool,
+    target_ids: Option<&[String]>,
+    retry_of_job_id: Option<&str>,
+    operator: &str,
+    audit_event_type: &str,
+) -> Result<DistributionJobResult, AppError> {
+    let targets = list_targets(conn, &workspace.id, target_ids)?;
+    if targets.is_empty() {
+        return Err(AppError::invalid_argument("未找到可用分发目标"));
+    }
+
+    let created_at = now_rfc3339();
+    let job_id = Uuid::new_v4().to_string();
+
+    conn.execute(
+        "INSERT INTO distribution_jobs(id, workspace_id, release_version, mode, status, fallback_enabled, retry_of_job_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, 'running', ?5, ?6, ?7, ?8)",
+        params![
+            job_id,
+            workspace.id,
+            release.version,
+            mode_override.unwrap_or("default"),
+            bool_to_int(allow_fallback),
+            retry_of_job_id,
+            created_at,
+            created_at,
+        ],
+    )?;
+
+    let workspace_root = PathBuf::from(&workspace.root_path);
+    let mut records = Vec::new();
+
+    for target in targets {
+        let selected_mode = mode_override.unwrap_or(&target.install_mode).to_string();
+        let target_path = PathBuf::from(&target.target_path);
+
+        let result = match validate_install_mode(&selected_mode) {
+            Ok(_) => match ensure_safe_target_path(&workspace_root, &target_path) {
+                Ok(safe_target_path) => {
+                    match distribute_agents(
+                        &release.content,
+                        &release.content_hash,
+                        &safe_target_path,
+                        &selected_mode,
+                        allow_fallback,
+                    ) {
+                        Ok(result) => DistributionRecordResult {
+                            id: Uuid::new_v4().to_string(),
+                            target_id: target.id,
+                            status: result.status,
+                            message: result.message,
+                            expected_hash: release.content_hash.clone(),
+                            actual_hash: result.actual_hash,
+                            used_mode: result.used_mode,
+                        },
+                        Err(err) => DistributionRecordResult {
+                            id: Uuid::new_v4().to_string(),
+                            target_id: target.id,
+                            status: "failed".to_string(),
+                            message: err.message,
+                            expected_hash: release.content_hash.clone(),
+                            actual_hash: String::new(),
+                            used_mode: selected_mode,
+                        },
+                    }
+                }
+                Err(err) => DistributionRecordResult {
+                    id: Uuid::new_v4().to_string(),
+                    target_id: target.id,
+                    status: "failed".to_string(),
+                    message: err.message,
+                    expected_hash: release.content_hash.clone(),
+                    actual_hash: String::new(),
+                    used_mode: selected_mode,
+                },
+            },
+            Err(err) => DistributionRecordResult {
+                id: Uuid::new_v4().to_string(),
+                target_id: target.id,
+                status: "failed".to_string(),
+                message: err.message,
+                expected_hash: release.content_hash.clone(),
+                actual_hash: String::new(),
+                used_mode: selected_mode,
+            },
+        };
+
+        insert_distribution_record(conn, &job_id, &result)?;
+        records.push(result);
+    }
+
+    let status = summarize_status(&records, false);
+    conn.execute(
+        "UPDATE distribution_jobs SET status = ?2, updated_at = ?3 WHERE id = ?1",
+        params![job_id, status, now_rfc3339()],
+    )?;
+
+    append_audit_event(
+        conn,
+        Some(&workspace.id),
+        audit_event_type,
+        operator,
+        json!({
+            "jobId": job_id,
+            "releaseVersion": release.version,
+            "status": status,
+            "mode": mode_override.unwrap_or("default"),
+            "summary": {
+                "total": records.len(),
+                "success": records.iter().filter(|item| item.status == "success").count(),
+                "failed": records.iter().filter(|item| item.status == "failed").count(),
+            }
+        }),
+    )?;
+
+    Ok(DistributionJobResult {
+        id: job_id,
+        workspace_id: workspace.id.clone(),
+        release_version: release.version.clone(),
+        mode: mode_override.unwrap_or("default").to_string(),
+        status,
+        retry_of_job_id: retry_of_job_id.map(str::to_string),
+        records,
+        created_at,
+    })
+}
+
+fn insert_distribution_record(
+    conn: &Connection,
+    job_id: &str,
+    record: &DistributionRecordResult,
+) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO distribution_records(id, job_id, target_id, status, message, expected_hash, actual_hash, used_mode, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+        params![
+            record.id,
+            job_id,
+            record.target_id,
+            record.status,
+            record.message,
+            record.expected_hash,
+            record.actual_hash,
+            record.used_mode,
+            now_rfc3339(),
+            now_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn list_distribution_records(
+    conn: &Connection,
+    job_id: &str,
+) -> Result<Vec<DistributionRecordResult>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT id, target_id, status, message, expected_hash, actual_hash, used_mode
+         FROM distribution_records
+         WHERE job_id = ?1
+         ORDER BY created_at ASC",
+    )?;
+
+    let rows = stmt.query_map(params![job_id], |row| {
+        Ok(DistributionRecordResult {
+            id: row.get(0)?,
+            target_id: row.get(1)?,
+            status: row.get(2)?,
+            message: row.get(3)?,
+            expected_hash: row.get(4)?,
+            actual_hash: row.get(5)?,
+            used_mode: row.get(6)?,
+        })
+    })?;
+
+    let mut records = Vec::new();
+    for row in rows {
+        records.push(row?);
+    }
+    Ok(records)
+}
+
+fn summarize_status(records: &[DistributionRecordResult], with_drift: bool) -> String {
+    if records.is_empty() {
+        return "failed".to_string();
+    }
+
+    let success = records
+        .iter()
+        .filter(|item| item.status == "success")
+        .count();
+    let failed = records
+        .iter()
+        .filter(|item| item.status == "failed")
+        .count();
+    let drifted = records
+        .iter()
+        .filter(|item| item.status == "drifted")
+        .count();
+
+    if failed == records.len() {
+        return "failed".to_string();
+    }
+
+    if failed == 0 && drifted == 0 {
+        return "success".to_string();
+    }
+
+    if with_drift && failed == 0 && drifted > 0 {
+        return "drifted".to_string();
+    }
+
+    if success > 0 || drifted > 0 {
+        return "partial_failed".to_string();
+    }
+
+    "failed".to_string()
+}
+
+fn summarize_json_rows(rows: &[Value]) -> Value {
+    let total = rows.len();
+    let success = rows
+        .iter()
+        .filter(|item| item.get("status").and_then(Value::as_str) == Some("success"))
+        .count();
+    let failed = total.saturating_sub(success);
+
+    json!({
+        "total": total,
+        "success": success,
+        "failed": failed,
+    })
+}
+
+fn get_workspace(conn: &Connection, id: &str) -> Result<Workspace, AppError> {
+    conn.query_row(
+        "SELECT id, name, root_path, install_mode, platform_overrides, active, created_at, updated_at
+         FROM workspaces
+         WHERE id = ?1",
+        params![id],
+        workspace_from_row,
+    )
+    .optional()?
+    .ok_or_else(AppError::workspace_not_found)
+}
+
+fn workspace_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Workspace> {
+    let overrides_raw: String = row.get(4)?;
+    let platform_overrides: HashMap<String, String> =
+        serde_json::from_str(&overrides_raw).unwrap_or_default();
+
+    Ok(Workspace {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        root_path: row.get(2)?,
+        install_mode: row.get(3)?,
+        platform_overrides,
+        active: row.get::<_, i64>(5)? == 1,
+        created_at: row.get(6)?,
+        updated_at: row.get(7)?,
+    })
+}
+
+fn get_target(conn: &Connection, target_id: &str) -> Result<DistributionTarget, AppError> {
+    conn.query_row(
+        "SELECT id, workspace_id, platform, target_path, skills_path, install_mode, created_at, updated_at
+         FROM distribution_targets
+         WHERE id = ?1",
+        params![target_id],
+        |row| {
+            Ok(DistributionTarget {
+                id: row.get(0)?,
+                workspace_id: row.get(1)?,
+                platform: row.get(2)?,
+                target_path: row.get(3)?,
+                skills_path: row.get(4)?,
+                install_mode: row.get(5)?,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_or_else(|| AppError::invalid_argument("target 不存在"))
+}
+
+fn list_targets(
+    conn: &Connection,
+    workspace_id: &str,
+    target_ids: Option<&[String]>,
+) -> Result<Vec<crate::domain::models::DistributionTarget>, AppError> {
+    if let Some(ids) = target_ids {
+        if ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let mut targets = Vec::new();
+        for target_id in ids {
+            let target = conn
+                .query_row(
+                    "SELECT id, workspace_id, platform, target_path, skills_path, install_mode, created_at, updated_at
+                     FROM distribution_targets
+                     WHERE workspace_id = ?1 AND id = ?2",
+                    params![workspace_id, target_id],
+                    |row| {
+                        Ok(crate::domain::models::DistributionTarget {
+                            id: row.get(0)?,
+                            workspace_id: row.get(1)?,
+                            platform: row.get(2)?,
+                            target_path: row.get(3)?,
+                            skills_path: row.get(4)?,
+                            install_mode: row.get(5)?,
+                            created_at: row.get(6)?,
+                            updated_at: row.get(7)?,
+                        })
+                    },
+                )
+                .optional()?;
+
+            if let Some(item) = target {
+                targets.push(item);
+            }
+        }
+        return Ok(targets);
+    }
+
+    let mut stmt = conn.prepare(
+        "SELECT id, workspace_id, platform, target_path, skills_path, install_mode, created_at, updated_at
+         FROM distribution_targets
+         WHERE workspace_id = ?1
+         ORDER BY created_at ASC",
+    )?;
+
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        Ok(crate::domain::models::DistributionTarget {
+            id: row.get(0)?,
+            workspace_id: row.get(1)?,
+            platform: row.get(2)?,
+            target_path: row.get(3)?,
+            skills_path: row.get(4)?,
+            install_mode: row.get(5)?,
+            created_at: row.get(6)?,
+            updated_at: row.get(7)?,
+        })
+    })?;
+
+    let mut targets = Vec::new();
+    for row in rows {
+        targets.push(row?);
+    }
+    Ok(targets)
+}
+
+struct ReleaseBundle {
+    version: String,
+    content: String,
+    content_hash: String,
+}
+
+fn get_release_with_content(
+    conn: &Connection,
+    workspace_id: &str,
+    version: &str,
+) -> Result<ReleaseBundle, AppError> {
+    conn.query_row(
+        "SELECT version, content, content_hash
+         FROM agent_doc_versions
+         WHERE workspace_id = ?1 AND version = ?2",
+        params![workspace_id, version],
+        |row| {
+            Ok(ReleaseBundle {
+                version: row.get(0)?,
+                content: row.get(1)?,
+                content_hash: row.get(2)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_or_else(AppError::release_not_found)
+}
+
+fn get_active_release_with_content(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<ReleaseBundle, AppError> {
+    conn.query_row(
+        "SELECT version, content, content_hash
+         FROM agent_doc_versions
+         WHERE workspace_id = ?1 AND active = 1
+         ORDER BY created_at DESC
+         LIMIT 1",
+        params![workspace_id],
+        |row| {
+            Ok(ReleaseBundle {
+                version: row.get(0)?,
+                content: row.get(1)?,
+                content_hash: row.get(2)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_or_else(AppError::release_not_found)
+}
+
+fn next_release_version(conn: &Connection, workspace_id: &str) -> Result<String, AppError> {
+    let mut stmt =
+        conn.prepare("SELECT version FROM agent_doc_versions WHERE workspace_id = ?1")?;
+    let rows = stmt.query_map(params![workspace_id], |row| row.get::<_, String>(0))?;
+
+    let mut max = 0_i64;
+    for row in rows {
+        let version = row?;
+        let number = version
+            .trim()
+            .trim_start_matches('v')
+            .parse::<i64>()
+            .unwrap_or(0);
+        if number > max {
+            max = number;
+        }
+    }
+
+    Ok(format!("v{}", max + 1))
+}
+
+fn append_audit_event(
+    conn: &Connection,
+    workspace_id: Option<&str>,
+    event_type: &str,
+    operator: &str,
+    payload: Value,
+) -> Result<(), AppError> {
+    conn.execute(
+        "INSERT INTO audit_events(id, workspace_id, event_type, operator, payload, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![
+            Uuid::new_v4().to_string(),
+            workspace_id,
+            event_type,
+            operator,
+            payload.to_string(),
+            now_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn dedupe_skills(discovered: Vec<DiscoveredSkill>) -> Vec<DiscoveredSkill> {
+    let mut mapped: HashMap<String, DiscoveredSkill> = HashMap::new();
+
+    for skill in discovered {
+        match mapped.get(&skill.identity) {
+            None => {
+                mapped.insert(skill.identity.clone(), skill);
+            }
+            Some(prev) => {
+                if compare_version(&prev.version, &skill.version).is_lt() {
+                    mapped.insert(skill.identity.clone(), skill);
+                }
+            }
+        }
+    }
+
+    let mut list: Vec<DiscoveredSkill> = mapped.into_values().collect();
+    list.sort_by(|a, b| a.name.cmp(&b.name));
+    list
+}
+
+fn upsert_skill_asset(
+    conn: &Connection,
+    skill: &DiscoveredSkill,
+    latest_version: &str,
+    update_candidate: bool,
+    ts: String,
+) -> Result<String, AppError> {
+    let existing = conn
+        .query_row(
+            "SELECT id FROM skills_assets WHERE identity = ?1",
+            params![skill.identity],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+
+    let id = existing.unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    conn.execute(
+        "INSERT INTO skills_assets(id, identity, name, version, latest_version, source, local_path, update_candidate, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+         ON CONFLICT(identity) DO UPDATE SET
+            name = excluded.name,
+            version = excluded.version,
+            latest_version = excluded.latest_version,
+            source = excluded.source,
+            local_path = excluded.local_path,
+            update_candidate = excluded.update_candidate,
+            updated_at = excluded.updated_at",
+        params![
+            id,
+            skill.identity,
+            skill.name,
+            skill.version,
+            latest_version,
+            skill.source,
+            skill.local_path,
+            bool_to_int(update_candidate),
+            ts,
+            now_rfc3339(),
+        ],
+    )?;
+
+    Ok(id)
+}
+
+fn upsert_skill_version(
+    conn: &Connection,
+    asset_id: &str,
+    version: &str,
+    source: &str,
+) -> Result<(), AppError> {
+    let exists = conn
+        .query_row(
+            "SELECT COUNT(1) FROM skills_versions WHERE asset_id = ?1 AND version = ?2",
+            params![asset_id, version],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap_or(0);
+
+    if exists > 0 {
+        return Ok(());
+    }
+
+    conn.execute(
+        "INSERT INTO skills_versions(id, asset_id, version, source, installed_at)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![
+            Uuid::new_v4().to_string(),
+            asset_id,
+            version,
+            source,
+            now_rfc3339(),
+        ],
+    )?;
+
+    Ok(())
+}
+
+fn get_skill_asset(conn: &Connection, skill_id: &str) -> Result<SkillAsset, AppError> {
+    conn.query_row(
+        "SELECT id, identity, name, version, latest_version, source, local_path, update_candidate, last_used_at, created_at, updated_at
+         FROM skills_assets
+         WHERE id = ?1",
+        params![skill_id],
+        skill_asset_from_row,
+    )
+    .optional()?
+    .ok_or_else(|| AppError::invalid_argument("skill 不存在"))
+}
+
+fn skill_asset_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SkillAsset> {
+    Ok(SkillAsset {
+        id: row.get(0)?,
+        identity: row.get(1)?,
+        name: row.get(2)?,
+        version: row.get(3)?,
+        latest_version: row.get(4)?,
+        source: row.get(5)?,
+        local_path: row.get(6)?,
+        update_candidate: row.get::<_, i64>(7)? == 1,
+        last_used_at: row.get(8)?,
+        created_at: row.get(9)?,
+        updated_at: row.get(10)?,
+    })
+}
+
+fn list_skills_by_ids(conn: &Connection, ids: &[String]) -> Result<Vec<SkillAsset>, AppError> {
+    let mut list = Vec::new();
+    for skill_id in ids {
+        if let Some(item) = conn
+            .query_row(
+                "SELECT id, identity, name, version, latest_version, source, local_path, update_candidate, last_used_at, created_at, updated_at
+                 FROM skills_assets
+                 WHERE id = ?1",
+                params![skill_id],
+                skill_asset_from_row,
+            )
+            .optional()?
+        {
+            list.push(item);
+        }
+    }
+    Ok(list)
+}
+
+struct PromptAssetRow {
+    id: String,
+    tags: Vec<String>,
+    category: String,
+    favorite: bool,
+    active_version: i64,
+}
+
+fn get_prompt_asset_row(conn: &Connection, prompt_id: &str) -> Result<PromptAssetRow, AppError> {
+    conn.query_row(
+        "SELECT id, tags, category, favorite, active_version
+         FROM prompts_assets
+         WHERE id = ?1",
+        params![prompt_id],
+        |row| {
+            let tags_raw: String = row.get(1)?;
+            let tags = serde_json::from_str(&tags_raw).unwrap_or_default();
+            Ok(PromptAssetRow {
+                id: row.get(0)?,
+                tags,
+                category: row.get(2)?,
+                favorite: row.get::<_, i64>(3)? == 1,
+                active_version: row.get(4)?,
+            })
+        },
+    )
+    .optional()?
+    .ok_or_else(|| AppError::invalid_argument("prompt 不存在"))
+}
+
+fn get_prompt_with_active_content(conn: &Connection, prompt_id: &str) -> Result<Value, AppError> {
+    conn.query_row(
+        "SELECT p.id, p.workspace_id, p.name, p.tags, p.category, p.favorite, p.active_version, p.created_at, p.updated_at, v.content
+         FROM prompts_assets p
+         JOIN prompts_versions v ON v.asset_id = p.id AND v.version = p.active_version
+         WHERE p.id = ?1",
+        params![prompt_id],
+        |row| {
+            let tags_raw: String = row.get(3)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_raw).unwrap_or_default();
+            Ok(json!({
+                "id": row.get::<_, String>(0)?,
+                "workspaceId": row.get::<_, String>(1)?,
+                "name": row.get::<_, String>(2)?,
+                "tags": tags,
+                "category": row.get::<_, String>(4)?,
+                "favorite": row.get::<_, i64>(5)? == 1,
+                "activeVersion": row.get::<_, i64>(6)?,
+                "createdAt": row.get::<_, String>(7)?,
+                "updatedAt": row.get::<_, String>(8)?,
+                "content": row.get::<_, String>(9)?,
+            }))
+        },
+    )
+    .optional()?
+    .ok_or_else(|| AppError::invalid_argument("prompt 不存在"))
+}
+
+fn audit_row_to_json(row: &rusqlite::Row<'_>) -> rusqlite::Result<Value> {
+    let payload: String = row.get(4)?;
+    Ok(json!({
+        "id": row.get::<_, String>(0)?,
+        "workspaceId": row.get::<_, Option<String>>(1)?,
+        "eventType": row.get::<_, String>(2)?,
+        "operator": row.get::<_, String>(3)?,
+        "payload": serde_json::from_str::<Value>(&payload).unwrap_or(Value::String(payload)),
+        "createdAt": row.get::<_, String>(5)?,
+    }))
+}
+
+fn bool_to_int(value: bool) -> i64 {
+    if value {
+        1
+    } else {
+        0
+    }
+}
