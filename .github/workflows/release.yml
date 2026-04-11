@@ -208,10 +208,11 @@ jobs:
           else
             MAC_ARCH="x86_64"
           fi
+          DMG_NAME="agentnexus_${VERSION}_${MAC_ARCH}.dmg"
           hdiutil create -volname "agentnexus" \
             -srcfolder "$DMG_ROOT" \
             -ov -format UDZO \
-            "release-artifacts/agentnexus_${VERSION}_${MAC_ARCH}.dmg"
+            "release-artifacts/${DMG_NAME}"
           rm -rf "$DMG_ROOT"
 
           APP_ARCHIVE_NAME="$(basename "$APP_ARCHIVE")"
@@ -228,6 +229,30 @@ jobs:
           echo "APP_ARCHIVE_NAME=$APP_ARCHIVE_NAME" >> "$GITHUB_ENV"
           echo "APP_SIG_NAME=$(basename "$APP_SIG")" >> "$GITHUB_ENV"
           echo "PLATFORM_KEY=$PLATFORM_KEY" >> "$GITHUB_ENV"
+          echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
+
+      - name: Codesign, notarize and staple dmg
+        run: |
+          set -euo pipefail
+          if [ -z "${DMG_NAME:-}" ]; then
+            echo "Missing DMG_NAME from previous step."
+            exit 1
+          fi
+
+          DMG_PATH="release-artifacts/${DMG_NAME}"
+          if [ ! -f "$DMG_PATH" ]; then
+            echo "DMG artifact not found: $DMG_PATH"
+            ls -la release-artifacts || true
+            exit 1
+          fi
+
+          codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$DMG_PATH"
+          codesign --verify --verbose=2 "$DMG_PATH"
+
+          xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE_NAME" --wait
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
+          spctl -a -vvv --type open "$DMG_PATH"
 
       - name: Build latest.json
         run: |
