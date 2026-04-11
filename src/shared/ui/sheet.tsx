@@ -5,6 +5,36 @@ import { X } from "lucide-react";
 
 import { cn } from "../lib/cn";
 
+const OVERLAY_BLUR_CLASS = "overlay-blur-active";
+const OVERLAY_BLUR_COUNT_KEY = "overlayBlurCount";
+
+function acquireGlobalOverlayBlur() {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const body = document.body;
+  const current = Number.parseInt(body.dataset[OVERLAY_BLUR_COUNT_KEY] ?? "0", 10);
+  const next = Number.isFinite(current) ? current + 1 : 1;
+  body.dataset[OVERLAY_BLUR_COUNT_KEY] = String(next);
+  body.classList.add(OVERLAY_BLUR_CLASS);
+}
+
+function releaseGlobalOverlayBlur() {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const body = document.body;
+  const current = Number.parseInt(body.dataset[OVERLAY_BLUR_COUNT_KEY] ?? "0", 10);
+  const normalized = Number.isFinite(current) ? current : 0;
+  const next = Math.max(0, normalized - 1);
+  if (next === 0) {
+    delete body.dataset[OVERLAY_BLUR_COUNT_KEY];
+    body.classList.remove(OVERLAY_BLUR_CLASS);
+    return;
+  }
+  body.dataset[OVERLAY_BLUR_COUNT_KEY] = String(next);
+}
+
 type SheetContextValue = {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -41,6 +71,16 @@ function Sheet({ open, defaultOpen = false, onOpenChange, children }: SheetProps
     },
     [isControlled, onOpenChange],
   );
+
+  React.useEffect(() => {
+    if (!actualOpen) {
+      return;
+    }
+    acquireGlobalOverlayBlur();
+    return () => {
+      releaseGlobalOverlayBlur();
+    };
+  }, [actualOpen]);
 
   return <SheetContext.Provider value={{ open: actualOpen, setOpen }}>{children}</SheetContext.Provider>;
 }

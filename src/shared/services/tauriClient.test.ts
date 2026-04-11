@@ -8,7 +8,7 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: invokeMock,
 }));
 
-import { TauriClientError, invokeRaw, toTauriClientError } from "./tauriClient";
+import { TauriClientError, invokeCommand, invokeRaw, toTauriClientError } from "./tauriClient";
 
 describe("toTauriClientError", () => {
   it("映射 string 错误", () => {
@@ -62,6 +62,39 @@ describe("invokeRaw", () => {
       name: "TauriClientError",
       code: "E_RPC",
       message: "rpc failed",
+    });
+  });
+
+  it("新命令映射透传成功", async () => {
+    invokeMock.mockResolvedValueOnce({ workspaceId: "ws-1", defaultProfileKey: "codex" });
+
+    await expect(
+      invokeCommand("translation_config_get", { workspaceId: "ws-1" }),
+    ).resolves.toEqual({
+      workspaceId: "ws-1",
+      defaultProfileKey: "codex",
+    });
+    expect(invokeMock).toHaveBeenCalledWith("translation_config_get", { workspaceId: "ws-1" });
+  });
+
+  it("新命令错误映射回归", async () => {
+    invokeMock.mockRejectedValueOnce({
+      error: { code: "AGENT_UNAVAILABLE", message: "当前 profile 已禁用，请先启用" },
+    });
+
+    await expect(
+      invokeCommand("local_agent_translation_test", {
+        input: {
+          workspaceId: "ws-1",
+          profileKey: "codex",
+          sourceText: "hello",
+          targetLanguage: "zh-CN",
+        },
+      }),
+    ).rejects.toMatchObject({
+      name: "TauriClientError",
+      code: "AGENT_UNAVAILABLE",
+      message: "当前 profile 已禁用，请先启用",
     });
   });
 });

@@ -1522,7 +1522,17 @@ pub fn prompt_update(
     let tx = conn.transaction()?;
 
     let prompt = get_prompt_asset_row(&tx, &input.prompt_id)?;
-    let next_version = prompt.active_version + 1;
+    let current_content: String = tx.query_row(
+        "SELECT content FROM prompts_versions WHERE asset_id = ?1 AND version = ?2",
+        params![prompt.id, prompt.active_version],
+        |row| row.get(0),
+    )?;
+    let content_changed = current_content != input.content;
+    let next_version = if content_changed {
+        prompt.active_version + 1
+    } else {
+        prompt.active_version
+    };
     let name = input.name.map(|item| item.trim().to_string());
     if let Some(candidate) = name.as_ref() {
         if candidate.is_empty() {
@@ -1534,17 +1544,19 @@ pub fn prompt_update(
     let favorite = input.favorite.unwrap_or(prompt.favorite);
     let now = now_rfc3339();
 
-    tx.execute(
-        "INSERT INTO prompts_versions(asset_id, version, content, metadata, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5)",
-        params![
-            prompt.id,
-            next_version,
-            input.content,
-            json!({"action": "update"}).to_string(),
-            now,
-        ],
-    )?;
+    if content_changed {
+        tx.execute(
+            "INSERT INTO prompts_versions(asset_id, version, content, metadata, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                prompt.id,
+                next_version,
+                input.content,
+                json!({"action": "update"}).to_string(),
+                now,
+            ],
+        )?;
+    }
 
     tx.execute(
         "UPDATE prompts_assets

@@ -19,6 +19,7 @@ export function AppShell({
   mobileDetailOpen,
   onMobileDetailOpen,
   showDetailPanel = true,
+  statusBarContent,
   center,
   detail,
 }: {
@@ -34,6 +35,7 @@ export function AppShell({
   mobileDetailOpen: boolean;
   onMobileDetailOpen: (open: boolean) => void;
   showDetailPanel?: boolean;
+  statusBarContent?: ReactNode;
   center: ReactNode;
   detail: ReactNode;
 }) {
@@ -43,8 +45,8 @@ export function AppShell({
   const showMacDragBar = isMac && isDesktop;
   const mobileSheetEnabled = !isDesktop;
   const layoutClass = showDetailPanel
-    ? "grid h-full grid-cols-1 lg:grid-cols-[264px_1fr_480px]"
-    : "grid h-full grid-cols-1 lg:grid-cols-[264px_1fr]";
+    ? "grid h-full min-h-0 grid-cols-1 lg:grid-cols-[264px_1fr_480px]"
+    : "grid h-full min-h-0 grid-cols-1 lg:grid-cols-[264px_1fr]";
 
   const handleMacDragMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) {
@@ -60,10 +62,19 @@ export function AppShell({
         <div
           className="absolute inset-x-0 top-0 z-40 h-10 border-b border-border bg-background/90"
           onMouseDown={handleMacDragMouseDown}
-        />
+        >
+          {statusBarContent ? (
+            <div
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              {statusBarContent}
+            </div>
+          ) : null}
+        </div>
       ) : null}
-      <div className={layoutClass} style={showMacDragBar ? { paddingTop: `${macDragBarHeight}px` } : undefined}>
-        <div className="hidden lg:block">
+      <div className={`${layoutClass} min-h-0 box-border`} style={showMacDragBar ? { paddingTop: `${macDragBarHeight}px` } : undefined}>
+        <div className="hidden min-h-0 lg:block">
           <Sidebar
             activeModule={activeModule}
             language={language}
@@ -102,7 +113,7 @@ export function AppShell({
           </SheetContent>
         </Sheet>
 
-        <div className="flex h-full min-w-0 flex-col border-r border-border bg-background">
+        <div className="flex h-full min-h-0 min-w-0 flex-col border-r border-border bg-background">
           <div className="border-b border-border bg-background/85 px-4 py-2 backdrop-blur-sm lg:hidden">
             <Button variant="outline" size="icon" onClick={() => onSidebarOpen(true)}>
               <Menu className="h-4 w-4" />

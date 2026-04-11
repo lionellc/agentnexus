@@ -27,6 +27,11 @@ use control_plane::commands::{
     skills_uninstall, target_list, target_upsert, workspace_activate, workspace_create,
     workspace_list, workspace_update,
 };
+use control_plane::local_agent_translation::{
+    local_agent_profile_delete, local_agent_profile_list, local_agent_profile_upsert,
+    local_agent_translation_test, prompt_translation_list, prompt_translation_retranslate,
+    prompt_translation_run, translation_config_get, translation_config_update,
+};
 use db::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -96,6 +101,15 @@ pub fn run() {
             prompt_restore_version,
             prompt_search,
             prompt_render,
+            local_agent_profile_list,
+            local_agent_profile_upsert,
+            local_agent_profile_delete,
+            translation_config_get,
+            translation_config_update,
+            local_agent_translation_test,
+            prompt_translation_list,
+            prompt_translation_run,
+            prompt_translation_retranslate,
             metrics_ingest_usage_event,
             metrics_query_overview,
             metrics_query_by_asset,

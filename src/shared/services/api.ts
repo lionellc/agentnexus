@@ -33,10 +33,19 @@ import type {
   MetricsByAsset,
   MetricsByAssetInput,
   MetricsOverview,
+  LocalAgentProfileDeleteInput,
+  LocalAgentProfileDto,
+  LocalAgentProfileUpsertInput,
+  LocalAgentTranslationTestInput,
+  LocalAgentTranslationTestResult,
   PromptAsset,
   PromptCreateInput,
   PromptRestoreInput,
   PromptSearchInput,
+  PromptTranslationDto,
+  PromptTranslationListInput,
+  PromptTranslationRetranslateInput,
+  PromptTranslationRunInput,
   PromptUpdateInput,
   RuntimeFlags,
   RuntimeFlagsInput,
@@ -52,6 +61,8 @@ import type {
   SkillsOpenResult,
   SkillsScanInput,
   TargetUpsertInput,
+  TranslationConfigDto,
+  TranslationConfigUpdateInput,
   Workspace,
   WorkspaceCreateInput,
   WorkspaceUpdateInput,
@@ -316,6 +327,27 @@ export const promptApi = {
   render: (promptId: string, variables: Record<string, string>) =>
     invokeCommand("prompt_render", { input: { promptId, variables } }),
   versions: (promptId: string): Promise<PromptVersion[]> => invokeCommand("prompt_versions", { promptId }),
+};
+
+export const translationApi = {
+  listProfiles: (workspaceId: string): Promise<LocalAgentProfileDto[]> =>
+    invokeCommand("local_agent_profile_list", { workspaceId }),
+  upsertProfile: (input: LocalAgentProfileUpsertInput): Promise<LocalAgentProfileDto> =>
+    invokeCommand("local_agent_profile_upsert", { input }),
+  deleteProfile: (input: LocalAgentProfileDeleteInput): Promise<LocalAgentProfileDto[]> =>
+    invokeCommand("local_agent_profile_delete", { input }),
+  getConfig: (workspaceId: string): Promise<TranslationConfigDto> =>
+    invokeCommand("translation_config_get", { workspaceId }),
+  updateConfig: (input: TranslationConfigUpdateInput): Promise<TranslationConfigDto> =>
+    invokeCommand("translation_config_update", { input }),
+  testTranslation: (input: LocalAgentTranslationTestInput): Promise<LocalAgentTranslationTestResult> =>
+    invokeCommand("local_agent_translation_test", { input }),
+  listPromptTranslations: (input: PromptTranslationListInput): Promise<PromptTranslationDto[]> =>
+    invokeCommand("prompt_translation_list", { input }),
+  runPromptTranslation: (input: PromptTranslationRunInput): Promise<PromptTranslationDto> =>
+    invokeCommand("prompt_translation_run", { input }),
+  retranslate: (input: PromptTranslationRetranslateInput): Promise<PromptTranslationDto> =>
+    invokeCommand("prompt_translation_retranslate", { input }),
 };
 
 export const skillsApi = {

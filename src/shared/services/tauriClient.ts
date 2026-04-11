@@ -37,6 +37,11 @@ import type {
   MetricsByAssetInput,
   MetricsIdResult,
   MetricsOverview,
+  LocalAgentProfileDeleteInput,
+  LocalAgentProfileDto,
+  LocalAgentProfileUpsertInput,
+  LocalAgentTranslationTestInput,
+  LocalAgentTranslationTestResult,
   PromptAsset,
   PromptCreateInput,
   PromptDeleteInput,
@@ -45,6 +50,10 @@ import type {
   PromptRenderResult,
   PromptRestoreInput,
   PromptSearchInput,
+  PromptTranslationDto,
+  PromptTranslationListInput,
+  PromptTranslationRetranslateInput,
+  PromptTranslationRunInput,
   PromptUpdateInput,
   RatingInput,
   RuntimeFlags,
@@ -60,6 +69,8 @@ import type {
   SkillsBatchInput,
   SkillsBatchResult,
   SkillsScanInput,
+  TranslationConfigDto,
+  TranslationConfigUpdateInput,
   TargetUpsertInput,
   UsageEventInput,
   Workspace,
@@ -133,6 +144,15 @@ type CommandMap = {
   prompt_search: { args: { input: PromptSearchInput }; result: PromptAsset[] };
   prompt_render: { args: { input: PromptRenderInput }; result: PromptRenderResult };
   prompt_restore_version: { args: { input: PromptRestoreInput }; result: PromptAsset };
+  local_agent_profile_list: { args: { workspaceId: string }; result: LocalAgentProfileDto[] };
+  local_agent_profile_upsert: { args: { input: LocalAgentProfileUpsertInput }; result: LocalAgentProfileDto };
+  local_agent_profile_delete: { args: { input: LocalAgentProfileDeleteInput }; result: LocalAgentProfileDto[] };
+  translation_config_get: { args: { workspaceId: string }; result: TranslationConfigDto };
+  translation_config_update: { args: { input: TranslationConfigUpdateInput }; result: TranslationConfigDto };
+  local_agent_translation_test: { args: { input: LocalAgentTranslationTestInput }; result: LocalAgentTranslationTestResult };
+  prompt_translation_list: { args: { input: PromptTranslationListInput }; result: PromptTranslationDto[] };
+  prompt_translation_run: { args: { input: PromptTranslationRunInput }; result: PromptTranslationDto };
+  prompt_translation_retranslate: { args: { input: PromptTranslationRetranslateInput }; result: PromptTranslationDto };
   metrics_ingest_usage_event: { args: { input: UsageEventInput }; result: MetricsIdResult };
   metrics_query_overview: { args: { workspaceId: string; days?: number }; result: MetricsOverview };
   metrics_query_by_asset: { args: { input: MetricsByAssetInput }; result: MetricsByAsset };

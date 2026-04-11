@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { promptApi } from "../services/api";
-import type { PromptAsset } from "../types";
+import type { PromptAsset, PromptSearchInput } from "../types";
 
 const LANGUAGE_STORAGE_KEY = "agentnexus.app.language";
 
@@ -34,7 +34,7 @@ type PromptsState = {
   versionsByPromptId: Record<string, Array<{ version: number; content: string; metadata: Record<string, unknown>; createdAt: string }>>;
   lastBatchResult: PromptBatchResult | null;
   fetchPrompts: (workspaceId: string) => Promise<void>;
-  searchPrompts: (workspaceId: string, keyword: string) => Promise<void>;
+  searchPrompts: (input: PromptSearchInput) => Promise<void>;
   setPromptViewMode: (mode: "list" | "grid" | "editor") => void;
   selectPrompt: (id: string | null) => void;
   toggleSelect: (id: string) => void;
@@ -78,10 +78,10 @@ export const usePromptsStore = create<PromptsState>((set, get) => ({
       set({ loading: false });
     }
   },
-  searchPrompts: async (workspaceId, keyword) => {
+  searchPrompts: async (input) => {
     set({ loading: true });
     try {
-      const prompts = await promptApi.search({ workspaceId, keyword });
+      const prompts = await promptApi.search(input);
       set({ prompts });
     } finally {
       set({ loading: false });

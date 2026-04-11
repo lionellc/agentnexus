@@ -632,8 +632,8 @@ describe("WorkbenchApp agents interactions", () => {
       findButton("版本对比")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(agentState.loadVersions).toHaveBeenCalledWith("asset-a");
-    expect(document.body.textContent).toContain("规则版本对比");
-    expect(document.body.textContent).toContain("左侧版本");
+    expect(document.body.textContent).toContain("历史版本");
+    expect(document.body.textContent).toContain("选择版本");
   });
 
   it("平台文件映射预览会调用 preview 并展示弹窗内容", async () => {

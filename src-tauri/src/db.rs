@@ -195,6 +195,51 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
             FOREIGN KEY(asset_id) REFERENCES prompts_assets(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS local_agent_profiles (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            profile_key TEXT NOT NULL,
+            name TEXT NOT NULL,
+            executable TEXT NOT NULL,
+            args_template TEXT NOT NULL,
+            is_builtin INTEGER NOT NULL DEFAULT 0,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(workspace_id, profile_key),
+            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS translation_configs (
+            workspace_id TEXT PRIMARY KEY,
+            default_profile_key TEXT NOT NULL,
+            prompt_template TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS prompt_translations (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL,
+            prompt_id TEXT NOT NULL,
+            prompt_version INTEGER NOT NULL,
+            target_language TEXT NOT NULL,
+            variant_no INTEGER NOT NULL DEFAULT 1,
+            variant_label TEXT NOT NULL,
+            translated_text TEXT NOT NULL,
+            source_text_hash TEXT NOT NULL,
+            profile_key TEXT NOT NULL,
+            apply_mode TEXT NOT NULL DEFAULT 'immersive',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(workspace_id, prompt_id, prompt_version, target_language, variant_no),
+            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE,
+            FOREIGN KEY(prompt_id) REFERENCES prompts_assets(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_prompt_translations_lookup
+            ON prompt_translations(workspace_id, prompt_id, prompt_version, target_language, updated_at DESC);
+
         CREATE TABLE IF NOT EXISTS usage_events (
             id TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL,
@@ -320,6 +365,7 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     run_backfill_once(conn)?;
     run_agent_connection_rule_file_migration_once(conn)?;
     run_global_rules_migration_once(conn)?;
+    run_local_agent_translation_migration_once(conn)?;
 
     Ok(())
 }
@@ -392,6 +438,66 @@ fn run_global_rules_migration_once(conn: &Connection) -> Result<(), AppError> {
         "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
         params!["migrate_global_rule_assets_v1", "done", now_rfc3339()],
     )?;
+    Ok(())
+}
+
+fn run_local_agent_translation_migration_once(conn: &Connection) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM migration_meta WHERE key = 'migrate_local_agent_translation_v1'",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(());
+    }
+
+    let now = now_rfc3339();
+    let mut stmt = conn.prepare("SELECT id FROM workspaces ORDER BY created_at ASC")?;
+    let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut workspace_ids = Vec::new();
+    for row in rows {
+        workspace_ids.push(row?);
+    }
+
+    for workspace_id in workspace_ids {
+        for profile_key in ["codex", "claude"] {
+            conn.execute(
+                "INSERT INTO local_agent_profiles(
+                    id, workspace_id, profile_key, name, executable, args_template, is_builtin, enabled, created_at, updated_at
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, 1, ?7, ?8)
+                 ON CONFLICT(workspace_id, profile_key) DO UPDATE SET
+                    is_builtin = 1,
+                    updated_at = excluded.updated_at",
+                params![
+                    Uuid::new_v4().to_string(),
+                    workspace_id,
+                    profile_key,
+                    profile_key,
+                    default_local_agent_executable(profile_key),
+                    default_local_agent_args_template(profile_key),
+                    now,
+                    now,
+                ],
+            )?;
+        }
+
+        conn.execute(
+            "INSERT INTO translation_configs(workspace_id, default_profile_key, prompt_template, updated_at)
+             VALUES (?1, 'codex', ?2, ?3)
+             ON CONFLICT(workspace_id) DO NOTHING",
+            params![workspace_id, default_translation_prompt_template(), now],
+        )?;
+    }
+
+    conn.execute(
+        "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
+        params![
+            "migrate_local_agent_translation_v1",
+            "done",
+            now_rfc3339(),
+        ],
+    )?;
+
     Ok(())
 }
 
@@ -538,6 +644,27 @@ fn default_agent_rule_file(agent_type: &str) -> String {
         "claude" => "CLAUDE.md".to_string(),
         _ => "AGENTS.md".to_string(),
     }
+}
+
+fn default_local_agent_executable(profile_key: &str) -> &'static str {
+    match profile_key {
+        "codex" => "codex",
+        "claude" => "claude",
+        _ => "",
+    }
+}
+
+fn default_local_agent_args_template(profile_key: &str) -> String {
+    let template = match profile_key {
+        "codex" => vec!["exec", "--skip-git-repo-check"],
+        "claude" => vec!["-p", "{{system_prompt}}", "--output-format", "json"],
+        _ => vec![],
+    };
+    serde_json::to_string(&template).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn default_translation_prompt_template() -> String {
+    "You are a strict translation engine.\nTranslate source text into target language.\nPreserve the original content format exactly, including line breaks, indentation, markdown syntax, lists, tables, and code blocks.\nReturn JSON only.\n\nTarget language:\n{{target_language}}\n\nSource text:\n{{source_text}}\n\nSchema:\n{{output_schema_json}}".to_string()
 }
 
 fn migrate_legacy_agent_doc(

@@ -1,4 +1,4 @@
-const VARIABLE_PATTERN = /\{\{\s*([a-zA-Z0-9_\-.]+)\s*\}\}/g;
+const VARIABLE_PATTERN = /\{\{\s*([\p{L}\p{N}_\-.]+)\s*\}\}/gu;
 
 export function extractTemplateVariables(content: string): string[] {
   const variables = new Set<string>();
@@ -15,6 +15,9 @@ export function extractTemplateVariables(content: string): string[] {
 export function renderTemplatePreview(content: string, variables: Record<string, string>): string {
   return content.replace(VARIABLE_PATTERN, (_full, key: string) => {
     const value = variables[key.trim()];
-    return value ?? `{{${key}}}`;
+    if (value == null || value.trim().length === 0) {
+      return `{{${key}}}`;
+    }
+    return value;
   });
 }

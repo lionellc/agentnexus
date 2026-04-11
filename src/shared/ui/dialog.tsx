@@ -4,6 +4,36 @@ import { X } from "lucide-react";
 
 import { cn } from "../lib/cn";
 
+const OVERLAY_BLUR_CLASS = "overlay-blur-active";
+const OVERLAY_BLUR_COUNT_KEY = "overlayBlurCount";
+
+function acquireGlobalOverlayBlur() {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const body = document.body;
+  const current = Number.parseInt(body.dataset[OVERLAY_BLUR_COUNT_KEY] ?? "0", 10);
+  const next = Number.isFinite(current) ? current + 1 : 1;
+  body.dataset[OVERLAY_BLUR_COUNT_KEY] = String(next);
+  body.classList.add(OVERLAY_BLUR_CLASS);
+}
+
+function releaseGlobalOverlayBlur() {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const body = document.body;
+  const current = Number.parseInt(body.dataset[OVERLAY_BLUR_COUNT_KEY] ?? "0", 10);
+  const normalized = Number.isFinite(current) ? current : 0;
+  const next = Math.max(0, normalized - 1);
+  if (next === 0) {
+    delete body.dataset[OVERLAY_BLUR_COUNT_KEY];
+    body.classList.remove(OVERLAY_BLUR_CLASS);
+    return;
+  }
+  body.dataset[OVERLAY_BLUR_COUNT_KEY] = String(next);
+}
+
 type DialogContextValue = {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -40,6 +70,16 @@ function Dialog({ open, defaultOpen = false, onOpenChange, children }: DialogPro
     },
     [isControlled, onOpenChange],
   );
+
+  React.useEffect(() => {
+    if (!actualOpen) {
+      return;
+    }
+    acquireGlobalOverlayBlur();
+    return () => {
+      releaseGlobalOverlayBlur();
+    };
+  }, [actualOpen]);
 
   return <DialogContext.Provider value={{ open: actualOpen, setOpen }}>{children}</DialogContext.Provider>;
 }
@@ -84,8 +124,12 @@ const DialogOverlay = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
 ));
 DialogOverlay.displayName = "DialogOverlay";
 
-const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, children, ...props }, ref) => {
+interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
+  overlayClassName?: string;
+}
+
+const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
+  ({ className, children, overlayClassName, ...props }, ref) => {
     const { open, setOpen } = useDialogContext();
 
     if (!open) {
@@ -94,7 +138,7 @@ const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTML
 
     return (
       <DialogPortal>
-        <DialogOverlay onClick={() => setOpen(false)} />
+        <DialogOverlay className={overlayClassName} onClick={() => setOpen(false)} />
         <div
           ref={ref}
           role="dialog"

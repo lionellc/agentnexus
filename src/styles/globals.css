@@ -55,6 +55,16 @@ body {
     "Apple Color Emoji", "Segoe UI Emoji";
 }
 
+body #root {
+  transition: filter 180ms ease, transform 180ms ease;
+}
+
+body.overlay-blur-active #root,
+body.agent-rule-editor-open #root {
+  filter: blur(9px) saturate(115%);
+  transform: translateZ(0);
+}
+
 @layer utilities {
   .dark .bg-white,
   .dark .bg-slate-50,
@@ -118,15 +128,37 @@ body {
     backdrop-filter: blur(8px);
   }
 
+  .overlay-backdrop.agent-rule-editor-overlay {
+    background: rgba(255, 255, 255, 0.34);
+    -webkit-backdrop-filter: blur(20px) saturate(145%);
+    backdrop-filter: blur(20px) saturate(145%);
+  }
+
+  .dark .overlay-backdrop.agent-rule-editor-overlay {
+    background: rgba(0, 0, 0, 0.38);
+  }
+
   .app.reduced-transparency .overlay-backdrop {
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
     background: rgba(6, 8, 12, 0.55);
   }
 
+  .app.reduced-transparency .overlay-backdrop.agent-rule-editor-overlay {
+    background: rgba(6, 8, 12, 0.62);
+  }
+
   @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
     .overlay-backdrop {
       background: rgba(6, 8, 12, 0.55);
+    }
+
+    .overlay-backdrop.agent-rule-editor-overlay {
+      background: rgba(255, 255, 255, 0.58);
+    }
+
+    .dark .overlay-backdrop.agent-rule-editor-overlay {
+      background: rgba(0, 0, 0, 0.5);
     }
   }
 }

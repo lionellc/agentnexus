@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState, type ReactNode } from "react";
 
 import { Button, Textarea } from "../../../shared/ui";
 
-type MarkdownMode = "edit" | "preview" | "split";
+export type MarkdownMode = "edit" | "preview" | "split";
 type MarkdownLanguage = "zh" | "en";
 
 type MarkdownPreviewProps = {
@@ -22,6 +22,9 @@ type MarkdownEditorProps = {
   placeholder?: string;
   readOnly?: boolean;
   modeLabels?: Partial<Record<MarkdownMode, string>>;
+  mode?: MarkdownMode;
+  onModeChange?: (mode: MarkdownMode) => void;
+  hideModeSwitcher?: boolean;
   language?: MarkdownLanguage;
   previewEmptyText?: string;
 };
@@ -270,45 +273,55 @@ export function MarkdownEditor({
   placeholder,
   readOnly = false,
   modeLabels,
+  mode,
+  onModeChange,
+  hideModeSwitcher = false,
   language = "zh",
   previewEmptyText,
 }: MarkdownEditorProps) {
-  const [mode, setMode] = useState<MarkdownMode>("split");
+  const [internalMode, setInternalMode] = useState<MarkdownMode>("split");
   const labels: Record<MarkdownMode, string> = {
     edit: modeLabels?.edit ?? (language === "en" ? "Edit" : "编辑"),
     preview: modeLabels?.preview ?? (language === "en" ? "Preview" : "预览"),
     split: modeLabels?.split ?? (language === "en" ? "Split" : "分栏"),
   };
-  const effectiveMode = readOnly ? "split" : mode;
+  const currentMode = mode ?? internalMode;
+  const setCurrentMode = (nextMode: MarkdownMode) => {
+    if (mode === undefined) {
+      setInternalMode(nextMode);
+    }
+    onModeChange?.(nextMode);
+  };
+  const effectiveMode = readOnly ? "split" : currentMode;
   const showEditor = effectiveMode === "edit" || effectiveMode === "split";
   const showPreview = effectiveMode === "preview" || effectiveMode === "split";
   const textareaRows = Math.max(10, Math.floor(minHeight / 24));
 
   return (
     <div className="space-y-2">
-      {!readOnly ? (
+      {!readOnly && !hideModeSwitcher ? (
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             size="sm"
-            variant={mode === "edit" ? "default" : "outline"}
-            onClick={() => setMode("edit")}
+            variant={currentMode === "edit" ? "default" : "outline"}
+            onClick={() => setCurrentMode("edit")}
           >
             {labels.edit}
           </Button>
           <Button
             type="button"
             size="sm"
-            variant={mode === "preview" ? "default" : "outline"}
-            onClick={() => setMode("preview")}
+            variant={currentMode === "preview" ? "default" : "outline"}
+            onClick={() => setCurrentMode("preview")}
           >
             {labels.preview}
           </Button>
           <Button
             type="button"
             size="sm"
-            variant={mode === "split" ? "default" : "outline"}
-            onClick={() => setMode("split")}
+            variant={currentMode === "split" ? "default" : "outline"}
+            onClick={() => setCurrentMode("split")}
           >
             {labels.split}
           </Button>
