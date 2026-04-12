@@ -21,7 +21,6 @@ concurrency:
 jobs:
   build-and-release-macos:
     runs-on: macos-14
-    timeout-minutes: 240
     env:
       TAURI_SIGNING_PRIVATE_KEY_B64: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_B64 }}
       TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -219,15 +218,8 @@ jobs:
           notary_wait_for_result() {
             local submission_id="$1"
             local label="$2"
-            local max_wait_seconds="${3:-2400}"
-            local poll_interval_seconds="${4:-20}"
-            local deadline=$(( $(date +%s) + max_wait_seconds ))
+            local poll_interval_seconds="${3:-20}"
             while true; do
-              if [ "$(date +%s)" -ge "$deadline" ]; then
-                notary_log "[notary][$label] timeout after ${max_wait_seconds}s (id=${submission_id})"
-                return 124
-              fi
-
               local output
               set +e
               output="$(xcrun notarytool info "$submission_id" --keychain-profile "$NOTARY_PROFILE_NAME" --output-format json 2>&1)"
@@ -277,12 +269,11 @@ jobs:
             local artifact="$1"
             local label="$2"
             local max_attempts="${3:-3}"
-            local max_wait_seconds="${4:-2400}"
-            local poll_interval_seconds="${5:-20}"
+            local poll_interval_seconds="${4:-20}"
             local submission_id
             submission_id="$(notary_submit_with_retry "$artifact" "$label" "$max_attempts")"
             notary_log "[notary][$label] submission id=${submission_id}"
-            if notary_wait_for_result "$submission_id" "$label" "$max_wait_seconds" "$poll_interval_seconds"; then
+            if notary_wait_for_result "$submission_id" "$label" "$poll_interval_seconds"; then
               notary_log "[notary][$label] accepted"
               return 0
             fi
@@ -295,7 +286,6 @@ jobs:
           echo "NOTARY_HELPERS=$NOTARY_HELPERS" >> "$GITHUB_ENV"
 
       - name: Notary preflight
-        timeout-minutes: 5
         run: |
           set -euo pipefail
           source "$NOTARY_HELPERS"
@@ -332,7 +322,6 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
       - name: Notarize and staple app
-        timeout-minutes: 95
         run: |
           set -euo pipefail
           source "$NOTARY_HELPERS"
@@ -344,7 +333,7 @@ jobs:
             exit 1
           fi
           ditto -c -k --keepParent "$APP_BUNDLE" app-notary.zip
-          notary_submit_and_wait app-notary.zip app 2 4800 20
+          notary_submit_and_wait app-notary.zip app 2 20
           xcrun stapler staple "$APP_BUNDLE"
           spctl -a -vvv --type execute "$APP_BUNDLE"
           rm -f app-notary.zip
@@ -412,7 +401,6 @@ jobs:
           echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
 
       - name: Codesign, notarize and staple dmg
-        timeout-minutes: 95
         run: |
           set -euo pipefail
           source "$NOTARY_HELPERS"
@@ -432,7 +420,7 @@ jobs:
           codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$DMG_PATH"
           codesign --verify --verbose=2 "$DMG_PATH"
 
-          notary_submit_and_wait "$DMG_PATH" dmg 2 4800 20
+          notary_submit_and_wait "$DMG_PATH" dmg 2 20
           xcrun stapler staple "$DMG_PATH"
           xcrun stapler validate "$DMG_PATH"
           spctl -a -vvv --type open "$DMG_PATH"
