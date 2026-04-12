@@ -282,12 +282,13 @@ jobs:
             local submission_id
             submission_id="$(notary_submit_with_retry "$artifact" "$label" "$max_attempts")"
             notary_log "[notary][$label] submission id=${submission_id}"
-            if ! notary_wait_for_result "$submission_id" "$label" "$max_wait_seconds" "$poll_interval_seconds"; then
-              local rc=$?
-              notary_dump_log "$submission_id" "$label" || true
-              return "$rc"
+            if notary_wait_for_result "$submission_id" "$label" "$max_wait_seconds" "$poll_interval_seconds"; then
+              notary_log "[notary][$label] accepted"
+              return 0
             fi
-            notary_log "[notary][$label] accepted"
+            local rc=$?
+            notary_dump_log "$submission_id" "$label" || true
+            return "$rc"
           }
           EOF
           chmod +x "$NOTARY_HELPERS"
