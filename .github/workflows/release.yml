@@ -158,6 +158,40 @@ jobs:
       - name: Notarize and staple app
         run: |
           set -euo pipefail
+          is_transient_notary_error() {
+            echo "$1" | grep -Eqi "NSURLErrorDomain Code=-1009|The Internet connection appears to be offline|timed out|network.*(offline|route|unreachable)|temporarily unavailable"
+          }
+          notarize_with_retry() {
+            local artifact="$1"
+            local label="$2"
+            local max_attempts=3
+            local attempt=1
+            while [ "$attempt" -le "$max_attempts" ]; do
+              echo "[notary][$label] attempt ${attempt}/${max_attempts}"
+              set +e
+              local output
+              output="$(xcrun notarytool submit "$artifact" --keychain-profile "$NOTARY_PROFILE_NAME" --wait 2>&1)"
+              local rc=$?
+              set -e
+              echo "$output"
+              if [ "$rc" -eq 0 ]; then
+                return 0
+              fi
+              if ! is_transient_notary_error "$output"; then
+                echo "[notary][$label] non-transient failure, aborting retries."
+                return "$rc"
+              fi
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "[notary][$label] exhausted retries."
+                return "$rc"
+              fi
+              local backoff=$((attempt * 30))
+              echo "[notary][$label] transient network issue, retry in ${backoff}s..."
+              sleep "$backoff"
+              attempt=$((attempt + 1))
+            done
+          }
+
           APP_BUNDLE="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -type d -name '*.app' | sort | head -n 1)"
           if [ -z "${APP_BUNDLE:-}" ]; then
             echo "No macOS .app bundle found for notarization"
@@ -165,7 +199,7 @@ jobs:
             exit 1
           fi
           ditto -c -k --keepParent "$APP_BUNDLE" app-notary.zip
-          xcrun notarytool submit app-notary.zip --keychain-profile "$NOTARY_PROFILE_NAME" --wait
+          notarize_with_retry app-notary.zip app
           xcrun stapler staple "$APP_BUNDLE"
           spctl -a -vvv --type execute "$APP_BUNDLE"
 
@@ -234,6 +268,40 @@ jobs:
       - name: Codesign, notarize and staple dmg
         run: |
           set -euo pipefail
+          is_transient_notary_error() {
+            echo "$1" | grep -Eqi "NSURLErrorDomain Code=-1009|The Internet connection appears to be offline|timed out|network.*(offline|route|unreachable)|temporarily unavailable"
+          }
+          notarize_with_retry() {
+            local artifact="$1"
+            local label="$2"
+            local max_attempts=3
+            local attempt=1
+            while [ "$attempt" -le "$max_attempts" ]; do
+              echo "[notary][$label] attempt ${attempt}/${max_attempts}"
+              set +e
+              local output
+              output="$(xcrun notarytool submit "$artifact" --keychain-profile "$NOTARY_PROFILE_NAME" --wait 2>&1)"
+              local rc=$?
+              set -e
+              echo "$output"
+              if [ "$rc" -eq 0 ]; then
+                return 0
+              fi
+              if ! is_transient_notary_error "$output"; then
+                echo "[notary][$label] non-transient failure, aborting retries."
+                return "$rc"
+              fi
+              if [ "$attempt" -ge "$max_attempts" ]; then
+                echo "[notary][$label] exhausted retries."
+                return "$rc"
+              fi
+              local backoff=$((attempt * 30))
+              echo "[notary][$label] transient network issue, retry in ${backoff}s..."
+              sleep "$backoff"
+              attempt=$((attempt + 1))
+            done
+          }
+
           if [ -z "${DMG_NAME:-}" ]; then
             echo "Missing DMG_NAME from previous step."
             exit 1
@@ -249,7 +317,7 @@ jobs:
           codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$DMG_PATH"
           codesign --verify --verbose=2 "$DMG_PATH"
 
-          xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARY_PROFILE_NAME" --wait
+          notarize_with_retry "$DMG_PATH" dmg
           xcrun stapler staple "$DMG_PATH"
           xcrun stapler validate "$DMG_PATH"
           spctl -a -vvv --type open "$DMG_PATH"
