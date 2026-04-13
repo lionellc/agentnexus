@@ -161,7 +161,26 @@ pnpm typecheck
 1. 更新 `src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 版本号（如 `0.1.1`）
 2. 打 tag：`v0.1.1`
 3. 推送 tag：`git push origin v0.1.1`
-4. GitHub Actions 执行 `.github/workflows/release.yml`，产出 DMG、updater 包和 `latest.json`
+4. GitHub Actions 先执行 `.github/workflows/release.yml`（submit 阶段），创建/更新带 `[NOTARIZING]` 的 `prerelease`，并写入 release 状态资产
+5. `release-finalize.yml` 按每 30 分钟 schedule 自动推进；也可手动触发 finalize
+6. 当 app 与 dmg 公证都 `Accepted` 后，finalize 执行收尾并发布正式 release（移除 `[NOTARIZING]` 与 prerelease）
+
+`[NOTARIZING]` 含义：
+
+- 当前版本已完成打包与提交公证，但公证尚未完成
+- 该阶段 release 为 `prerelease`，仅用于验证，不建议生产使用
+
+手动触发 finalize（示例）：
+
+```bash
+gh workflow run release-finalize.yml -f release_tag=v0.1.1
+```
+
+公证排障入口：
+
+- 优先查看 release 资产 `notarization-state.json`（submission id、当前状态、最近检查时间）
+- 再查看 `release-finalize.yml` 对应 run 日志（含 app/dmg 分支与 notary 查询结果）
+- 详见 `docs/ops/release-notarization-runbook.md`
 
 ---
 

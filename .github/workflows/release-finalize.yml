@@ -1,0 +1,229 @@
+name: Release Finalize
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Optional release tag to finalize (e.g. v0.1.1)"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  resolve-target:
+    runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.resolve.outputs.release_tag }}
+    steps:
+      - name: Resolve target release tag
+        id: resolve
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          INPUT_TAG="${{ github.event.inputs.release_tag }}"
+          if [ -n "${INPUT_TAG:-}" ]; then
+            if [[ "${INPUT_TAG}" != v* ]]; then
+              echo "Invalid release_tag: ${INPUT_TAG} (must start with v)"
+              exit 1
+            fi
+            echo "release_tag=${INPUT_TAG}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          RELEASE_TAG="$(gh api "repos/${GITHUB_REPOSITORY}/releases" --jq '.[] | select(.prerelease == true and (.name // "" | contains("[NOTARIZING]"))) | .tag_name' | head -n 1)"
+          if [ -z "${RELEASE_TAG:-}" ]; then
+            echo "No NOTARIZING prerelease found. finalize exit."
+            echo "release_tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+
+  finalize-macos:
+    needs: resolve-target
+    if: needs.resolve-target.outputs.release_tag != ''
+    runs-on: macos-14
+    concurrency:
+      group: release-finalize-${{ needs.resolve-target.outputs.release_tag }}
+      cancel-in-progress: false
+    env:
+      RELEASE_TAG: ${{ needs.resolve-target.outputs.release_tag }}
+      NOTARY_PROFILE_NAME: ${{ vars.NOTARY_PROFILE_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prepare helper scripts
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/notary_helpers.sh
+          chmod +x .github/scripts/release_state.sh
+
+      - name: Configure notarytool credentials
+        env:
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
+          APPLE_API_PRIVATE_KEY_B64: ${{ secrets.APPLE_API_PRIVATE_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${NOTARY_PROFILE_NAME:-}" ]; then
+            echo "Missing repo variable: NOTARY_PROFILE_NAME"
+            exit 1
+          fi
+          if [ -z "${APPLE_API_KEY_ID:-}" ] || [ -z "${APPLE_API_ISSUER_ID:-}" ] || [ -z "${APPLE_API_PRIVATE_KEY_B64:-}" ]; then
+            echo "Missing APPLE_API_KEY_ID / APPLE_API_ISSUER_ID / APPLE_API_PRIVATE_KEY_B64 secret"
+            exit 1
+          fi
+
+          mkdir -p private_keys
+          echo "$APPLE_API_PRIVATE_KEY_B64" | base64 --decode > private_keys/AuthKey.p8 2>/dev/null || \
+            echo "$APPLE_API_PRIVATE_KEY_B64" | base64 -D > private_keys/AuthKey.p8
+
+          xcrun notarytool store-credentials "$NOTARY_PROFILE_NAME" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER_ID" \
+            --key "private_keys/AuthKey.p8"
+
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p finalize-artifacts
+
+          gh release download "$RELEASE_TAG" -p "notarization-state.json" -D finalize-artifacts
+          gh release download "$RELEASE_TAG" -p "app-notary.zip" -D finalize-artifacts
+          gh release download "$RELEASE_TAG" -p "*.dmg" -D finalize-artifacts
+
+      - name: Load notarization state
+        run: |
+          set -euo pipefail
+          source .github/scripts/release_state.sh
+
+          STATE_FILE="finalize-artifacts/notarization-state.json"
+          release_state_validate "$STATE_FILE"
+          STATE_TAG="$(release_state_get "$STATE_FILE" "tag")"
+          if [ "$STATE_TAG" != "$RELEASE_TAG" ]; then
+            echo "State tag mismatch: state=${STATE_TAG}, expected=${RELEASE_TAG}"
+            exit 1
+          fi
+
+          APP_SUBMISSION_ID="$(release_state_get "$STATE_FILE" "app.submissionId")"
+          DMG_SUBMISSION_ID="$(release_state_get "$STATE_FILE" "dmg.submissionId")"
+
+          echo "APP_SUBMISSION_ID=$APP_SUBMISSION_ID" >> "$GITHUB_ENV"
+          echo "DMG_SUBMISSION_ID=$DMG_SUBMISSION_ID" >> "$GITHUB_ENV"
+
+      - name: Query notary status and update state
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          source .github/scripts/notary_helpers.sh
+          source .github/scripts/release_state.sh
+
+          STATE_FILE="finalize-artifacts/notarization-state.json"
+          release_state_set_phase "$STATE_FILE" "waiting"
+
+          APP_STATUS="$(notary_query_status "$APP_SUBMISSION_ID" app 3 20)"
+          DMG_STATUS="$(notary_query_status "$DMG_SUBMISSION_ID" dmg 3 20)"
+          APP_STATUS_LC="$(echo "$APP_STATUS" | tr '[:upper:]' '[:lower:]')"
+          DMG_STATUS_LC="$(echo "$DMG_STATUS" | tr '[:upper:]' '[:lower:]')"
+
+          release_state_set_component_status "$STATE_FILE" app "$APP_STATUS"
+          release_state_set_component_status "$STATE_FILE" dmg "$DMG_STATUS"
+          release_state_clear_error "$STATE_FILE"
+
+          if [ "$APP_STATUS_LC" = "invalid" ] || [ "$APP_STATUS_LC" = "rejected" ]; then
+            notary_dump_log "$APP_SUBMISSION_ID" app || true
+            release_state_set_phase "$STATE_FILE" "failed"
+            release_state_set_error "$STATE_FILE" "app notarization ${APP_STATUS}"
+            gh release upload "$RELEASE_TAG" "$STATE_FILE" --clobber
+            exit 1
+          fi
+
+          if [ "$DMG_STATUS_LC" = "invalid" ] || [ "$DMG_STATUS_LC" = "rejected" ]; then
+            notary_dump_log "$DMG_SUBMISSION_ID" dmg || true
+            release_state_set_phase "$STATE_FILE" "failed"
+            release_state_set_error "$STATE_FILE" "dmg notarization ${DMG_STATUS}"
+            gh release upload "$RELEASE_TAG" "$STATE_FILE" --clobber
+            exit 1
+          fi
+
+          if [ "$APP_STATUS_LC" = "accepted" ] && [ "$DMG_STATUS_LC" = "accepted" ]; then
+            release_state_set_phase "$STATE_FILE" "accepted"
+            echo "BOTH_ACCEPTED=true" >> "$GITHUB_ENV"
+          else
+            release_state_set_phase "$STATE_FILE" "waiting"
+            echo "BOTH_ACCEPTED=false" >> "$GITHUB_ENV"
+          fi
+
+          gh release upload "$RELEASE_TAG" "$STATE_FILE" --clobber
+
+      - name: Finalize release assets
+        if: env.BOTH_ACCEPTED == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          source .github/scripts/release_state.sh
+
+          STATE_FILE="finalize-artifacts/notarization-state.json"
+          APP_WORKDIR="$(mktemp -d)"
+          unzip -q "finalize-artifacts/app-notary.zip" -d "$APP_WORKDIR"
+
+          APP_BUNDLE="$(find "$APP_WORKDIR" -maxdepth 2 -type d -name '*.app' | sort | head -n 1)"
+          if [ -z "${APP_BUNDLE:-}" ]; then
+            echo "No app bundle found in app-notary.zip"
+            exit 1
+          fi
+
+          DMG_PATH="$(find finalize-artifacts -maxdepth 1 -type f -name '*.dmg' | sort | head -n 1)"
+          if [ -z "${DMG_PATH:-}" ]; then
+            echo "No dmg found in finalize-artifacts"
+            exit 1
+          fi
+
+          xcrun stapler staple "$APP_BUNDLE"
+          spctl -a -vvv --type execute "$APP_BUNDLE"
+
+          ditto -c -k --keepParent "$APP_BUNDLE" finalize-artifacts/agentnexus.zip
+
+          xcrun stapler staple "$DMG_PATH"
+          xcrun stapler validate "$DMG_PATH"
+          spctl -a -vvv --type open "$DMG_PATH"
+
+          release_state_set_phase "$STATE_FILE" "finalized"
+          release_state_clear_error "$STATE_FILE"
+          release_state_validate "$STATE_FILE"
+
+          {
+            echo "# ${RELEASE_TAG}"
+            echo
+            echo "- Notarization completed for app and dmg."
+            echo "- Release promoted from [NOTARIZING] prerelease to stable release."
+          } > finalize-artifacts/release-notes-final.md
+
+          gh release upload "$RELEASE_TAG" \
+            finalize-artifacts/agentnexus.zip \
+            "$DMG_PATH" \
+            "$STATE_FILE" \
+            --clobber
+          gh release edit "$RELEASE_TAG" \
+            --title "$RELEASE_TAG" \
+            --prerelease=false \
+            --notes-file finalize-artifacts/release-notes-final.md
+
+      - name: Wait for next finalize cycle
+        if: env.BOTH_ACCEPTED != 'true'
+        run: |
+          set -euo pipefail
+          echo "Notarization is still in progress for tag ${RELEASE_TAG}. Wait for next scheduled finalize run."
