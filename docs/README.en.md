@@ -160,7 +160,26 @@ Release flow:
 1. Update version in `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (e.g. `0.1.1`)
 2. Create a tag like `v0.1.1`
 3. Push the tag: `git push origin v0.1.1`
-4. GitHub Actions runs `.github/workflows/release.yml` and publishes DMG, updater package, and `latest.json`
+4. GitHub Actions first runs `.github/workflows/release.yml` (submit phase), creates/updates a `[NOTARIZING]` prerelease, and writes a release status asset
+5. `release-finalize.yml` advances notarization on a 30-minute schedule; you can also trigger finalize manually
+6. After both app and dmg notarization are `Accepted`, finalize completes stapling and promotes the release (removes `[NOTARIZING]` and prerelease)
+
+What `[NOTARIZING]` means:
+
+- Build/sign/submit is done, but notarization is still in progress
+- The release remains `prerelease` in this phase and is not for production use
+
+Manual finalize trigger (example):
+
+```bash
+gh workflow run release-finalize.yml -f release_tag=v0.1.1
+```
+
+Troubleshooting entrypoint:
+
+- Check release asset `notarization-state.json` first (submission ids, current statuses, last checked time)
+- Then inspect `release-finalize.yml` run logs for app/dmg branch details and notary responses
+- See `docs/ops/release-notarization-runbook.md` for the full runbook
 
 ---
 

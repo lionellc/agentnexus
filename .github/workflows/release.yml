@@ -1,4 +1,4 @@
-name: Release
+name: Release Submit
 
 on:
   push:
@@ -15,11 +15,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-submit-${{ github.event.inputs.release_tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build-and-release-macos:
+  submit-macos:
     runs-on: macos-14
     env:
       TAURI_SIGNING_PRIVATE_KEY_B64: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_B64 }}
@@ -78,6 +78,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Prepare helper scripts
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/notary_helpers.sh
+          chmod +x .github/scripts/release_state.sh
+
       - name: Import signing certificate
         env:
           APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
@@ -130,165 +136,10 @@ jobs:
             --issuer "$APPLE_API_ISSUER_ID" \
             --key "private_keys/AuthKey.p8"
 
-      - name: Prepare notary helpers
-        run: |
-          set -euo pipefail
-          NOTARY_HELPERS="$RUNNER_TEMP/notary_helpers.sh"
-          cat > "$NOTARY_HELPERS" <<'EOF'
-          #!/usr/bin/env bash
-          set -euo pipefail
-
-          notary_log() {
-            echo "$@" >&2
-          }
-
-          is_transient_notary_error() {
-            echo "$1" | grep -Eqi "NSURLErrorDomain Code=-1009|The Internet connection appears to be offline|timed out|network.*(offline|route|unreachable)|temporarily unavailable|HTTP status code: 5[0-9]{2}|service.*unavailable|gateway timeout|Connection reset by peer|Could not resolve host"
-          }
-
-          notary_preflight() {
-            local max_attempts="${1:-2}"
-            local attempt=1
-            while [ "$attempt" -le "$max_attempts" ]; do
-              notary_log "[notary][preflight] attempt ${attempt}/${max_attempts}"
-              local output
-              set +e
-              output="$(xcrun notarytool history --keychain-profile "$NOTARY_PROFILE_NAME" --output-format json 2>&1)"
-              local rc=$?
-              set -e
-              if [ "$rc" -eq 0 ]; then
-                notary_log "[notary][preflight] ok"
-                return 0
-              fi
-              notary_log "$output"
-              if ! is_transient_notary_error "$output"; then
-                notary_log "[notary][preflight] non-transient failure"
-                return "$rc"
-              fi
-              if [ "$attempt" -ge "$max_attempts" ]; then
-                notary_log "[notary][preflight] retries exhausted"
-                return "$rc"
-              fi
-              local backoff=$((attempt * 15))
-              notary_log "[notary][preflight] transient failure, retry in ${backoff}s"
-              sleep "$backoff"
-              attempt=$((attempt + 1))
-            done
-          }
-
-          notary_submit_with_retry() {
-            local artifact="$1"
-            local label="$2"
-            local max_attempts="${3:-3}"
-            local attempt=1
-            while [ "$attempt" -le "$max_attempts" ]; do
-              notary_log "[notary][$label] submit attempt ${attempt}/${max_attempts}"
-              local output
-              set +e
-              output="$(xcrun notarytool submit "$artifact" --keychain-profile "$NOTARY_PROFILE_NAME" --output-format json --no-progress 2>&1)"
-              local rc=$?
-              set -e
-              if [ "$rc" -eq 0 ]; then
-                local submission_id
-                submission_id="$(printf '%s' "$output" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("id", ""))' 2>/dev/null || true)"
-                if [ -n "$submission_id" ]; then
-                  printf '%s\n' "$submission_id"
-                  return 0
-                fi
-                notary_log "[notary][$label] submit succeeded but id parse failed"
-                notary_log "$output"
-                return 1
-              fi
-              notary_log "$output"
-              if ! is_transient_notary_error "$output"; then
-                notary_log "[notary][$label] non-transient submit failure"
-                return "$rc"
-              fi
-              if [ "$attempt" -ge "$max_attempts" ]; then
-                notary_log "[notary][$label] submit retries exhausted"
-                return "$rc"
-              fi
-              local backoff=$((attempt * 30))
-              notary_log "[notary][$label] transient submit failure, retry in ${backoff}s"
-              sleep "$backoff"
-              attempt=$((attempt + 1))
-            done
-          }
-
-          notary_wait_for_result() {
-            local submission_id="$1"
-            local label="$2"
-            local poll_interval_seconds="${3:-20}"
-            while true; do
-              local output
-              set +e
-              output="$(xcrun notarytool info "$submission_id" --keychain-profile "$NOTARY_PROFILE_NAME" --output-format json 2>&1)"
-              local rc=$?
-              set -e
-              if [ "$rc" -ne 0 ]; then
-                notary_log "$output"
-                if is_transient_notary_error "$output"; then
-                  notary_log "[notary][$label] transient status query failure, retry in ${poll_interval_seconds}s"
-                  sleep "$poll_interval_seconds"
-                  continue
-                fi
-                notary_log "[notary][$label] non-transient status query failure"
-                return "$rc"
-              fi
-
-              local status
-              status="$(printf '%s' "$output" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("status", ""))' 2>/dev/null || true)"
-              local status_lc
-              status_lc="$(printf '%s' "$status" | tr '[:upper:]' '[:lower:]')"
-              notary_log "[notary][$label][$(date -u +"%Y-%m-%dT%H:%M:%SZ")] status=${status:-unknown} id=${submission_id}"
-              if [ "$status_lc" = "accepted" ]; then
-                return 0
-              fi
-              if [ "$status_lc" = "invalid" ] || [ "$status_lc" = "rejected" ]; then
-                notary_log "$output"
-                return 2
-              fi
-              sleep "$poll_interval_seconds"
-            done
-          }
-
-          notary_dump_log() {
-            local submission_id="$1"
-            local label="$2"
-            notary_log "[notary][$label] fetching failure log for id=${submission_id}"
-            set +e
-            local log_output
-            log_output="$(xcrun notarytool log "$submission_id" --keychain-profile "$NOTARY_PROFILE_NAME" 2>&1)"
-            local rc=$?
-            set -e
-            notary_log "$log_output"
-            return "$rc"
-          }
-
-          notary_submit_and_wait() {
-            local artifact="$1"
-            local label="$2"
-            local max_attempts="${3:-3}"
-            local poll_interval_seconds="${4:-20}"
-            local submission_id
-            submission_id="$(notary_submit_with_retry "$artifact" "$label" "$max_attempts")"
-            notary_log "[notary][$label] submission id=${submission_id}"
-            if notary_wait_for_result "$submission_id" "$label" "$poll_interval_seconds"; then
-              notary_log "[notary][$label] accepted"
-              return 0
-            fi
-            local rc=$?
-            notary_dump_log "$submission_id" "$label" || true
-            return "$rc"
-          }
-          EOF
-          chmod +x "$NOTARY_HELPERS"
-          echo "NOTARY_HELPERS=$NOTARY_HELPERS" >> "$GITHUB_ENV"
-
       - name: Notary preflight
         run: |
           set -euo pipefail
-          source "$NOTARY_HELPERS"
+          source .github/scripts/notary_helpers.sh
           notary_preflight 2
 
       - name: Write Tauri signing key
@@ -321,23 +172,6 @@ jobs:
           codesign --force --deep --options runtime --timestamp --sign "$CODESIGN_IDENTITY" "$APP_BUNDLE"
           codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
 
-      - name: Notarize and staple app
-        run: |
-          set -euo pipefail
-          source "$NOTARY_HELPERS"
-
-          APP_BUNDLE="$(find src-tauri/target/release/bundle/macos -maxdepth 1 -type d -name '*.app' | sort | head -n 1)"
-          if [ -z "${APP_BUNDLE:-}" ]; then
-            echo "No macOS .app bundle found for notarization"
-            find src-tauri/target/release/bundle -type d | sort
-            exit 1
-          fi
-          ditto -c -k --keepParent "$APP_BUNDLE" app-notary.zip
-          notary_submit_and_wait app-notary.zip app 2 20
-          xcrun stapler staple "$APP_BUNDLE"
-          spctl -a -vvv --type execute "$APP_BUNDLE"
-          rm -f app-notary.zip
-
       - name: Collect release artifacts
         run: |
           set -euo pipefail
@@ -369,9 +203,9 @@ jobs:
           cp "$APP_SIG" release-artifacts/
 
           ditto -c -k --keepParent "$APP_BUNDLE" release-artifacts/agentnexus.zip
+          ditto -c -k --keepParent "$APP_BUNDLE" release-artifacts/app-notary.zip
 
           ditto "$APP_BUNDLE" "${DMG_ROOT}/$(basename "$APP_BUNDLE")"
-
           if [ "$(uname -m)" = "arm64" ]; then
             MAC_ARCH="aarch64"
           else
@@ -383,6 +217,10 @@ jobs:
             -ov -format UDZO \
             "release-artifacts/${DMG_NAME}"
           rm -rf "$DMG_ROOT"
+
+          DMG_PATH="release-artifacts/${DMG_NAME}"
+          codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$DMG_PATH"
+          codesign --verify --verbose=2 "$DMG_PATH"
 
           APP_ARCHIVE_NAME="$(basename "$APP_ARCHIVE")"
           if [[ "$APP_ARCHIVE_NAME" == *"x86_64"* ]]; then
@@ -400,37 +238,23 @@ jobs:
           echo "PLATFORM_KEY=$PLATFORM_KEY" >> "$GITHUB_ENV"
           echo "DMG_NAME=$DMG_NAME" >> "$GITHUB_ENV"
 
-      - name: Codesign, notarize and staple dmg
+      - name: Submit app and dmg to notary
         run: |
           set -euo pipefail
-          source "$NOTARY_HELPERS"
+          source .github/scripts/notary_helpers.sh
 
-          if [ -z "${DMG_NAME:-}" ]; then
-            echo "Missing DMG_NAME from previous step."
-            exit 1
-          fi
+          APP_SUBMISSION_ID="$(notary_submit_with_retry "release-artifacts/app-notary.zip" app 3)"
+          DMG_SUBMISSION_ID="$(notary_submit_with_retry "release-artifacts/${DMG_NAME}" dmg 3)"
 
-          DMG_PATH="release-artifacts/${DMG_NAME}"
-          if [ ! -f "$DMG_PATH" ]; then
-            echo "DMG artifact not found: $DMG_PATH"
-            ls -la release-artifacts || true
-            exit 1
-          fi
+          echo "APP_SUBMISSION_ID=$APP_SUBMISSION_ID" >> "$GITHUB_ENV"
+          echo "DMG_SUBMISSION_ID=$DMG_SUBMISSION_ID" >> "$GITHUB_ENV"
 
-          codesign --force --timestamp --sign "$CODESIGN_IDENTITY" "$DMG_PATH"
-          codesign --verify --verbose=2 "$DMG_PATH"
-
-          notary_submit_and_wait "$DMG_PATH" dmg 2 20
-          xcrun stapler staple "$DMG_PATH"
-          xcrun stapler validate "$DMG_PATH"
-          spctl -a -vvv --type open "$DMG_PATH"
-
-      - name: Build latest.json
+      - name: Build latest.json and release notes
         run: |
           set -euo pipefail
           VERSION="${RELEASE_VERSION}"
           TAG="${RELEASE_TAG}"
-          APP_SIG=$(cat "release-artifacts/${APP_SIG_NAME}")
+          APP_SIG="$(cat "release-artifacts/${APP_SIG_NAME}")"
 
           python3 - <<PY
           import json
@@ -460,24 +284,38 @@ jobs:
           PY
 
           {
-            echo "# ${TAG}"
+            echo "# [NOTARIZING] ${TAG}"
             echo
-            echo "- Automated release for ${TAG}."
+            echo "- Notarization has been submitted for app and dmg."
+            echo "- This prerelease is still in notarization progress."
+            echo "- Please do not use this build in production until [NOTARIZING] is removed."
           } > release-artifacts/release-notes.md
 
-      - name: Create or update GitHub release
+      - name: Write notarization state asset
+        run: |
+          set -euo pipefail
+          source .github/scripts/release_state.sh
+
+          STATE_FILE="release-artifacts/notarization-state.json"
+          release_state_init "$STATE_FILE" "$RELEASE_TAG" "$RELEASE_VERSION" "$APP_SUBMISSION_ID" "$DMG_SUBMISSION_ID"
+          release_state_set_phase "$STATE_FILE" "notarizing"
+          release_state_validate "$STATE_FILE"
+
+      - name: Create or update NOTARIZING prerelease
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           TAG="${RELEASE_TAG}"
+          TITLE="[NOTARIZING] ${TAG}"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release-artifacts/* --clobber
-            gh release edit "$TAG" --notes-file release-artifacts/release-notes.md
+            gh release edit "$TAG" --title "$TITLE" --prerelease --notes-file release-artifacts/release-notes.md
           else
             gh release create "$TAG" \
-              --title "$TAG" \
+              --title "$TITLE" \
+              --prerelease \
               --notes-file release-artifacts/release-notes.md \
               --target "$GITHUB_SHA" \
               release-artifacts/*
