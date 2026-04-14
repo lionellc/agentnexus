@@ -1,5 +1,8 @@
 # Release Notarization Runbook (Submit / Finalize)
 
+> 常态化发布流程请先参考：`docs/ops/release-standard-playbook.md`
+> 本文档聚焦公证阶段异常排障与恢复。
+
 ## Overview
 
 The release pipeline is split into two phases:
@@ -53,6 +56,12 @@ Use it to confirm:
 4. Open `release-finalize.yml` run logs and locate artifact-scoped messages (`app` / `dmg`).
 5. If transient network errors appear, rerun finalize (or wait for scheduled run).
 6. If `Invalid` / `Rejected`, fix signing/notary issues and start a new release tag flow.
+
+### Note: `spctl` says `rejected source=Insufficient Context`
+
+- If both `app` and `dmg` statuses are already `Accepted`, this is **not** a notary rejection.
+- This usually means Gatekeeper context is insufficient in CI for `spctl --type open` assessment on a local workflow artifact.
+- Use `xcrun stapler validate <dmg>` as the notarization pass/fail gate; treat this `spctl` case as warning-only.
 
 ## Recovery rules
 

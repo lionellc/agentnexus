@@ -199,7 +199,20 @@ jobs:
 
           xcrun stapler staple "$DMG_PATH"
           xcrun stapler validate "$DMG_PATH"
-          spctl -a -vvv --type open "$DMG_PATH"
+          SPCTL_DMG_STATUS=0
+          SPCTL_DMG_OUTPUT=""
+          if ! SPCTL_DMG_OUTPUT="$(spctl -a -vvv --type open --context context:primary-signature "$DMG_PATH" 2>&1)"; then
+            SPCTL_DMG_STATUS=$?
+          fi
+          echo "$SPCTL_DMG_OUTPUT"
+          if [ "$SPCTL_DMG_STATUS" -ne 0 ]; then
+            if echo "$SPCTL_DMG_OUTPUT" | grep -q "source=Insufficient Context"; then
+              echo "::warning::spctl rejected dmg with Insufficient Context in CI; keep finalize result from stapler validate."
+            else
+              echo "Unexpected dmg spctl validation failure."
+              exit "$SPCTL_DMG_STATUS"
+            fi
+          fi
 
           release_state_set_phase "$STATE_FILE" "finalized"
           release_state_clear_error "$STATE_FILE"
