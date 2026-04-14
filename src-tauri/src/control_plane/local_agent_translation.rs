@@ -1,6 +1,7 @@
 use std::{
     collections::HashMap,
     io::{BufReader, Read, Write},
+    path::{Path, PathBuf},
     process::{Command, Stdio},
     sync::mpsc,
     thread,
@@ -916,7 +917,8 @@ fn execute_translation(
         command.arg(arg);
     }
 
-    let safe_env = collect_safe_env();
+    let mut safe_env = collect_safe_env();
+    prepend_executable_parent_to_path(&mut safe_env, profile.executable.trim());
     command
         .current_dir(std::env::temp_dir())
         .env_clear()
@@ -1520,6 +1522,41 @@ fn collect_safe_env() -> Vec<(String, String)> {
     .collect()
 }
 
+fn prepend_executable_parent_to_path(env_pairs: &mut Vec<(String, String)>, executable: &str) {
+    let executable = executable.trim();
+    if executable.is_empty() {
+        return;
+    }
+
+    let Some(parent_dir) = Path::new(executable)
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+    else {
+        return;
+    };
+
+    let parent_dir = parent_dir.to_path_buf();
+    if let Some((_, path_value)) = env_pairs.iter_mut().find(|(key, _)| key == "PATH") {
+        if path_list_contains(path_value, &parent_dir) {
+            return;
+        }
+        let merged = std::env::join_paths(
+            std::iter::once(parent_dir.clone()).chain(std::env::split_paths(path_value)),
+        );
+        match merged {
+            Ok(next) => *path_value = next.to_string_lossy().to_string(),
+            Err(_) => *path_value = format!("{}:{}", parent_dir.to_string_lossy(), path_value),
+        }
+        return;
+    }
+
+    env_pairs.push(("PATH".to_string(), parent_dir.to_string_lossy().to_string()));
+}
+
+fn path_list_contains(path_value: &str, candidate: &PathBuf) -> bool {
+    std::env::split_paths(path_value).any(|path| path == *candidate)
+}
+
 fn truncate_text(value: &str, limit: usize) -> String {
     if value.len() <= limit {
         return value.to_string();
@@ -1596,9 +1633,10 @@ fn json_to_sql_value(value: &Value) -> rusqlite::types::Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_execution_compatibility, contains_forbidden_exec_pattern, normalize_profile_key,
-        parse_translation_protocol, format_running_duration,
+        apply_execution_compatibility, contains_forbidden_exec_pattern, format_running_duration,
+        normalize_profile_key, parse_translation_protocol, prepend_executable_parent_to_path,
     };
+    use std::path::PathBuf;
     use std::time::Duration;
 
     #[test]
@@ -1664,5 +1702,60 @@ mod tests {
             format_running_duration(Duration::from_secs(125)),
             "running:2 min 5 s"
         );
+    }
+
+    #[test]
+    fn executable_parent_dir_is_prepended_to_path() {
+        let mut env_pairs = vec![("PATH".to_string(), "/usr/bin:/bin".to_string())];
+        let executable = "/Users/liuc/.deskclaw/node/bin/codex";
+
+        prepend_executable_parent_to_path(&mut env_pairs, executable);
+
+        let path_value = env_pairs
+            .iter()
+            .find(|(key, _)| key == "PATH")
+            .map(|(_, value)| value.as_str())
+            .expect("path");
+        let mut path_iter = std::env::split_paths(path_value);
+        assert_eq!(
+            path_iter.next(),
+            Some(PathBuf::from("/Users/liuc/.deskclaw/node/bin"))
+        );
+    }
+
+    #[test]
+    fn executable_parent_dir_is_not_duplicated_in_path() {
+        let mut env_pairs = vec![(
+            "PATH".to_string(),
+            "/Users/liuc/.deskclaw/node/bin:/usr/bin:/bin".to_string(),
+        )];
+        let executable = "/Users/liuc/.deskclaw/node/bin/codex";
+
+        prepend_executable_parent_to_path(&mut env_pairs, executable);
+
+        let path_value = env_pairs
+            .iter()
+            .find(|(key, _)| key == "PATH")
+            .map(|(_, value)| value.as_str())
+            .expect("path");
+        let count = std::env::split_paths(path_value)
+            .filter(|path| *path == PathBuf::from("/Users/liuc/.deskclaw/node/bin"))
+            .count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn executable_parent_dir_creates_path_when_missing() {
+        let mut env_pairs = vec![("HOME".to_string(), "/Users/liuc".to_string())];
+        let executable = "/Users/liuc/.deskclaw/node/bin/codex";
+
+        prepend_executable_parent_to_path(&mut env_pairs, executable);
+
+        let path_value = env_pairs
+            .iter()
+            .find(|(key, _)| key == "PATH")
+            .map(|(_, value)| value.as_str())
+            .expect("path");
+        assert_eq!(path_value, "/Users/liuc/.deskclaw/node/bin");
     }
 }
