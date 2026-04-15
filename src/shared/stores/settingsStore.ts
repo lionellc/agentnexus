@@ -21,6 +21,7 @@ import type {
   RuntimeFlags,
   RuntimeFlagsFormValues,
   TargetFormValues,
+  TargetDeleteInput,
   TargetUpsertInput,
   WebDavFormValues,
   Workspace,
@@ -69,6 +70,7 @@ type SettingsState = {
   toggleConnection: (input: AgentConnectionToggleInput) => Promise<SettingsSaveResult>;
   deleteConnection: (input: AgentConnectionDeleteInput) => Promise<SettingsSaveResult>;
   upsertTarget: (input: TargetUpsertInput) => Promise<SettingsSaveResult>;
+  deleteTarget: (input: TargetDeleteInput) => Promise<SettingsSaveResult>;
   updateRuntimeFlags: (next: RuntimeFlags) => Promise<SettingsSaveResult>;
   setWebDav: (next: WebDavConfig) => void;
   testWebDav: () => Promise<SettingsSaveResult>;
@@ -327,6 +329,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const targets = await targetApi.list(input.workspaceId);
     set({ targets, targetForm: createFormState(toTargetForm(targets[0])) });
     return { ok: true, message: message("保存成功", "Saved successfully") };
+  },
+  deleteTarget: async (input) => {
+    if (!input.id.trim()) {
+      return { ok: false, message: message("目标 ID 不合法", "Invalid target ID") };
+    }
+    await targetApi.delete(input);
+    const targets = await targetApi.list(input.workspaceId);
+    set({ targets, targetForm: createFormState(toTargetForm(targets[0])) });
+    return { ok: true, message: message("目标已删除", "Target deleted") };
   },
   updateRuntimeFlags: async (next) => {
     const updated = await runtimeApi.updateFlags({

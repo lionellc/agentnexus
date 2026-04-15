@@ -155,6 +155,8 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
             latest_version TEXT NOT NULL,
             source TEXT NOT NULL,
             local_path TEXT NOT NULL,
+            source_local_path TEXT,
+            source_is_symlink INTEGER NOT NULL DEFAULT 0,
             update_candidate INTEGER NOT NULL,
             last_used_at TEXT,
             created_at TEXT NOT NULL,
@@ -168,6 +170,17 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
             source TEXT NOT NULL,
             installed_at TEXT NOT NULL,
             FOREIGN KEY(asset_id) REFERENCES skills_assets(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS skills_manager_configs (
+            workspace_id TEXT PRIMARY KEY,
+            rules_json TEXT NOT NULL DEFAULT '{}',
+            group_rules_json TEXT NOT NULL DEFAULT '{}',
+            tool_rules_json TEXT NOT NULL DEFAULT '{}',
+            manual_unlinks_json TEXT NOT NULL DEFAULT '{}',
+            deleted_skills_json TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS prompts_assets (
@@ -363,6 +376,7 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     )?;
 
     run_backfill_once(conn)?;
+    run_skills_assets_source_metadata_migration_once(conn)?;
     run_agent_connection_rule_file_migration_once(conn)?;
     run_global_rules_migration_once(conn)?;
     run_local_agent_translation_migration_once(conn)?;
@@ -407,6 +421,47 @@ fn run_backfill_once(conn: &Connection) -> Result<(), AppError> {
         params!["backfill_default_install_mode", "done", now_rfc3339()],
     )?;
 
+    Ok(())
+}
+
+fn run_skills_assets_source_metadata_migration_once(conn: &Connection) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM migration_meta WHERE key = 'migrate_skills_assets_source_metadata_v1'",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(());
+    }
+
+    if !column_exists(conn, "skills_assets", "source_local_path")? {
+        conn.execute(
+            "ALTER TABLE skills_assets ADD COLUMN source_local_path TEXT",
+            [],
+        )?;
+    }
+    if !column_exists(conn, "skills_assets", "source_is_symlink")? {
+        conn.execute(
+            "ALTER TABLE skills_assets ADD COLUMN source_is_symlink INTEGER NOT NULL DEFAULT 0",
+            [],
+        )?;
+    }
+
+    conn.execute(
+        "UPDATE skills_assets
+         SET source_local_path = local_path
+         WHERE source_local_path IS NULL OR trim(source_local_path) = ''",
+        [],
+    )?;
+
+    conn.execute(
+        "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
+        params![
+            "migrate_skills_assets_source_metadata_v1",
+            "done",
+            now_rfc3339(),
+        ],
+    )?;
     Ok(())
 }
 
@@ -491,11 +546,7 @@ fn run_local_agent_translation_migration_once(conn: &Connection) -> Result<(), A
 
     conn.execute(
         "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
-        params![
-            "migrate_local_agent_translation_v1",
-            "done",
-            now_rfc3339(),
-        ],
+        params!["migrate_local_agent_translation_v1", "done", now_rfc3339(),],
     )?;
 
     Ok(())

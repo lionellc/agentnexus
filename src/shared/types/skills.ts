@@ -10,6 +10,8 @@ export interface SkillAsset {
   sourceParent: string;
   isSymlink: boolean;
   localPath: string;
+  sourceLocalPath?: string;
+  sourceIsSymlink?: boolean;
   updateCandidate: boolean;
   lastUsedAt: string | null;
   createdAt: string;

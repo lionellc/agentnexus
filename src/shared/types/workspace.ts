@@ -61,6 +61,11 @@ export interface TargetUpsertInput {
   installMode?: InstallMode;
 }
 
+export interface TargetDeleteInput {
+  workspaceId: string;
+  id: string;
+}
+
 export type AgentPlatform = "codex" | "claude" | string;
 
 export interface AgentConnection {

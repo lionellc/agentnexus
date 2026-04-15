@@ -2,6 +2,7 @@ import type {
   DistributionTarget,
   RuntimeFlags,
   RuntimeFlagsInput,
+  TargetDeleteInput,
   TargetUpsertInput,
   Workspace,
   WorkspaceCreateInput,
@@ -36,5 +37,9 @@ export const workspaceService = {
 
   upsertTarget(input: TargetUpsertInput): Promise<DistributionTarget> {
     return invokeCommand("target_upsert", { input });
+  },
+
+  deleteTarget(input: TargetDeleteInput): Promise<{ workspaceId: string; targetId: string; deleted: boolean }> {
+    return invokeCommand("target_delete", { input });
   },
 };

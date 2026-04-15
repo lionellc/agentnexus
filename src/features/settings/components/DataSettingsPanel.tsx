@@ -1,44 +1,148 @@
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "../../../shared/ui";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-export type SkillScanDirectoryItem = {
-  path: string;
-  selected: boolean;
-  source: "default" | "custom";
-};
+import {
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Input,
+} from "../../../shared/ui";
 
 export type DataSettingsPanelProps = {
   l: (zh: string, en: string) => string;
   storageDirDraft: string;
   activeWorkspaceRootPath: string | null;
-  defaultSkillScanSuffixes: readonly string[];
-  skillScanDirectories: SkillScanDirectoryItem[];
-  skillScanDirInput: string;
+  distributionTargets: Array<{
+    id: string;
+    platform: string;
+    targetPath: string;
+    skillsPath: string;
+    installMode: string;
+  }>;
+  distributionTargetDrafts: Record<
+    string,
+    {
+      platform: string;
+      targetPath: string;
+      installMode: string;
+    }
+  >;
+  distributionTargetEditingIds: string[];
+  newDistributionTargetDraft: {
+    platform: string;
+    targetPath: string;
+    installMode: string;
+  };
+  distributionTargetSavingId: string | null;
   onStorageDirDraftChange: (value: string) => void;
   onSaveStorageDirectory: () => void;
   onUseDefaultStorageDirectory: () => void;
   onOpenStorageDirectoryInFinder: () => void;
-  onToggleSkillScanDirectory: (path: string, checked: boolean) => void;
-  onRemoveSkillScanDirectory: (path: string) => void;
-  onSkillScanDirInputChange: (value: string) => void;
-  onAddSkillScanDirectory: () => void;
+  onDistributionTargetFieldChange: (
+    targetId: string,
+    field: "platform" | "targetPath" | "installMode",
+    value: string,
+  ) => void;
+  onStartDistributionTargetEdit: (targetId: string) => void;
+  onCancelDistributionTargetEdit: (targetId: string) => void;
+  onSaveDistributionTarget: (targetId: string) => void;
+  onDeleteDistributionTarget: (targetId: string) => void;
+  onNewDistributionTargetFieldChange: (
+    field: "platform" | "targetPath" | "installMode",
+    value: string,
+  ) => void;
+  onCreateDistributionTarget: () => void;
 };
 
 export function DataSettingsPanel({
   l,
   storageDirDraft,
   activeWorkspaceRootPath,
-  defaultSkillScanSuffixes,
-  skillScanDirectories,
-  skillScanDirInput,
+  distributionTargets,
+  distributionTargetDrafts,
+  distributionTargetEditingIds,
+  newDistributionTargetDraft,
+  distributionTargetSavingId,
   onStorageDirDraftChange,
   onSaveStorageDirectory,
   onUseDefaultStorageDirectory,
   onOpenStorageDirectoryInFinder,
-  onToggleSkillScanDirectory,
-  onRemoveSkillScanDirectory,
-  onSkillScanDirInputChange,
-  onAddSkillScanDirectory,
+  onDistributionTargetFieldChange,
+  onStartDistributionTargetEdit,
+  onCancelDistributionTargetEdit,
+  onSaveDistributionTarget,
+  onDeleteDistributionTarget,
+  onNewDistributionTargetFieldChange,
+  onCreateDistributionTarget,
 }: DataSettingsPanelProps) {
+  const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [createSubmitted, setCreateSubmitted] = useState(false);
+  const createSavingObservedRef = useRef(false);
+
+  const editingTarget = useMemo(
+    () => distributionTargets.find((item) => item.id === editingTargetId) ?? null,
+    [distributionTargets, editingTargetId],
+  );
+
+  const editDraft = useMemo(() => {
+    if (!editingTarget) {
+      return null;
+    }
+    return (
+      distributionTargetDrafts[editingTarget.id] ?? {
+        platform: editingTarget.platform,
+        targetPath: editingTarget.targetPath,
+        installMode: editingTarget.installMode,
+      }
+    );
+  }, [distributionTargetDrafts, editingTarget]);
+
+  useEffect(() => {
+    if (!editingTargetId) {
+      return;
+    }
+    if (!distributionTargets.some((item) => item.id === editingTargetId)) {
+      setEditingTargetId(null);
+      return;
+    }
+    if (distributionTargetSavingId === editingTargetId) {
+      return;
+    }
+    if (!distributionTargetEditingIds.includes(editingTargetId)) {
+      setEditingTargetId(null);
+    }
+  }, [distributionTargetEditingIds, distributionTargetSavingId, distributionTargets, editingTargetId]);
+
+  useEffect(() => {
+    if (distributionTargetSavingId === "__new__") {
+      createSavingObservedRef.current = true;
+      return;
+    }
+    if (
+      createDialogOpen &&
+      createSubmitted &&
+      createSavingObservedRef.current &&
+      distributionTargetSavingId === null &&
+      !newDistributionTargetDraft.targetPath
+    ) {
+      setCreateDialogOpen(false);
+      setCreateSubmitted(false);
+      createSavingObservedRef.current = false;
+    }
+  }, [
+    createDialogOpen,
+    createSubmitted,
+    distributionTargetSavingId,
+    newDistributionTargetDraft.targetPath,
+  ]);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -77,69 +181,251 @@ export function DataSettingsPanel({
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle>{l("Skills 扫描目录", "Skill Scan Directories")}</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <CardTitle>{l("Skills 配置", "Skills Settings")}</CardTitle>
+          <Button
+            size="sm"
+            onClick={() => {
+              setCreateDialogOpen(true);
+              setCreateSubmitted(false);
+              createSavingObservedRef.current = false;
+            }}
+          >
+            {l("新增目标", "Add Target")}
+          </Button>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <div className="text-xs text-slate-500">
-            {l("默认目录：", "Default Directories: ")}
-            {defaultSkillScanSuffixes.map((name) => `~/${name}`).join(" / ")}
-          </div>
-          <div className="space-y-2">
-            {skillScanDirectories.length === 0 ? (
-              <div className="text-xs text-slate-500">{l("暂无可用扫描目录", "No scan directory available")}</div>
-            ) : (
-              skillScanDirectories.map((item) => (
-                <div
-                  key={`skill-scan-dir-${item.path}`}
-                  className="flex flex-wrap items-center gap-2 rounded-md border border-slate-200 px-3 py-2"
-                >
-                  <label className="flex min-w-0 flex-1 items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={item.selected}
-                      onChange={(event) => onToggleSkillScanDirectory(item.path, event.currentTarget.checked)}
-                    />
-                    <span className="truncate text-xs text-slate-700">{item.path}</span>
-                  </label>
-                  <span className="rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
-                    {item.source === "default" ? l("默认", "Default") : l("自定义", "Custom")}
-                  </span>
-                  {item.source === "custom" ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-red-600 hover:text-red-700"
-                      onClick={() => onRemoveSkillScanDirectory(item.path)}
-                    >
-                      {l("删除", "Delete")}
-                    </Button>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
+          {activeWorkspaceRootPath ? (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              {l("当前 workspace 根目录：", "Current workspace root: ")}
+              <span className="font-mono">{activeWorkspaceRootPath}</span>
+            </div>
+          ) : null}
 
-          <div className="flex flex-wrap gap-2">
-            <Input
-              value={skillScanDirInput}
-              onChange={(event) => onSkillScanDirInputChange(event.currentTarget.value)}
-              placeholder="/Users/you/.custom-skill-dir"
-              className="min-w-[260px] flex-1"
-            />
-            <Button variant="outline" onClick={onAddSkillScanDirectory}>
-              {l("添加目录", "Add Directory")}
-            </Button>
-          </div>
-
-          <div className="text-xs text-slate-500">
-            {l(
-              "Skills Tab 扫描时会按已勾选目录递归查找 `SKILL.md`。",
-              "Skills tab scans selected directories recursively for `SKILL.md`.",
-            )}
-          </div>
+          {distributionTargets.length === 0 ? (
+            <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500">
+              {l("暂无分发目标，请先新增一条。", "No distribution targets yet. Add one.")}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {distributionTargets.map((target) => {
+                const isDeleting = distributionTargetSavingId === `delete:${target.id}`;
+                return (
+                  <div
+                    key={target.id}
+                    className="rounded-md border border-slate-200 px-3 py-3"
+                  >
+                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
+                      <div className="grid gap-2 md:grid-cols-3">
+                        <div className="text-xs text-slate-500">
+                          <div>{l("名称", "Name")}</div>
+                          <div className="font-medium text-slate-800">{target.platform}</div>
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          <div>{l("安装模式", "Install Mode")}</div>
+                          <div className="font-medium text-slate-800">{target.installMode}</div>
+                        </div>
+                        <div className="min-w-0 text-xs text-slate-500">
+                          <div>{l("目标目录", "Target Directory")}</div>
+                          <div className="truncate font-mono text-slate-700">{target.targetPath}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            onStartDistributionTargetEdit(target.id);
+                            setEditingTargetId(target.id);
+                          }}
+                          disabled={isDeleting}
+                        >
+                          {l("编辑", "Edit")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => onDeleteDistributionTarget(target.id)}
+                          disabled={isDeleting}
+                        >
+                          {isDeleting ? l("删除中...", "Deleting...") : l("删除", "Delete")}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={createDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          if (!open) {
+            setCreateSubmitted(false);
+            createSavingObservedRef.current = false;
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{l("新增目标", "Add Target")}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <label className="block text-xs text-slate-500">
+              {l("名称", "Name")}
+              <Input
+                value={newDistributionTargetDraft.platform}
+                onChange={(event) =>
+                  onNewDistributionTargetFieldChange("platform", event.currentTarget.value)
+                }
+                placeholder=".codex"
+              />
+            </label>
+            <label className="block text-xs text-slate-500">
+              {l("安装模式", "Install Mode")}
+              <select
+                className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                value={newDistributionTargetDraft.installMode}
+                onChange={(event) =>
+                  onNewDistributionTargetFieldChange("installMode", event.currentTarget.value)
+                }
+              >
+                <option value="copy">copy</option>
+                <option value="symlink">symlink</option>
+              </select>
+            </label>
+            <label className="block text-xs text-slate-500">
+              {l("目标目录", "Target Directory")}
+              <Input
+                value={newDistributionTargetDraft.targetPath}
+                onChange={(event) =>
+                  onNewDistributionTargetFieldChange("targetPath", event.currentTarget.value)
+                }
+                placeholder="/Users/you/.codex"
+              />
+            </label>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setCreateDialogOpen(false);
+                setCreateSubmitted(false);
+                createSavingObservedRef.current = false;
+              }}
+            >
+              {l("取消", "Cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                setCreateSubmitted(true);
+                onCreateDistributionTarget();
+              }}
+              disabled={distributionTargetSavingId === "__new__"}
+            >
+              {distributionTargetSavingId === "__new__" ? l("保存中...", "Saving...") : l("保存", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(editingTargetId && editDraft)}
+        onOpenChange={(open) => {
+          if (open || !editingTargetId) {
+            return;
+          }
+          onCancelDistributionTargetEdit(editingTargetId);
+          setEditingTargetId(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{l("编辑目标", "Edit Target")}</DialogTitle>
+          </DialogHeader>
+          {editingTargetId && editDraft ? (
+            <div className="space-y-3 text-sm">
+              <label className="block text-xs text-slate-500">
+                {l("名称", "Name")}
+                <Input
+                  value={editDraft.platform}
+                  onChange={(event) =>
+                    onDistributionTargetFieldChange(
+                      editingTargetId,
+                      "platform",
+                      event.currentTarget.value,
+                    )
+                  }
+                  placeholder=".codex"
+                />
+              </label>
+              <label className="block text-xs text-slate-500">
+                {l("安装模式", "Install Mode")}
+                <select
+                  className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+                  value={editDraft.installMode}
+                  onChange={(event) =>
+                    onDistributionTargetFieldChange(
+                      editingTargetId,
+                      "installMode",
+                      event.currentTarget.value,
+                    )
+                  }
+                >
+                  <option value="copy">copy</option>
+                  <option value="symlink">symlink</option>
+                </select>
+              </label>
+              <label className="block text-xs text-slate-500">
+                {l("目标目录", "Target Directory")}
+                <Input
+                  value={editDraft.targetPath}
+                  onChange={(event) =>
+                    onDistributionTargetFieldChange(
+                      editingTargetId,
+                      "targetPath",
+                      event.currentTarget.value,
+                    )
+                  }
+                  placeholder="/Users/you/.codex"
+                />
+              </label>
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!editingTargetId) {
+                  return;
+                }
+                onCancelDistributionTargetEdit(editingTargetId);
+                setEditingTargetId(null);
+              }}
+              disabled={distributionTargetSavingId === editingTargetId}
+            >
+              {l("取消", "Cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                if (!editingTargetId) {
+                  return;
+                }
+                onSaveDistributionTarget(editingTargetId);
+              }}
+              disabled={distributionTargetSavingId === editingTargetId}
+            >
+              {distributionTargetSavingId === editingTargetId
+                ? l("保存中...", "Saving...")
+                : l("保存", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

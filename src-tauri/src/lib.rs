@@ -24,13 +24,19 @@ use control_plane::commands::{
     prompt_update, prompt_versions, release_create, release_list, release_rollback,
     runtime_flags_get, runtime_flags_update, security_check_external_source, skills_asset_detail,
     skills_distribute, skills_file_read, skills_files_tree, skills_list, skills_open, skills_scan,
-    skills_uninstall, target_list, target_upsert, workspace_activate, workspace_create,
-    workspace_list, workspace_update,
+    skills_uninstall, target_delete, target_list, target_upsert, workspace_activate,
+    workspace_create, workspace_list, workspace_update,
 };
 use control_plane::local_agent_translation::{
     local_agent_profile_delete, local_agent_profile_list, local_agent_profile_upsert,
     local_agent_translation_test, prompt_translation_list, prompt_translation_retranslate,
     prompt_translation_run, translation_config_get, translation_config_update,
+};
+use control_plane::skills_manager::{
+    skills_manager_batch_link, skills_manager_batch_unlink, skills_manager_clean,
+    skills_manager_delete, skills_manager_diff_cancel, skills_manager_diff_progress,
+    skills_manager_diff_start, skills_manager_link_preview, skills_manager_purge,
+    skills_manager_restore, skills_manager_rules_update, skills_manager_state, skills_manager_sync,
 };
 use db::AppState;
 
@@ -58,6 +64,7 @@ pub fn run() {
             runtime_flags_get,
             runtime_flags_update,
             target_upsert,
+            target_delete,
             target_list,
             agent_connection_list,
             agent_connection_upsert,
@@ -93,6 +100,19 @@ pub fn run() {
             skills_open,
             skills_distribute,
             skills_uninstall,
+            skills_manager_state,
+            skills_manager_sync,
+            skills_manager_clean,
+            skills_manager_batch_link,
+            skills_manager_batch_unlink,
+            skills_manager_delete,
+            skills_manager_purge,
+            skills_manager_restore,
+            skills_manager_rules_update,
+            skills_manager_diff_start,
+            skills_manager_diff_progress,
+            skills_manager_diff_cancel,
+            skills_manager_link_preview,
             prompt_create,
             prompt_update,
             prompt_delete,

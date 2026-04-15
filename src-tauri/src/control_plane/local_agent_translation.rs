@@ -183,12 +183,8 @@ pub fn local_agent_profile_upsert(
     ensure_workspace_exists(&conn, &input.workspace_id)?;
     ensure_default_profiles(&conn, &input.workspace_id)?;
 
-    let normalized_key = normalize_profile_key(
-        input
-            .profile_key
-            .as_deref()
-            .unwrap_or(input.name.as_str()),
-    )?;
+    let normalized_key =
+        normalize_profile_key(input.profile_key.as_deref().unwrap_or(input.name.as_str()))?;
     validate_profile_name(&input.name)?;
     validate_executable(&input.executable)?;
     validate_args_template(&input.args_template)?;
@@ -321,18 +317,18 @@ pub async fn local_agent_translation_test(
         let profile_key = normalize_profile_key(&input.profile_key)?;
         let profile = profile_by_key(&conn, &input.workspace_id, &profile_key)?;
         if !profile.enabled {
-            return Err(AppError::new("AGENT_UNAVAILABLE", "当前 profile 已禁用，请先启用"));
+            return Err(AppError::new(
+                "AGENT_UNAVAILABLE",
+                "当前 profile 已禁用，请先启用",
+            ));
         }
 
         let target_language = normalize_target_language(&input.target_language)?;
         let source_text = normalize_source_text(&input.source_text)?;
         let config = get_translation_config(&conn, &input.workspace_id)?;
 
-        let payload = build_translation_payload(
-            &config.prompt_template,
-            &source_text,
-            &target_language,
-        );
+        let payload =
+            build_translation_payload(&config.prompt_template, &source_text, &target_language);
         (profile_key, profile, target_language, payload)
     };
     let request_id = input
@@ -514,7 +510,12 @@ fn run_prompt_translation(
     ensure_prompt_exists(conn, &input.prompt_id)?;
 
     let prompt_version = resolve_prompt_version(conn, &input.prompt_id, input.prompt_version)?;
-    let source_text = resolve_source_text(conn, &input.prompt_id, prompt_version, input.source_text.as_deref())?;
+    let source_text = resolve_source_text(
+        conn,
+        &input.prompt_id,
+        prompt_version,
+        input.source_text.as_deref(),
+    )?;
     let target_language = normalize_target_language(&input.target_language)?;
 
     let config = get_translation_config(conn, &input.workspace_id)?;
@@ -525,10 +526,14 @@ fn run_prompt_translation(
     };
     let profile = profile_by_key(conn, &input.workspace_id, &profile_key)?;
     if !profile.enabled {
-        return Err(AppError::new("AGENT_UNAVAILABLE", "当前 profile 已禁用，请先启用"));
+        return Err(AppError::new(
+            "AGENT_UNAVAILABLE",
+            "当前 profile 已禁用，请先启用",
+        ));
     }
 
-    let payload = build_translation_payload(&config.prompt_template, &source_text, &target_language);
+    let payload =
+        build_translation_payload(&config.prompt_template, &source_text, &target_language);
     let timeout_seconds = clamp_timeout(input.timeout_seconds.unwrap_or(DEFAULT_TIMEOUT_SECONDS));
     let execution = execute_translation(
         &profile,
@@ -604,7 +609,12 @@ fn run_prompt_translation(
                 prompt_translation_by_id(conn, &latest.id)?
             }
             TranslationConflictStrategy::SaveAs => {
-                let next_variant = existing.iter().map(|item| item.variant_no).max().unwrap_or(0) + 1;
+                let next_variant = existing
+                    .iter()
+                    .map(|item| item.variant_no)
+                    .max()
+                    .unwrap_or(0)
+                    + 1;
                 insert_prompt_translation(
                     conn,
                     PromptTranslationInsert {
@@ -741,7 +751,10 @@ fn ensure_default_profiles(conn: &Connection, workspace_id: &str) -> Result<(), 
     Ok(())
 }
 
-fn ensure_default_translation_config(conn: &Connection, workspace_id: &str) -> Result<(), AppError> {
+fn ensure_default_translation_config(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<(), AppError> {
     let now = now_rfc3339();
     conn.execute(
         "INSERT INTO translation_configs(workspace_id, default_profile_key, prompt_template, updated_at)
@@ -778,7 +791,10 @@ fn get_translation_config(
     .ok_or_else(|| AppError::internal("翻译配置不存在"))
 }
 
-fn list_profiles(conn: &Connection, workspace_id: &str) -> Result<Vec<LocalAgentProfileDto>, AppError> {
+fn list_profiles(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<Vec<LocalAgentProfileDto>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT id, workspace_id, profile_key, name, executable, args_template, is_builtin, enabled, created_at, updated_at
          FROM local_agent_profiles
@@ -912,13 +928,15 @@ fn execute_translation(
         }
     }
 
-    let mut command = Command::new(profile.executable.trim());
+    let mut safe_env = collect_safe_env();
+    append_cli_path_fallbacks(&mut safe_env);
+    let resolved_executable = resolve_executable_path(profile.executable.trim(), &safe_env);
+    let mut command = Command::new(&resolved_executable);
     for arg in &args {
         command.arg(arg);
     }
-
-    let mut safe_env = collect_safe_env();
     prepend_executable_parent_to_path(&mut safe_env, profile.executable.trim());
+    prepend_executable_parent_to_path(&mut safe_env, &resolved_executable);
     command
         .current_dir(std::env::temp_dir())
         .env_clear()
@@ -950,19 +968,17 @@ fn execute_translation(
 
     let mut stdout = String::new();
     let mut stderr = String::new();
-    let mut handle_stream_chunk = |chunk: StreamChunk| {
-        match chunk {
-            StreamChunk::Stdout(text) => {
-                append_capped(&mut stdout, &text, MAX_STD_STREAM_BYTES);
-                if let Some(sink) = stream_sink {
-                    sink.emit("stdout", text, false);
-                }
+    let mut handle_stream_chunk = |chunk: StreamChunk| match chunk {
+        StreamChunk::Stdout(text) => {
+            append_capped(&mut stdout, &text, MAX_STD_STREAM_BYTES);
+            if let Some(sink) = stream_sink {
+                sink.emit("stdout", text, false);
             }
-            StreamChunk::Stderr(text) => {
-                append_capped(&mut stderr, &text, MAX_STD_STREAM_BYTES);
-                if let Some(sink) = stream_sink {
-                    sink.emit("stderr", text, false);
-                }
+        }
+        StreamChunk::Stderr(text) => {
+            append_capped(&mut stderr, &text, MAX_STD_STREAM_BYTES);
+            if let Some(sink) = stream_sink {
+                sink.emit("stderr", text, false);
             }
         }
     };
@@ -1059,12 +1075,13 @@ fn execute_translation(
         ));
     }
 
-    let mut parsed = parse_translation_protocol(&stdout, target_language, &stderr).map_err(|err| {
-        if let Some(sink) = stream_sink {
-            sink.emit("lifecycle", "protocol-invalid", true);
-        }
-        err
-    })?;
+    let mut parsed =
+        parse_translation_protocol(&stdout, target_language, &stderr).map_err(|err| {
+            if let Some(sink) = stream_sink {
+                sink.emit("lifecycle", "protocol-invalid", true);
+            }
+            err
+        })?;
     if let Some(sink) = stream_sink {
         sink.emit("lifecycle", "completed", true);
     }
@@ -1089,10 +1106,7 @@ fn parse_translation_protocol(
         let preview = truncate_text(trimmed, 2048);
         AppError::new(
             "AGENT_PROTOCOL_INVALID",
-            format!(
-                "本地 Agent 输出不是合法 JSON。stdout 预览:\n{}",
-                preview
-            ),
+            format!("本地 Agent 输出不是合法 JSON。stdout 预览:\n{}", preview),
         )
     })?;
 
@@ -1137,7 +1151,10 @@ fn build_translation_payload(
     let mut vars = HashMap::new();
     vars.insert("source_text", source_text.to_string());
     vars.insert("target_language", target_language.to_string());
-    vars.insert("system_prompt", "Translate text and return JSON only".to_string());
+    vars.insert(
+        "system_prompt",
+        "Translate text and return JSON only".to_string(),
+    );
     vars.insert(
         "output_schema_json",
         "{\"translatedText\":\"string\",\"targetLanguage\":\"string\"}".to_string(),
@@ -1147,7 +1164,11 @@ fn build_translation_payload(
     format!("{FORMAT_PRESERVATION_RULE}\n\n{rendered}")
 }
 
-fn render_args_template(args_template: &[String], payload: &str, target_language: &str) -> Vec<String> {
+fn render_args_template(
+    args_template: &[String],
+    payload: &str,
+    target_language: &str,
+) -> Vec<String> {
     let mut vars = HashMap::new();
     vars.insert("source_text", payload.to_string());
     vars.insert("target_language", target_language.to_string());
@@ -1346,7 +1367,9 @@ enum TranslationConflictStrategy {
     SaveAs,
 }
 
-fn normalize_strategy(input: Option<&str>) -> Result<Option<TranslationConflictStrategy>, AppError> {
+fn normalize_strategy(
+    input: Option<&str>,
+) -> Result<Option<TranslationConflictStrategy>, AppError> {
     let Some(raw) = input else {
         return Ok(None);
     };
@@ -1361,12 +1384,7 @@ fn normalize_strategy(input: Option<&str>) -> Result<Option<TranslationConflictS
 }
 
 fn normalize_apply_mode(input: Option<&str>) -> String {
-    match input
-        .unwrap_or("immersive")
-        .trim()
-        .to_lowercase()
-        .as_str()
-    {
+    match input.unwrap_or("immersive").trim().to_lowercase().as_str() {
         "overwrite" => "overwrite".to_string(),
         _ => "immersive".to_string(),
     }
@@ -1377,7 +1395,10 @@ fn normalize_profile_key(value: &str) -> Result<String, AppError> {
     if key.is_empty() {
         return Err(AppError::invalid_argument("profileKey 不能为空"));
     }
-    if !key.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-') {
+    if !key
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-')
+    {
         return Err(AppError::invalid_argument(
             "profileKey 仅支持字母、数字、-、_",
         ));
@@ -1501,10 +1522,7 @@ fn map_spawn_error(err: std::io::Error) -> AppError {
             "AGENT_UNAVAILABLE",
             "本地 Agent 无执行权限，请检查可执行文件权限",
         ),
-        _ => AppError::new(
-            "AGENT_EXEC_FAILED",
-            format!("启动本地 Agent 失败: {err}"),
-        ),
+        _ => AppError::new("AGENT_EXEC_FAILED", format!("启动本地 Agent 失败: {err}")),
     }
 }
 
@@ -1520,6 +1538,127 @@ fn collect_safe_env() -> Vec<(String, String)> {
             .map(|value| ((*key).to_string(), value))
     })
     .collect()
+}
+
+fn append_cli_path_fallbacks(env_pairs: &mut Vec<(String, String)>) {
+    let home_dir = resolve_home_dir_for_exec(env_pairs);
+    let fallback_dirs = cli_fallback_dirs(home_dir.as_ref());
+    if fallback_dirs.is_empty() {
+        return;
+    }
+
+    let mut merged: Vec<PathBuf> = if let Some(path_value) = env_pairs
+        .iter()
+        .find(|(key, _)| key == "PATH")
+        .map(|(_, value)| value.as_str())
+    {
+        std::env::split_paths(path_value).collect()
+    } else {
+        Vec::new()
+    };
+
+    for dir in fallback_dirs {
+        if !merged.iter().any(|existing| existing == &dir) {
+            merged.push(dir);
+        }
+    }
+
+    let next_path = match std::env::join_paths(merged.iter()) {
+        Ok(value) => value.to_string_lossy().to_string(),
+        Err(_) => return,
+    };
+
+    if let Some((_, current)) = env_pairs.iter_mut().find(|(key, _)| key == "PATH") {
+        *current = next_path;
+    } else {
+        env_pairs.push(("PATH".to_string(), next_path));
+    }
+}
+
+fn resolve_executable_path(executable: &str, env_pairs: &[(String, String)]) -> String {
+    let executable = executable.trim();
+    if executable.is_empty() {
+        return String::new();
+    }
+
+    let home_dir = resolve_home_dir_for_exec(env_pairs);
+    let expanded = expand_home_path(executable, home_dir.as_ref());
+    let expanded_path = PathBuf::from(&expanded);
+    if expanded_path.is_absolute() || expanded.contains(std::path::MAIN_SEPARATOR) {
+        return expanded;
+    }
+
+    let mut search_dirs: Vec<PathBuf> = if let Some(path_value) = env_pairs
+        .iter()
+        .find(|(key, _)| key == "PATH")
+        .map(|(_, value)| value.as_str())
+    {
+        std::env::split_paths(path_value).collect()
+    } else {
+        Vec::new()
+    };
+
+    for dir in cli_fallback_dirs(home_dir.as_ref()) {
+        if !search_dirs.iter().any(|existing| existing == &dir) {
+            search_dirs.push(dir);
+        }
+    }
+
+    for dir in search_dirs {
+        let candidate = dir.join(&expanded);
+        if candidate.is_file() {
+            return candidate.to_string_lossy().to_string();
+        }
+    }
+
+    expanded
+}
+
+fn resolve_home_dir_for_exec(env_pairs: &[(String, String)]) -> Option<PathBuf> {
+    env_pairs
+        .iter()
+        .find(|(key, _)| key == "HOME")
+        .map(|(_, value)| value.trim())
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .or_else(dirs::home_dir)
+}
+
+fn expand_home_path(executable: &str, home_dir: Option<&PathBuf>) -> String {
+    if executable == "~" {
+        if let Some(home) = home_dir {
+            return home.to_string_lossy().to_string();
+        }
+        return executable.to_string();
+    }
+    if let Some(rest) = executable.strip_prefix("~/") {
+        if let Some(home) = home_dir {
+            return home.join(rest).to_string_lossy().to_string();
+        }
+    }
+    executable.to_string()
+}
+
+fn cli_fallback_dirs(home_dir: Option<&PathBuf>) -> Vec<PathBuf> {
+    let mut dirs = vec![
+        PathBuf::from("/opt/homebrew/bin"),
+        PathBuf::from("/usr/local/bin"),
+        PathBuf::from("/usr/bin"),
+        PathBuf::from("/bin"),
+    ];
+
+    if let Some(home) = home_dir {
+        dirs.push(home.join(".deskclaw/node/bin"));
+        dirs.push(home.join(".local/bin"));
+        dirs.push(home.join(".npm-global/bin"));
+        dirs.push(home.join(".volta/bin"));
+        dirs.push(home.join(".pnpm"));
+        dirs.push(home.join(".yarn/bin"));
+        dirs.push(home.join(".cargo/bin"));
+        dirs.push(home.join("bin"));
+    }
+
+    dirs
 }
 
 fn prepend_executable_parent_to_path(env_pairs: &mut Vec<(String, String)>, executable: &str) {
@@ -1633,10 +1772,11 @@ fn json_to_sql_value(value: &Value) -> rusqlite::types::Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        apply_execution_compatibility, contains_forbidden_exec_pattern, format_running_duration,
-        normalize_profile_key, parse_translation_protocol, prepend_executable_parent_to_path,
+        append_cli_path_fallbacks, apply_execution_compatibility, contains_forbidden_exec_pattern,
+        format_running_duration, normalize_profile_key, parse_translation_protocol,
+        prepend_executable_parent_to_path, resolve_executable_path,
     };
-    use std::path::PathBuf;
+    use std::{fs, path::PathBuf};
     use std::time::Duration;
 
     #[test]
@@ -1649,16 +1789,17 @@ mod tests {
 
     #[test]
     fn profile_key_is_normalized() {
-        assert_eq!(normalize_profile_key(" Codex ").expect("normalize"), "codex");
+        assert_eq!(
+            normalize_profile_key(" Codex ").expect("normalize"),
+            "codex"
+        );
         assert!(normalize_profile_key("bad key").is_err());
     }
 
     #[test]
     fn codex_args_auto_append_skip_git_repo_check() {
-        let args = apply_execution_compatibility(
-            "codex",
-            vec!["exec".to_string(), "--json".to_string()],
-        );
+        let args =
+            apply_execution_compatibility("codex", vec!["exec".to_string(), "--json".to_string()]);
         assert!(args.iter().any(|arg| arg == "--skip-git-repo-check"));
         assert!(!args.iter().any(|arg| arg == "--json"));
 
@@ -1757,5 +1898,37 @@ mod tests {
             .map(|(_, value)| value.as_str())
             .expect("path");
         assert_eq!(path_value, "/Users/liuc/.deskclaw/node/bin");
+    }
+
+    #[test]
+    fn append_cli_path_fallbacks_adds_homebrew_and_home_bins() {
+        let mut env_pairs = vec![("HOME".to_string(), "/Users/liuc".to_string())];
+        append_cli_path_fallbacks(&mut env_pairs);
+
+        let path_value = env_pairs
+            .iter()
+            .find(|(key, _)| key == "PATH")
+            .map(|(_, value)| value.clone())
+            .expect("path");
+        let paths = std::env::split_paths(&path_value).collect::<Vec<PathBuf>>();
+        assert!(paths.contains(&PathBuf::from("/opt/homebrew/bin")));
+        assert!(paths.contains(&PathBuf::from("/Users/liuc/.deskclaw/node/bin")));
+    }
+
+    #[test]
+    fn resolve_executable_path_finds_binary_in_home_fallback_dir() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let home = temp.path().to_path_buf();
+        let bin_dir = home.join(".deskclaw").join("node").join("bin");
+        fs::create_dir_all(&bin_dir).expect("create bin dir");
+        let executable_path = bin_dir.join("codex");
+        fs::write(&executable_path, "#!/bin/sh\necho ok").expect("write codex");
+
+        let env_pairs = vec![
+            ("HOME".to_string(), home.to_string_lossy().to_string()),
+            ("PATH".to_string(), "/usr/bin:/bin".to_string()),
+        ];
+        let resolved = resolve_executable_path("codex", &env_pairs);
+        assert_eq!(PathBuf::from(resolved), executable_path);
     }
 }

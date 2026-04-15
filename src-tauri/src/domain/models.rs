@@ -160,6 +160,8 @@ pub struct SkillAsset {
     pub source: String,
     pub source_parent: String,
     pub local_path: String,
+    pub source_local_path: String,
+    pub source_is_symlink: bool,
     pub is_symlink: bool,
     pub update_candidate: bool,
     pub last_used_at: Option<String>,
@@ -228,6 +230,13 @@ pub struct TargetUpsertInput {
     pub target_path: String,
     pub skills_path: Option<String>,
     pub install_mode: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TargetDeleteInput {
+    pub workspace_id: String,
+    pub id: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -366,6 +375,102 @@ pub struct SkillsBatchInput {
     pub skill_ids: Vec<String>,
     pub target_ids: Vec<String>,
     pub operator: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerRuleValue {
+    pub only: Option<Vec<String>>,
+    pub exclude: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerToolRuleValue {
+    pub block_all: Option<bool>,
+    pub allow: Option<Vec<String>>,
+    pub allow_groups: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerStateInput {
+    pub workspace_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerActionInput {
+    pub workspace_id: String,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerBatchItemInput {
+    pub skill_id: String,
+    pub tool: String,
+    pub force: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerBatchInput {
+    pub workspace_id: String,
+    pub items: Vec<SkillsManagerBatchItemInput>,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerDeleteInput {
+    pub workspace_id: String,
+    pub skill_id: String,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerRestoreInput {
+    pub workspace_id: String,
+    pub skill_name: String,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerRulesUpdateInput {
+    pub workspace_id: String,
+    pub rules: Option<HashMap<String, SkillsManagerRuleValue>>,
+    pub group_rules: Option<HashMap<String, SkillsManagerRuleValue>>,
+    pub tool_rules: Option<HashMap<String, SkillsManagerToolRuleValue>>,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerDiffStartInput {
+    pub workspace_id: String,
+    pub left_skill_id: String,
+    pub right_skill_id: String,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerDiffJobInput {
+    pub workspace_id: String,
+    pub job_id: String,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsManagerLinkPreviewInput {
+    pub workspace_id: String,
+    pub skill_id: String,
+    pub tool: String,
+    pub max_entries: Option<usize>,
 }
 
 #[derive(Debug, Deserialize)]

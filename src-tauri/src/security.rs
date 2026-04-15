@@ -78,6 +78,23 @@ pub fn ensure_safe_target_path(
     Ok(normalized)
 }
 
+pub fn resolve_distribution_target_path(
+    workspace_root: &Path,
+    target_path: &Path,
+) -> Result<PathBuf, AppError> {
+    let root = workspace_root
+        .canonicalize()
+        .map_err(|err| AppError::path_out_of_scope(format!("workspace 路径不可访问: {err}")))?;
+
+    let absolute = if target_path.is_absolute() {
+        target_path.to_path_buf()
+    } else {
+        root.join(target_path)
+    };
+
+    normalize_lexical(&absolute)
+}
+
 pub fn validate_external_source(url_str: &str) -> Result<Url, AppError> {
     let parsed = Url::parse(url_str)
         .map_err(|err| AppError::security_violation(format!("URL 非法: {err}")))?;
@@ -158,7 +175,10 @@ fn is_private_ip(ip: &IpAddr) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{ensure_safe_target_path, validate_absolute_root_dir, validate_external_source};
+    use super::{
+        ensure_safe_target_path, resolve_distribution_target_path, validate_absolute_root_dir,
+        validate_external_source,
+    };
 
     #[test]
     fn reject_out_of_scope_target_path() {
@@ -166,6 +186,14 @@ mod tests {
         let outside = workspace.path().join("../outside/AGENTS.md");
         let result = ensure_safe_target_path(workspace.path(), &outside);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn allow_out_of_scope_distribution_target_path() {
+        let workspace = tempfile::tempdir().expect("create temp workspace");
+        let outside = workspace.path().join("../outside/AGENTS.md");
+        let result = resolve_distribution_target_path(workspace.path(), &outside);
+        assert!(result.is_ok());
     }
 
     #[test]
