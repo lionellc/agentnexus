@@ -7,54 +7,106 @@ import type {
   SkillsFileReadResult,
   SkillsFileTreeInput,
   SkillsFileTreeResult,
+  SkillsManagerBatchInput,
+  SkillsManagerBatchResult,
+  SkillsManagerCleanResult,
+  SkillsManagerDiffJobInput,
+  SkillsManagerDiffProgress,
+  SkillsManagerDiffStartInput,
+  SkillsManagerDeleteInput,
+  SkillsManagerDeleteResult,
+  SkillsManagerPurgeInput,
+  SkillsManagerPurgeResult,
   SkillsOpenInput,
   SkillsOpenResult,
+  SkillsManagerRestoreInput,
+  SkillsManagerRestoreResult,
+  SkillsManagerRulesUpdateInput,
+  SkillsManagerRulesUpdateResult,
+  SkillsManagerState,
+  SkillsManagerSyncResult,
   SkillsScanInput,
 } from "../types";
-
-import { invokeCommand } from "./tauriClient";
+import { skillsApi, skillsManagerApi } from "./api";
 
 export const skillsService = {
   list(): Promise<SkillAsset[]> {
-    return invokeCommand("skills_list");
+    return skillsApi.list();
   },
 
   scan(input: SkillsScanInput): Promise<SkillAsset[]> {
-    return invokeCommand("skills_scan", { input });
+    return skillsApi.scan(input);
   },
 
   assetDetail(skillId: string): Promise<SkillsAssetDetail> {
-    return invokeCommand("skills_asset_detail", { skillId });
+    return skillsApi.detail(skillId);
   },
 
   filesTree(input: SkillsFileTreeInput): Promise<SkillsFileTreeResult> {
-    return invokeCommand("skills_files_tree", { input });
+    return skillsApi.filesTree(input);
   },
 
   fileRead(input: SkillsFileReadInput): Promise<SkillsFileReadResult> {
-    return invokeCommand("skills_file_read", {
-      input: {
-        skillId: input.skillId,
-        relativePath: input.relativePath,
-      },
-    });
+    return skillsApi.fileRead(input);
   },
 
   open(input: SkillsOpenInput): Promise<SkillsOpenResult> {
-    return invokeCommand("skills_open", {
-      input: {
-        skillId: input.skillId,
-        relativePath: input.relativePath,
-        mode: input.mode,
-      },
-    });
+    return skillsApi.open(input);
   },
 
   distribute(input: SkillsBatchInput): Promise<SkillsBatchResult> {
-    return invokeCommand("skills_distribute", { input });
+    return skillsApi.distribute(input);
   },
 
   uninstall(input: SkillsBatchInput): Promise<SkillsBatchResult> {
-    return invokeCommand("skills_uninstall", { input });
+    return skillsApi.uninstall(input);
+  },
+
+  managerState(workspaceId: string): Promise<SkillsManagerState> {
+    return skillsManagerApi.state(workspaceId);
+  },
+
+  managerSync(input: { workspaceId: string; operator?: string }): Promise<SkillsManagerSyncResult> {
+    return skillsManagerApi.sync(input);
+  },
+
+  managerClean(input: { workspaceId: string; operator?: string }): Promise<SkillsManagerCleanResult> {
+    return skillsManagerApi.clean(input);
+  },
+
+  managerBatchLink(input: SkillsManagerBatchInput): Promise<SkillsManagerBatchResult> {
+    return skillsManagerApi.batchLink(input);
+  },
+
+  managerBatchUnlink(input: SkillsManagerBatchInput): Promise<SkillsManagerBatchResult> {
+    return skillsManagerApi.batchUnlink(input);
+  },
+
+  managerDelete(input: SkillsManagerDeleteInput): Promise<SkillsManagerDeleteResult> {
+    return skillsManagerApi.softDelete(input);
+  },
+
+  managerPurge(input: SkillsManagerPurgeInput): Promise<SkillsManagerPurgeResult> {
+    return skillsManagerApi.purge(input);
+  },
+
+  managerRestore(input: SkillsManagerRestoreInput): Promise<SkillsManagerRestoreResult> {
+    return skillsManagerApi.restore(input);
+  },
+
+  managerUpdateRules(input: SkillsManagerRulesUpdateInput): Promise<SkillsManagerRulesUpdateResult> {
+    return skillsManagerApi.updateRules(input);
+  },
+
+  managerDiffStart(input: SkillsManagerDiffStartInput): Promise<SkillsManagerDiffProgress> {
+    return skillsManagerApi.diffStart(input);
+  },
+
+  managerDiffProgress(input: SkillsManagerDiffJobInput): Promise<SkillsManagerDiffProgress> {
+    return skillsManagerApi.diffProgress(input);
+  },
+
+  managerDiffCancel(input: SkillsManagerDiffJobInput): Promise<SkillsManagerDiffProgress> {
+    return skillsManagerApi.diffCancel(input);
   },
 };

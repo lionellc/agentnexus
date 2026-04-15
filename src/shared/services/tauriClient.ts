@@ -63,12 +63,31 @@ import type {
   SkillsFileReadResult,
   SkillsFileTreeInput,
   SkillsFileTreeResult,
+  SkillsManagerBatchInput,
+  SkillsManagerBatchResult,
+  SkillsManagerCleanResult,
+  SkillsManagerDiffJobInput,
+  SkillsManagerDiffProgress,
+  SkillsManagerDiffStartInput,
+  SkillsManagerDeleteInput,
+  SkillsManagerDeleteResult,
+  SkillsManagerLinkPreviewInput,
+  SkillsManagerLinkPreviewResult,
+  SkillsManagerPurgeInput,
+  SkillsManagerPurgeResult,
   SkillsOpenInput,
   SkillsOpenResult,
+  SkillsManagerRestoreInput,
+  SkillsManagerRestoreResult,
+  SkillsManagerRulesUpdateInput,
+  SkillsManagerRulesUpdateResult,
+  SkillsManagerState,
+  SkillsManagerSyncResult,
   SkillsAssetDetail,
   SkillsBatchInput,
   SkillsBatchResult,
   SkillsScanInput,
+  TargetDeleteInput,
   TranslationConfigDto,
   TranslationConfigUpdateInput,
   TargetUpsertInput,
@@ -90,6 +109,7 @@ type CommandMap = {
   runtime_flags_update: { args: { input: RuntimeFlagsInput }; result: RuntimeFlags };
   target_list: { args: { workspaceId: string }; result: DistributionTarget[] };
   target_upsert: { args: { input: TargetUpsertInput }; result: DistributionTarget };
+  target_delete: { args: { input: TargetDeleteInput }; result: { workspaceId: string; targetId: string; deleted: boolean } };
   agent_connection_list: { args: { workspaceId: string }; result: AgentConnection[] };
   agent_connection_upsert: { args: { input: AgentConnectionUpsertInput }; result: AgentConnection };
   agent_connection_toggle: { args: { input: AgentConnectionToggleInput }; result: AgentConnection };
@@ -128,6 +148,19 @@ type CommandMap = {
   skills_open: { args: { input: SkillsOpenInput }; result: SkillsOpenResult };
   skills_distribute: { args: { input: SkillsBatchInput }; result: SkillsBatchResult };
   skills_uninstall: { args: { input: SkillsBatchInput }; result: SkillsBatchResult };
+  skills_manager_state: { args: { input: { workspaceId: string } }; result: SkillsManagerState };
+  skills_manager_sync: { args: { input: { workspaceId: string; operator?: string } }; result: SkillsManagerSyncResult };
+  skills_manager_clean: { args: { input: { workspaceId: string; operator?: string } }; result: SkillsManagerCleanResult };
+  skills_manager_batch_link: { args: { input: SkillsManagerBatchInput }; result: SkillsManagerBatchResult };
+  skills_manager_batch_unlink: { args: { input: SkillsManagerBatchInput }; result: SkillsManagerBatchResult };
+  skills_manager_delete: { args: { input: SkillsManagerDeleteInput }; result: SkillsManagerDeleteResult };
+  skills_manager_purge: { args: { input: SkillsManagerPurgeInput }; result: SkillsManagerPurgeResult };
+  skills_manager_restore: { args: { input: SkillsManagerRestoreInput }; result: SkillsManagerRestoreResult };
+  skills_manager_rules_update: { args: { input: SkillsManagerRulesUpdateInput }; result: SkillsManagerRulesUpdateResult };
+  skills_manager_diff_start: { args: { input: SkillsManagerDiffStartInput }; result: SkillsManagerDiffProgress };
+  skills_manager_diff_progress: { args: { input: SkillsManagerDiffJobInput }; result: SkillsManagerDiffProgress };
+  skills_manager_diff_cancel: { args: { input: SkillsManagerDiffJobInput }; result: SkillsManagerDiffProgress };
+  skills_manager_link_preview: { args: { input: SkillsManagerLinkPreviewInput }; result: SkillsManagerLinkPreviewResult };
   prompt_list: { args: { workspaceId: string }; result: PromptAsset[] };
   prompt_versions: {
     args: { promptId: string };

@@ -1,15 +1,13 @@
 import { ArrowLeft, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
 import type { ReactElement } from "react";
 
-import { DataTable } from "../../common/components/DataTable";
 import { EmptyState } from "../../common/components/EmptyState";
 import { MarkdownPreview } from "../../common/components/MarkdownEditor";
-import { SectionTitle } from "../../common/components/SectionTitle";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
-import { Button, Card, CardContent, Input, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
+import { Button, Input, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
 import type {
-  SkillAsset,
   SkillOpenMode,
+  SkillsManagerMode,
   SkillsFileReadResult,
   SkillsFileTreeNode,
   SkillsFileTreeResult,
@@ -26,9 +24,12 @@ type TranslationTargetLanguageOption = {
 };
 
 export type SkillsCenterProps = {
+  managerMode: SkillsManagerMode;
+  setManagerMode: (value: SkillsManagerMode) => void;
+  operationsPanel: ReactElement;
+  configPanel: ReactElement;
   skillDetailView: "list" | "detail";
-  filteredSkills: SkillAsset[];
-  skillsLoading: boolean;
+  filteredSkillCount: number;
   skillQuery: string;
   setSkillQuery: (value: string) => void;
   showSkillOpenModeInStatusBar: boolean;
@@ -36,20 +37,16 @@ export type SkillsCenterProps = {
   skillOpenMode: SkillOpenMode;
   setSkillOpenMode: (value: SkillOpenMode) => void;
   skillOpenModeOptions: SkillOpenModeOption[];
-  skillSourceFilter: string;
-  setSkillSourceFilter: (value: string) => void;
-  skillSources: string[];
+  skillsLoading: boolean;
   onScanSkills: () => void;
   onRefreshSkills: () => void;
-  pagedSkills: SkillAsset[];
-  onOpenSkillDetail: (skill: SkillAsset) => void;
-  onSkillOpen: (skillId: string, relativePath?: string) => void;
-  skillsPage: number;
-  setSkillsPage: (updater: number | ((prev: number) => number)) => void;
-  totalSkillsPages: number;
-  skillsPageSize: number;
   onBackToSkillList: () => void;
-  selectedSkill: SkillAsset | null;
+  selectedSkill: {
+    id: string;
+    name: string;
+    localPath: string;
+  } | null;
+  onSkillOpen: (skillId: string, relativePath?: string) => void;
   skillDetailTab: "overview" | "files";
   setSkillDetailTab: (value: "overview" | "files") => void;
   onReadSkillFile: (skillId: string, relativePath: string) => void;
@@ -75,9 +72,12 @@ export type SkillsCenterProps = {
 };
 
 export function SkillsCenter({
+  managerMode,
+  setManagerMode,
+  operationsPanel,
+  configPanel,
   skillDetailView,
-  filteredSkills,
-  skillsLoading,
+  filteredSkillCount,
   skillQuery,
   setSkillQuery,
   showSkillOpenModeInStatusBar,
@@ -85,18 +85,10 @@ export function SkillsCenter({
   skillOpenMode,
   setSkillOpenMode,
   skillOpenModeOptions,
-  skillSourceFilter,
-  setSkillSourceFilter,
-  skillSources,
+  skillsLoading,
   onScanSkills,
   onRefreshSkills,
-  pagedSkills,
-  onOpenSkillDetail,
   onSkillOpen,
-  skillsPage,
-  setSkillsPage,
-  totalSkillsPages,
-  skillsPageSize,
   onBackToSkillList,
   selectedSkill,
   skillDetailTab,
@@ -126,161 +118,60 @@ export function SkillsCenter({
     <div className="space-y-4">
       {skillDetailView === "list" ? (
         <>
-          <SectionTitle
-            title="Skills"
-            subtitle={l(`共 ${filteredSkills.length} 项`, `${filteredSkills.length} items`)}
-            action={
-              <div className="flex flex-wrap items-center gap-2">
-                <Input
-                  value={skillQuery}
-                  onChange={(event) => setSkillQuery(event.currentTarget.value)}
-                  placeholder={l("搜索 Skill...", "Search skills...")}
-                  className="w-56"
-                />
-                {!showSkillOpenModeInStatusBar ? (
-                  <div className="relative">
-                    <select
-                      className={`${selectBaseClass} w-44`}
-                      value={skillOpenMode}
-                      onChange={(event) => setSkillOpenMode(event.currentTarget.value as SkillOpenMode)}
-                    >
-                      {skillOpenModeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  </div>
-                ) : null}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-xl font-semibold text-slate-900">Skills</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {l(`当前筛选 ${filteredSkillCount} 项`, `${filteredSkillCount} filtered items`)}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input
+                value={skillQuery}
+                onChange={(event) => setSkillQuery(event.currentTarget.value)}
+                placeholder={l("搜索 Skill...", "Search skills...")}
+                className="w-56"
+              />
+              {!showSkillOpenModeInStatusBar ? (
                 <div className="relative">
                   <select
                     className={`${selectBaseClass} w-44`}
-                    value={skillSourceFilter}
-                    onChange={(event) => setSkillSourceFilter(event.currentTarget.value)}
+                    value={skillOpenMode}
+                    onChange={(event) => setSkillOpenMode(event.currentTarget.value as SkillOpenMode)}
                   >
-                    <option value="all">{l("全部来源", "All sources")}</option>
-                    {skillSources.map((source) => (
-                      <option key={source} value={source}>
-                        {source}
+                    {skillOpenModeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
                       </option>
                     ))}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 </div>
+              ) : null}
+              {managerMode === "config" ? (
                 <Button variant="outline" onClick={onScanSkills}>
                   {l("扫描 Skills", "Scan Skills")}
                 </Button>
-                <Button variant="outline" onClick={onRefreshSkills}>
-                  <RefreshCw className="mr-1 h-4 w-4" />
-                  {l("刷新", "Refresh")}
-                </Button>
-              </div>
-            }
-          />
-
-          {!skillsLoading && filteredSkills.length === 0 ? (
-            <EmptyState
-              title={l("暂无 Skills", "No skills")}
-              description={l("点击“扫描 Skills”从本地目录聚合技能。", 'Click "Scan Skills" to discover local skills.')}
-            />
-          ) : null}
-
-          {skillsLoading ? (
-            <Card>
-              <CardContent className="py-8 text-sm text-slate-500">{l("扫描中...", "Scanning...")}</CardContent>
-            </Card>
-          ) : null}
-
-          {filteredSkills.length > 0 ? (
-            <DataTable
-              rows={pagedSkills}
-              rowKey={(row) => row.id}
-              onRowClick={(row) => {
-                void onOpenSkillDetail(row);
-              }}
-              columns={[
-                {
-                  key: "name",
-                  title: l("技能", "Skill"),
-                  render: (row) => (
-                    <div className="space-y-0.5">
-                      <div className="font-medium text-slate-900">{row.name}</div>
-                      <div className="text-xs text-slate-500">{row.identity}</div>
-                    </div>
-                  ),
-                },
-                {
-                  key: "path",
-                  title: l("文件路径", "Path"),
-                  className: "w-[360px]",
-                  render: (row) => (
-                    <span
-                      className="block max-w-[340px] truncate text-xs text-slate-500"
-                      title={row.localPath}
-                    >
-                      {row.localPath}
-                    </span>
-                  ),
-                },
-                {
-                  key: "type",
-                  title: l("是否软链", "Symlink"),
-                  render: (row) =>
-                    row.isSymlink ? (
-                      <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{l("是", "Yes")}</span>
-                    ) : (
-                      <span className="rounded border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">{l("否", "No")}</span>
-                    ),
-                },
-                {
-                  key: "open",
-                  title: l("操作", "Actions"),
-                  render: (row) => (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void onSkillOpen(row.id);
-                      }}
-                    >
-                      {l("打开", "Open")}
-                    </Button>
-                  ),
-                },
-              ]}
-            />
-          ) : null}
-
-          {!skillsLoading && filteredSkills.length > 0 ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2 text-xs text-slate-500">
-              <span>
-                {l(`共 ${filteredSkills.length} 项 · 每页 ${skillsPageSize} 条`, `${filteredSkills.length} items · ${skillsPageSize} / page`)}
-              </span>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={skillsPage <= 1}
-                  onClick={() => setSkillsPage((prev) => Math.max(1, prev - 1))}
-                >
-                  {l("上一页", "Prev")}
-                </Button>
-                <span>
-                  {skillsPage} / {totalSkillsPages}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={skillsPage >= totalSkillsPages}
-                  onClick={() => setSkillsPage((prev) => Math.min(totalSkillsPages, prev + 1))}
-                >
-                  {l("下一页", "Next")}
-                </Button>
-              </div>
+              ) : null}
+              <Button variant="outline" onClick={onRefreshSkills} disabled={skillsLoading}>
+                <RefreshCw className="mr-1 h-4 w-4" />
+                {l("刷新", "Refresh")}
+              </Button>
             </div>
-          ) : null}
+          </div>
+
+          <Tabs value={managerMode} onValueChange={(value) => setManagerMode(value as SkillsManagerMode)}>
+            <TabsList>
+              <TabsTrigger value="operations">{l("链接中控", "Link Hub")}</TabsTrigger>
+              <TabsTrigger value="config">{l("扫描", "Scan")}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="operations" className="mt-3">
+              {operationsPanel}
+            </TabsContent>
+            <TabsContent value="config" className="mt-3">
+              {configPanel}
+            </TabsContent>
+          </Tabs>
         </>
       ) : (
         <>

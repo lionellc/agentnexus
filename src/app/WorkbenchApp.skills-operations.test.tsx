@@ -6,7 +6,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
   const toastMock = vi.fn();
 
   const shellState = {
-    activeModule: "settings" as const,
+    activeModule: "skills" as const,
     query: "",
     selectedIds: [] as string[],
     mobilePaneState: "split" as const,
@@ -14,7 +14,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     mobileSidebarOpen: false,
     mobileDetailOpen: false,
     promptViewMode: "table" as "list" | "gallery" | "table",
-    skillDetailTab: "preview" as const,
+    skillDetailTab: "overview" as const,
     settingsCategory: "general" as "general" | "data" | "agents" | "model" | "about",
     searchHits: [] as Array<{ module: "agents"; id: string; title: string; subtitle?: string }>,
     setActiveModule: vi.fn(),
@@ -27,9 +27,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     setMobileDetailOpen: vi.fn(),
     setPromptViewMode: vi.fn(),
     setSkillDetailTab: vi.fn(),
-    setSettingsCategory: vi.fn((category: "general" | "data" | "agents" | "model" | "about") => {
-      shellState.settingsCategory = category;
-    }),
+    setSettingsCategory: vi.fn(),
     setSearchHits: vi.fn(),
   };
 
@@ -58,22 +56,91 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
   };
 
   const skillsState = {
-    skills: [],
+    skills: [
+      {
+        id: "s1",
+        identity: "skill-one",
+        name: "skill-one",
+        version: "1.0.0",
+        latestVersion: "1.0.0",
+        source: "/Users/demo/.codex/skills",
+        sourceParent: ".codex",
+        isSymlink: false,
+        localPath: "/Users/demo/.codex/skills/skill-one",
+        updateCandidate: false,
+        lastUsedAt: null,
+        createdAt: "2026-04-04T00:00:00Z",
+        updatedAt: "2026-04-04T00:00:00Z",
+      },
+      {
+        id: "s2",
+        identity: "skill-two",
+        name: "skill-two",
+        version: "1.0.0",
+        latestVersion: "1.0.0",
+        source: "/Users/demo/.claude/skills",
+        sourceParent: ".claude",
+        isSymlink: false,
+        localPath: "/Users/demo/.claude/skills/skill-two",
+        updateCandidate: false,
+        lastUsedAt: null,
+        createdAt: "2026-04-04T00:00:00Z",
+        updatedAt: "2026-04-04T00:00:00Z",
+      },
+    ],
     loading: false,
-    selectedSkillId: null,
-    selectedIds: [] as string[],
+    selectedSkillId: "s1",
+    selectedIds: ["s1"],
     detailById: {} as Record<string, { versions: Array<{ version: string; installedAt: string }> }>,
     lastBatchResult: null,
-    managerMode: "operations" as const,
+    managerMode: "operations" as "operations" | "config",
     managerExpandedSkillId: null as string | null,
     managerMatrixFilter: { tool: null as string | null, status: "all" as const },
-    managerState: null,
+    managerState: {
+      skills: [
+        {
+          id: "s1",
+          name: "skill-one",
+          group: "core",
+          source: "/Users/demo/.codex/skills",
+          localPath: "/Users/demo/.codex/skills/skill-one",
+          statusByTool: {
+            codex: "missing",
+          },
+          conflict: false,
+        },
+        {
+          id: "s2",
+          name: "skill-two",
+          group: "core",
+          source: "/Users/demo/.claude/skills",
+          localPath: "/Users/demo/.claude/skills/skill-two",
+          statusByTool: {
+            codex: "missing",
+          },
+          conflict: false,
+        },
+      ],
+      tools: [
+        {
+          id: "t1",
+          tool: "codex",
+          skillsPath: "/Users/demo/.codex/skills",
+        },
+      ],
+      rules: {},
+      groupRules: {},
+      toolRules: {},
+      manualUnlinks: {},
+      deletedSkills: [],
+      nameConflicts: {},
+    },
     managerLoading: false,
     managerCalibrating: false,
     managerOptimisticMap: {},
     managerRowHints: {},
     managerStatusFilter: "all" as const,
-    managerSelectedTool: "",
+    managerSelectedTool: "codex",
     managerLastActionOutput: "",
     managerLastBatchResult: null,
     fetchSkills: vi.fn(async () => undefined),
@@ -93,15 +160,58 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     managerSoftDelete: vi.fn(async () => undefined),
     managerRestore: vi.fn(async () => undefined),
     updateManagerRules: vi.fn(async () => undefined),
-    setManagerMode: vi.fn(),
+    setManagerMode: vi.fn((value: "operations" | "config") => {
+      skillsState.managerMode = value;
+    }),
     setManagerExpandedSkillId: vi.fn(),
     setManagerMatrixFilter: vi.fn(),
     clearManagerRowHint: vi.fn(),
     setManagerStatusFilter: vi.fn(),
     setManagerSelectedTool: vi.fn(),
-    getManagerOperationsRows: vi.fn(() => []),
+    getManagerOperationsRows: vi.fn(() => [
+      {
+        id: "s1",
+        name: "skill-one",
+        group: "core",
+        source: "/Users/demo/.codex/skills",
+        localPath: "/Users/demo/.codex/skills/skill-one",
+        conflict: false,
+        linkedCount: 0,
+        totalCount: 1,
+        issueCount: 1,
+        statusCells: [{ tool: "codex", status: "missing" as const }],
+        statusPreview: [{ tool: "codex", status: "missing" as const }],
+        hiddenStatusCount: 0,
+      },
+      {
+        id: "s2",
+        name: "skill-two",
+        group: "core",
+        source: "/Users/demo/.claude/skills",
+        localPath: "/Users/demo/.claude/skills/skill-two",
+        conflict: false,
+        linkedCount: 0,
+        totalCount: 1,
+        issueCount: 1,
+        statusCells: [{ tool: "codex", status: "missing" as const }],
+        statusPreview: [{ tool: "codex", status: "missing" as const }],
+        hiddenStatusCount: 0,
+      },
+    ]),
     getManagerFilteredOperationsRows: vi.fn(() => []),
-    getManagerMatrixSummaries: vi.fn(() => []),
+    getManagerMatrixSummaries: vi.fn(() => [
+      {
+        tool: "codex",
+        linked: 0,
+        missing: 2,
+        blocked: 0,
+        wrong: 0,
+        directory: 0,
+        manual: 0,
+        total: 2,
+        issueCount: 2,
+      },
+    ]),
   };
 
   const agentState = {
@@ -162,40 +272,8 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
       experimentalEnabled: false,
       updatedAt: "2026-04-04T00:00:00Z",
     },
-    targets: [
-      {
-        id: "t1",
-        workspaceId: "w1",
-        platform: "codex",
-        targetPath: "/targets/codex",
-        skillsPath: "/targets/codex/skills",
-        installMode: "copy",
-        createdAt: "2026-04-04T00:00:00Z",
-        updatedAt: "2026-04-04T00:00:00Z",
-      },
-    ],
-    connections: [
-      {
-        id: "conn-1",
-        workspaceId: "w1",
-        platform: "codex",
-        rootDir: "/tmp",
-        enabled: true,
-        resolvedPath: "/tmp/.codex/AGENTS.md",
-        createdAt: "2026-04-04T00:00:00Z",
-        updatedAt: "2026-04-04T00:00:00Z",
-      },
-      {
-        id: "conn-2",
-        workspaceId: "w1",
-        platform: "claude",
-        rootDir: "/tmp",
-        enabled: true,
-        resolvedPath: "/tmp/.claude/CLAUDE.md",
-        createdAt: "2026-04-04T00:00:00Z",
-        updatedAt: "2026-04-04T00:00:00Z",
-      },
-    ],
+    targets: [],
+    connections: [],
     webdav: {
       enabled: false,
       endpoint: "",
@@ -220,12 +298,11 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     loadAll: vi.fn(async () => undefined),
     createWorkspace: vi.fn(async () => ({ id: "w2" })),
     activateWorkspace: vi.fn(async () => undefined),
-    loadConnections: vi.fn(async () => settingsState.connections),
+    loadConnections: vi.fn(async () => []),
     upsertConnection: vi.fn(async () => ({ ok: true, message: "ok" })),
     deleteConnection: vi.fn(async () => ({ ok: true, message: "ok" })),
     toggleConnection: vi.fn(async () => ({ ok: true, message: "ok" })),
     upsertTarget: vi.fn(async () => ({ ok: true, message: "ok" })),
-    deleteTarget: vi.fn(async () => ({ ok: true, message: "ok" })),
     updateRuntimeFlags: vi.fn(async () => ({ ok: true, message: "ok" })),
     setWebDav: vi.fn(),
     testWebDav: vi.fn(async () => ({ ok: true, message: "ok" })),
@@ -239,23 +316,10 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
 
 vi.mock("../shared/stores", () => {
   const useShellStore = (selector: (state: typeof shellState) => unknown) => selector(shellState);
-
-  const usePromptsStore = ((selector: (state: typeof promptsState) => unknown) => selector(promptsState)) as
-    ((selector: (state: typeof promptsState) => unknown) => unknown) & {
-      getState: () => typeof promptsState;
-    };
-  usePromptsStore.getState = () => promptsState;
-
+  const usePromptsStore = (selector: (state: typeof promptsState) => unknown) => selector(promptsState);
   const useSkillsStore = (selector: (state: typeof skillsState) => unknown) => selector(skillsState);
-
-  const useAgentRulesStore = ((selector: (state: typeof agentState) => unknown) => selector(agentState)) as
-    ((selector: (state: typeof agentState) => unknown) => unknown) & {
-      getState: () => typeof agentState;
-    };
-  useAgentRulesStore.getState = () => agentState;
-
+  const useAgentRulesStore = (selector: (state: typeof agentState) => unknown) => selector(agentState);
   const useSettingsStore = (selector: (state: typeof settingsState) => unknown) => selector(settingsState);
-
   return {
     useShellStore,
     usePromptsStore,
@@ -278,19 +342,7 @@ vi.mock("../shared/ui", async () => {
 
 import { WorkbenchApp } from "./WorkbenchApp";
 
-function findButton(text: string): HTMLButtonElement | undefined {
-  return Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === text) as
-    | HTMLButtonElement
-    | undefined;
-}
-
-function findButtonByOptions(labels: string[]): HTMLButtonElement | undefined {
-  return Array.from(document.querySelectorAll("button")).find((button) =>
-    labels.includes(button.textContent?.trim() ?? ""),
-  ) as HTMLButtonElement | undefined;
-}
-
-describe("WorkbenchApp settings interactions", () => {
+describe("WorkbenchApp skills operations", () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -298,10 +350,9 @@ describe("WorkbenchApp settings interactions", () => {
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
-
     vi.clearAllMocks();
-    shellState.activeModule = "settings";
-    shellState.settingsCategory = "general";
+    shellState.activeModule = "skills";
+    skillsState.managerMode = "operations";
   });
 
   afterEach(() => {
@@ -311,128 +362,67 @@ describe("WorkbenchApp settings interactions", () => {
     container.remove();
   });
 
-  it("渲染 settings 默认面板（通用设置）", async () => {
+  it("默认渲染链接中控内容", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    expect(container.textContent).toContain("通用设置");
+    expect(container.textContent).not.toContain("Skills 运营");
+    expect(container.textContent).toContain("链接中控");
+    expect(container.textContent).toContain("扫描");
   });
 
-  it("切到数据设置后可见存储位置和 Skills 配置", async () => {
+  it("不再渲染来源筛选", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    await act(async () => {
-      findButton("数据设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    await act(async () => {
-      root.render(<WorkbenchApp />);
-    });
-
-    expect(container.textContent).toContain("存储位置");
-    expect(container.textContent).toContain("Skills 配置");
+    expect(container.textContent).toContain("当前筛选 2 项");
+    expect(container.textContent).not.toContain("全部来源");
+    const sourceSelect = Array.from(container.querySelectorAll("select")).find((item) =>
+      Array.from(item.options).some((option) => option.value === ".claude"),
+    );
+    expect(sourceSelect).toBeUndefined();
   });
 
-  it("数据设置页可保存已有分发目标目录", async () => {
-    await act(async () => {
-      root.render(<WorkbenchApp />);
-    });
-
-    await act(async () => {
-      findButton("数据设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+  it("从扫描进入链接中控时会自动刷新一次", async () => {
+    skillsState.managerMode = "config";
 
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    const editTargetButton = findButtonByOptions(["编辑", "Edit"]);
-    expect(editTargetButton).toBeTruthy();
+    const baselineCalls = skillsState.loadManagerState.mock.calls.length;
 
     await act(async () => {
-      editTargetButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      const operationsTab = Array.from(container.querySelectorAll("button")).find((button) =>
+        button.textContent?.includes("链接中控"),
+      );
+      operationsTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    const saveTargetButton = findButtonByOptions(["保存", "Save"]);
-    expect(saveTargetButton).toBeTruthy();
-
-    await act(async () => {
-      saveTargetButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(settingsState.upsertTarget).toHaveBeenCalledWith({
-      workspaceId: "w1",
-      platform: "codex",
-      id: "t1",
-      targetPath: "/targets/codex",
-      skillsPath: "/targets/codex/skills",
-      installMode: "copy",
-    });
+    expect(skillsState.loadManagerState.mock.calls.length).toBeGreaterThan(baselineCalls);
+    expect(skillsState.scanSkills).toHaveBeenCalledWith("w1", ["/tmp/w1/skills"]);
   });
 
-  it("数据设置页可删除分发目标目录", async () => {
+  it("点击刷新会先扫描再刷新列表", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     await act(async () => {
-      findButton("数据设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      const refreshButton = Array.from(container.querySelectorAll("button")).find((button) =>
+        button.textContent?.includes("刷新"),
+      );
+      refreshButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    await act(async () => {
-      root.render(<WorkbenchApp />);
-    });
-
-    const deleteTargetButton = findButtonByOptions(["删除", "Delete"]);
-    expect(deleteTargetButton).toBeTruthy();
-
-    await act(async () => {
-      deleteTargetButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(settingsState.deleteTarget).toHaveBeenCalledWith({
-      workspaceId: "w1",
-      id: "t1",
-    });
-  });
-
-  it("切到 Agents 后可见 Agent 列表与保存 Agent 配置按钮", async () => {
-    await act(async () => {
-      root.render(<WorkbenchApp />);
-    });
-
-    await act(async () => {
-      findButton("Agents")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    await act(async () => {
-      root.render(<WorkbenchApp />);
-    });
-
-    expect(container.textContent).toContain("Agent 列表");
-    expect(container.textContent).toContain("保存 Agent 配置");
-  });
-
-  it("切到关于后可见应用版本", async () => {
-    await act(async () => {
-      root.render(<WorkbenchApp />);
-    });
-
-    await act(async () => {
-      findButton("关于")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    await act(async () => {
-      root.render(<WorkbenchApp />);
-    });
-
-    expect(container.textContent).toContain("应用版本");
+    expect(skillsState.scanSkills).toHaveBeenCalledWith("w1", ["/tmp/w1/skills"]);
+    expect(skillsState.fetchSkills).toHaveBeenCalled();
+    expect(skillsState.loadManagerState).toHaveBeenCalled();
   });
 });

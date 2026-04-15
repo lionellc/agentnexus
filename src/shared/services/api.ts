@@ -57,9 +57,28 @@ import type {
   SkillsFileReadResult,
   SkillsFileTreeInput,
   SkillsFileTreeResult,
+  SkillsManagerBatchInput,
+  SkillsManagerBatchResult,
+  SkillsManagerCleanResult,
+  SkillsManagerDiffJobInput,
+  SkillsManagerDiffProgress,
+  SkillsManagerDiffStartInput,
+  SkillsManagerDeleteInput,
+  SkillsManagerDeleteResult,
+  SkillsManagerLinkPreviewInput,
+  SkillsManagerLinkPreviewResult,
+  SkillsManagerPurgeInput,
+  SkillsManagerPurgeResult,
   SkillsOpenInput,
   SkillsOpenResult,
+  SkillsManagerRestoreInput,
+  SkillsManagerRestoreResult,
+  SkillsManagerRulesUpdateInput,
+  SkillsManagerRulesUpdateResult,
+  SkillsManagerState,
+  SkillsManagerSyncResult,
   SkillsScanInput,
+  TargetDeleteInput,
   TargetUpsertInput,
   TranslationConfigDto,
   TranslationConfigUpdateInput,
@@ -84,6 +103,7 @@ export const runtimeApi = {
 export const targetApi = {
   list: (workspaceId: string) => invokeCommand("target_list", { workspaceId }),
   upsert: (input: TargetUpsertInput) => invokeCommand("target_upsert", { input }),
+  delete: (input: TargetDeleteInput) => invokeCommand("target_delete", { input }),
 };
 
 export const agentConnectionApi = {
@@ -373,6 +393,35 @@ export const skillsApi = {
     }),
   distribute: (input: SkillsBatchInput) => invokeCommand("skills_distribute", { input }),
   uninstall: (input: SkillsBatchInput) => invokeCommand("skills_uninstall", { input }),
+};
+
+export const skillsManagerApi = {
+  state: (workspaceId: string): Promise<SkillsManagerState> =>
+    invokeCommand("skills_manager_state", { input: { workspaceId } }),
+  sync: (input: { workspaceId: string; operator?: string }): Promise<SkillsManagerSyncResult> =>
+    invokeCommand("skills_manager_sync", { input }),
+  clean: (input: { workspaceId: string; operator?: string }): Promise<SkillsManagerCleanResult> =>
+    invokeCommand("skills_manager_clean", { input }),
+  batchLink: (input: SkillsManagerBatchInput): Promise<SkillsManagerBatchResult> =>
+    invokeCommand("skills_manager_batch_link", { input }),
+  batchUnlink: (input: SkillsManagerBatchInput): Promise<SkillsManagerBatchResult> =>
+    invokeCommand("skills_manager_batch_unlink", { input }),
+  softDelete: (input: SkillsManagerDeleteInput): Promise<SkillsManagerDeleteResult> =>
+    invokeCommand("skills_manager_delete", { input }),
+  purge: (input: SkillsManagerPurgeInput): Promise<SkillsManagerPurgeResult> =>
+    invokeCommand("skills_manager_purge", { input }),
+  restore: (input: SkillsManagerRestoreInput): Promise<SkillsManagerRestoreResult> =>
+    invokeCommand("skills_manager_restore", { input }),
+  updateRules: (input: SkillsManagerRulesUpdateInput): Promise<SkillsManagerRulesUpdateResult> =>
+    invokeCommand("skills_manager_rules_update", { input }),
+  diffStart: (input: SkillsManagerDiffStartInput): Promise<SkillsManagerDiffProgress> =>
+    invokeCommand("skills_manager_diff_start", { input }),
+  diffProgress: (input: SkillsManagerDiffJobInput): Promise<SkillsManagerDiffProgress> =>
+    invokeCommand("skills_manager_diff_progress", { input }),
+  diffCancel: (input: SkillsManagerDiffJobInput): Promise<SkillsManagerDiffProgress> =>
+    invokeCommand("skills_manager_diff_cancel", { input }),
+  linkPreview: (input: SkillsManagerLinkPreviewInput): Promise<SkillsManagerLinkPreviewResult> =>
+    invokeCommand("skills_manager_link_preview", { input }),
 };
 
 export const observabilityApi = {

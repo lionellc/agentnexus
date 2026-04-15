@@ -57,6 +57,13 @@ import {
 import { PromptCenter } from "../features/prompts/components/PromptCenter";
 import { PromptDetail } from "../features/prompts/components/PromptDetail";
 import { SkillsCenter } from "../features/skills/components/SkillsCenter";
+import {
+  SkillsConfigPanel,
+  type SkillsConfigConflictPair,
+  type SkillsConfigDiffView,
+  type SkillsConfigGroup,
+} from "../features/skills/components/SkillsConfigPanel";
+import { SkillsOperationsPanel } from "../features/skills/components/SkillsOperationsPanel";
 import { useRuntimeOutputSheet } from "../features/common/hooks/useRuntimeOutputSheet";
 import { ModelSettingsPanel } from "../features/settings/components/ModelSettingsPanel";
 import {
@@ -74,11 +81,9 @@ import {
   PROMPT_TABLE_COLUMN_SETTINGS_KEY,
   SELECT_BASE_CLASS,
   SETTING_CATEGORY_KEYS,
-  SKILLS_PAGE_SIZE,
   SKILL_OPEN_MODE_OPTIONS,
   SKILL_OPEN_MODE_STORAGE_KEY,
   TRANSLATION_TARGET_LANGUAGE_STORAGE_KEY,
-  DEFAULT_SKILL_SCAN_SUFFIXES,
 } from "./workbench/constants";
 import { useSkillScanDirectories } from "./workbench/hooks/useSkillScanDirectories";
 import type {
@@ -112,7 +117,7 @@ import {
   unknownToMessage,
   waitForUiPaint,
 } from "./workbench/utils";
-import { agentConnectionApi, skillsApi, translationApi, workspaceApi } from "../shared/services/api";
+import { agentConnectionApi, skillsApi, skillsManagerApi, translationApi, workspaceApi } from "../shared/services/api";
 import {
   usePromptsStore,
   useAgentRulesStore,
@@ -121,6 +126,13 @@ import {
   useSkillsStore,
 } from "../shared/stores";
 import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
   Sheet,
   SheetContent,
   SheetDescription,
@@ -133,11 +145,14 @@ import { extractTemplateVariables } from "../shared/utils/template";
 import type {
   LocalAgentProfileDto,
   LocalAgentTranslationTestResult,
-  SkillAsset,
+  SkillManagerStatus,
   SkillOpenMode,
   SkillsFileReadResult,
   SkillsFileTreeNode,
   SkillsFileTreeResult,
+  SkillsManagerDiffProgress,
+  SkillsManagerLinkPreviewResult,
+  SkillsManagerMatrixSummary,
 } from "../shared/types";
 
 function renderSkillOpenModeIcon(mode: SkillOpenMode): ReactElement {
@@ -162,6 +177,44 @@ function renderSkillOpenModeIcon(mode: SkillOpenMode): ReactElement {
       return <AppWindow className="h-4 w-4" />;
   }
 }
+
+const DIFF_RUNNING_STATUSES = new Set(["running", "cancelling"]);
+const DIFF_TERMINAL_STATUSES = new Set(["completed", "cancelled", "failed"]);
+
+function isPendingSkillStatus(status: SkillManagerStatus): boolean {
+  return status === "missing" || status === "manual" || status === "directory" || status === "blocked";
+}
+
+function createInitialDiffView(): SkillsConfigDiffView {
+  return {
+    open: false,
+    status: "completed",
+    running: false,
+    jobId: "",
+    leftSkillName: "",
+    rightSkillName: "",
+    processedFiles: 0,
+    totalFiles: 0,
+    currentFile: "",
+    diffFiles: 0,
+    sameSkill: null,
+    errorMessage: "",
+    entries: [],
+  };
+}
+
+type DistributionTargetDraftField = "platform" | "targetPath" | "installMode";
+type DistributionTargetDraft = {
+  platform: string;
+  targetPath: string;
+  installMode: "copy" | "symlink";
+};
+
+const DEFAULT_NEW_DISTRIBUTION_TARGET_DRAFT: DistributionTargetDraft = {
+  platform: ".codex",
+  targetPath: "",
+  installMode: "symlink",
+};
 
 export function WorkbenchApp() {
   const { toast } = useToast();
@@ -204,6 +257,21 @@ export function WorkbenchApp() {
   const fetchSkills = useSkillsStore((state) => state.fetchSkills);
   const scanSkills = useSkillsStore((state) => state.scanSkills);
   const selectSkill = useSkillsStore((state) => state.selectSkill);
+  const managerState = useSkillsStore((state) => state.managerState);
+  const managerLoading = useSkillsStore((state) => state.managerLoading);
+  const managerCalibrating = useSkillsStore((state) => state.managerCalibrating);
+  const managerMode = useSkillsStore((state) => state.managerMode);
+  const managerExpandedSkillId = useSkillsStore((state) => state.managerExpandedSkillId);
+  const managerMatrixFilter = useSkillsStore((state) => state.managerMatrixFilter);
+  const managerRowHints = useSkillsStore((state) => state.managerRowHints);
+  const getManagerOperationsRows = useSkillsStore((state) => state.getManagerOperationsRows);
+  const loadManagerState = useSkillsStore((state) => state.loadManagerState);
+  const managerBatchLink = useSkillsStore((state) => state.managerBatchLink);
+  const managerBatchUnlink = useSkillsStore((state) => state.managerBatchUnlink);
+  const setManagerMode = useSkillsStore((state) => state.setManagerMode);
+  const setManagerExpandedSkillId = useSkillsStore((state) => state.setManagerExpandedSkillId);
+  const setManagerMatrixFilter = useSkillsStore((state) => state.setManagerMatrixFilter);
+  const clearManagerRowHint = useSkillsStore((state) => state.clearManagerRowHint);
 
   const agentAssets = useAgentRulesStore((state) => state.assets);
   const agentTagsByAsset = useAgentRulesStore((state) => state.tagsByAsset);
@@ -226,11 +294,14 @@ export function WorkbenchApp() {
 
   const workspaces = useSettingsStore((state) => state.workspaces);
   const activeWorkspaceId = useSettingsStore((state) => state.activeWorkspaceId);
+  const settingsTargets = useSettingsStore((state) => state.targets);
   const settingsConnections = useSettingsStore((state) => state.connections);
   const dirty = useSettingsStore((state) => state.dirty);
   const settingsLoading = useSettingsStore((state) => state.loading);
   const loadAllSettings = useSettingsStore((state) => state.loadAll);
   const loadSettingsConnections = useSettingsStore((state) => state.loadConnections);
+  const upsertTarget = useSettingsStore((state) => state.upsertTarget);
+  const deleteTarget = useSettingsStore((state) => state.deleteTarget);
   const upsertConnection = useSettingsStore((state) => state.upsertConnection);
   const deleteConnection = useSettingsStore((state) => state.deleteConnection);
   const setDirty = useSettingsStore((state) => state.setDirty);
@@ -244,6 +315,11 @@ export function WorkbenchApp() {
   const appUpdateRef = useRef<Update | null>(null);
   const appUpdateAutoCheckedRef = useRef(false);
   const skillOpenMenuRef = useRef<HTMLDivElement | null>(null);
+  const diffPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const diffPollContextRef = useRef<{ workspaceId: string; jobId: string } | null>(null);
+  const operationsModeEnteredRef = useRef(
+    activeModule === "skills" && managerMode === "operations",
+  );
   const showSkillOpenModeInStatusBar =
     typeof window !== "undefined" && window.innerWidth >= 1024 && /mac/i.test(navigator.platform);
   const isZh = language === "zh-CN";
@@ -275,7 +351,6 @@ export function WorkbenchApp() {
   const [agentRuleEditorModalOpen, setAgentRuleEditorModalOpen] = useState(false);
   const [agentRulesPage, setAgentRulesPage] = useState(1);
   const [promptPage, setPromptPage] = useState(1);
-  const [skillsPage, setSkillsPage] = useState(1);
   const [deleteConfirmAssetId, setDeleteConfirmAssetId] = useState<string | null>(null);
 
   const [newPromptName, setNewPromptName] = useState("");
@@ -286,7 +361,6 @@ export function WorkbenchApp() {
   const [promptAllCategoryFilter, setPromptAllCategoryFilter] = useState<string>(PROMPT_CATEGORY_ALL_KEY);
   const [promptBatchJumpSuggestion, setPromptBatchJumpSuggestion] = useState<PromptBatchJumpSuggestion | null>(null);
   const [skillQuery, setSkillQuery] = useState("");
-  const [skillSourceFilter, setSkillSourceFilter] = useState("all");
   const [promptDetailView, setPromptDetailView] = useState<"list" | "detail">("list");
   const [skillDetailView, setSkillDetailView] = useState<"list" | "detail">("list");
   const [skillOpenMode, setSkillOpenMode] = useState<SkillOpenMode>(() => resolveInitialSkillOpenMode());
@@ -298,20 +372,17 @@ export function WorkbenchApp() {
   const [skillSelectedFilePathById, setSkillSelectedFilePathById] = useState<Record<string, string>>({});
   const [skillFileReadLoading, setSkillFileReadLoading] = useState(false);
   const [skillFileReadByKey, setSkillFileReadByKey] = useState<Record<string, SkillsFileReadResult>>({});
+  const [scanPhase, setScanPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [scanMessage, setScanMessage] = useState("");
+  const [diffView, setDiffView] = useState<SkillsConfigDiffView>(() => createInitialDiffView());
   const [agentQuery, setAgentQuery] = useState("");
   const [storageDirDraft, setStorageDirDraft] = useState("");
   const [settingsAgentType, setSettingsAgentType] = useState("codex");
   const [newSettingsAgentInput, setNewSettingsAgentInput] = useState("");
   const {
     homePath,
-    skillScanDirectories,
-    skillScanDirInput,
-    setSkillScanDirInput,
     selectedSkillScanDirectories,
-    handleToggleSkillScanDirectory,
-    handleAddSkillScanDirectory,
-    handleRemoveSkillScanDirectory,
-  } = useSkillScanDirectories({ l, toast });
+  } = useSkillScanDirectories({ distributionTargets: settingsTargets });
 
   const [detailName, setDetailName] = useState("");
   const [detailCategory, setDetailCategory] = useState("");
@@ -376,6 +447,17 @@ export function WorkbenchApp() {
     codex: "AGENTS.md",
     claude: "CLAUDE.md",
   });
+  const [distributionTargetDrafts, setDistributionTargetDrafts] = useState<Record<string, DistributionTargetDraft>>(
+    {},
+  );
+  const [distributionTargetEditingIds, setDistributionTargetEditingIds] = useState<string[]>([]);
+  const [newDistributionTargetDraft, setNewDistributionTargetDraft] = useState<DistributionTargetDraft>(
+    () => DEFAULT_NEW_DISTRIBUTION_TARGET_DRAFT,
+  );
+  const [distributionTargetSavingId, setDistributionTargetSavingId] = useState<string | null>(null);
+  const [managerPurgingSkillId, setManagerPurgingSkillId] = useState<string | null>(null);
+  const [linkConfirmPreview, setLinkConfirmPreview] = useState<SkillsManagerLinkPreviewResult | null>(null);
+  const linkConfirmResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
 
   const selectedPrompt = useMemo(() => prompts.find((item) => item.id === selectedPromptId) ?? null, [prompts, selectedPromptId]);
   const selectedModelProfile = useMemo(
@@ -389,6 +471,14 @@ export function WorkbenchApp() {
     () => workspaces.find((item) => item.id === activeWorkspaceId) ?? workspaces[0] ?? null,
     [workspaces, activeWorkspaceId],
   );
+  const operationsScanDirectories = useMemo(() => {
+    const root = normalizeDirectoryInput(activeWorkspace?.rootPath ?? "");
+    if (!root) {
+      return [] as string[];
+    }
+    const projectSkillsDir = normalizeDirectoryInput(`${root}/skills`);
+    return projectSkillsDir ? [projectSkillsDir] : [];
+  }, [activeWorkspace?.rootPath]);
   const settingCategories = useMemo<Array<{ key: SettingsCategory; label: string }>>(
     () =>
       SETTING_CATEGORY_KEYS.map((key) => {
@@ -432,23 +522,9 @@ export function WorkbenchApp() {
     pageSize: PROMPTS_PAGE_SIZE,
   });
 
-  const skillSources = useMemo(() => {
-    const set = new Set<string>();
-    for (const item of skills) {
-      const source = item.sourceParent?.trim();
-      if (source) {
-        set.add(source);
-      }
-    }
-    return Array.from(set).sort((left, right) => left.localeCompare(right));
-  }, [skills]);
-
   const filteredSkills = useMemo(() => {
     const lower = skillQuery.trim().toLowerCase();
     return skills.filter((item) => {
-      if (skillSourceFilter !== "all" && item.sourceParent !== skillSourceFilter) {
-        return false;
-      }
       if (!lower) {
         return true;
       }
@@ -459,15 +535,196 @@ export function WorkbenchApp() {
         item.sourceParent.toLowerCase().includes(lower)
       );
     });
-  }, [skills, skillQuery, skillSourceFilter]);
-  const totalSkillsPages = useMemo(
-    () => Math.max(1, Math.ceil(filteredSkills.length / SKILLS_PAGE_SIZE)),
-    [filteredSkills.length],
+  }, [skills, skillQuery]);
+  const filteredSkillIdSet = useMemo(
+    () => new Set(filteredSkills.map((item) => item.id)),
+    [filteredSkills],
   );
-  const pagedSkills = useMemo(() => {
-    const start = (skillsPage - 1) * SKILLS_PAGE_SIZE;
-    return filteredSkills.slice(start, start + SKILLS_PAGE_SIZE);
-  }, [filteredSkills, skillsPage]);
+  const scanSourceDirectories = useMemo(
+    () =>
+      selectedSkillScanDirectories
+        .map((item) => normalizeDirectoryInput(item))
+        .filter(Boolean),
+    [selectedSkillScanDirectories],
+  );
+  const scanScopedSkills = useMemo(() => {
+    if (scanSourceDirectories.length === 0) {
+      return [] as typeof filteredSkills;
+    }
+    return filteredSkills.filter((skill) => {
+      const source = normalizeDirectoryInput(skill.source);
+      if (!source) {
+        return false;
+      }
+      return scanSourceDirectories.some(
+        (directory) =>
+          source === directory ||
+          source.startsWith(`${directory}/`) ||
+          source.startsWith(`${directory}\\`),
+      );
+    });
+  }, [filteredSkills, scanSourceDirectories]);
+  const scanScopedSkillIdSet = useMemo(
+    () => new Set(scanScopedSkills.map((item) => item.id)),
+    [scanScopedSkills],
+  );
+  const operationsSourceRows = useMemo(
+    () =>
+      getManagerOperationsRows().filter((row) =>
+        filteredSkillIdSet.has(row.id),
+      ),
+    [
+      getManagerOperationsRows,
+      managerState,
+      managerRowHints,
+      filteredSkillIdSet,
+    ],
+  );
+  const operationsRows = useMemo(() => {
+    const tool = managerMatrixFilter.tool;
+    const status = managerMatrixFilter.status;
+    return operationsSourceRows.filter((row) => {
+      if (status === "all") {
+        if (!tool) {
+          return true;
+        }
+        return row.statusCells.some((cell) => cell.tool === tool);
+      }
+      if (status === "missing") {
+        if (!tool) {
+          return row.statusCells.some((cell) => isPendingSkillStatus(cell.status));
+        }
+        return row.statusCells.some((cell) => cell.tool === tool && isPendingSkillStatus(cell.status));
+      }
+      if (!tool) {
+        return row.statusCells.some((cell) => cell.status === status);
+      }
+      return row.statusCells.some((cell) => cell.tool === tool && cell.status === status);
+    });
+  }, [operationsSourceRows, managerMatrixFilter]);
+  const operationsMatrixSummaries = useMemo<SkillsManagerMatrixSummary[]>(() => {
+    const byTool = new Map<string, SkillsManagerMatrixSummary>();
+    for (const row of operationsSourceRows) {
+      for (const cell of row.statusCells) {
+        const summary = byTool.get(cell.tool) ?? {
+          tool: cell.tool,
+          linked: 0,
+          missing: 0,
+          blocked: 0,
+          wrong: 0,
+          directory: 0,
+          manual: 0,
+          total: 0,
+          issueCount: 0,
+        };
+        if (cell.status === "linked") {
+          summary.linked += 1;
+        } else if (cell.status === "wrong") {
+          summary.wrong += 1;
+        } else if (isPendingSkillStatus(cell.status)) {
+          summary.missing += 1;
+        }
+        byTool.set(cell.tool, summary);
+      }
+    }
+    const list = Array.from(byTool.values()).map((item) => {
+      const total = item.linked + item.missing + item.wrong;
+      return {
+        ...item,
+        blocked: 0,
+        directory: 0,
+        manual: 0,
+        total,
+        issueCount: total - item.linked,
+      };
+    });
+    return list.sort((left, right) => left.tool.localeCompare(right.tool));
+  }, [operationsSourceRows]);
+  const managerSkillById = useMemo(
+    () => new Map((managerState?.skills ?? []).map((item) => [item.id, item])),
+    [managerState?.skills],
+  );
+  const scanGroups = useMemo<SkillsConfigGroup[]>(() => {
+    const grouped = new Map<string, SkillsConfigGroup>();
+    for (const skill of scanScopedSkills) {
+      const rawKey = skill.sourceParent.trim();
+      const sourceParts = skill.source
+        .split(/[\\/]/)
+        .map((part) => part.trim())
+        .filter(Boolean);
+      const fallbackKey = sourceParts[sourceParts.length - 2] ?? sourceParts[sourceParts.length - 1] ?? "default";
+      const key = rawKey || fallbackKey;
+      const group = grouped.get(key) ?? {
+        key,
+        label: key,
+        total: 0,
+        pendingCount: 0,
+        items: [],
+      };
+      const managerSkill = managerSkillById.get(skill.id);
+      const statusList = managerSkill ? Object.values(managerSkill.statusByTool) : [];
+      const pending = managerSkill
+        ? managerSkill.conflict || statusList.some((status) => status !== "linked")
+        : true;
+
+      group.total += 1;
+      if (pending) {
+        group.pendingCount += 1;
+      }
+      group.items.push({
+        id: skill.id,
+        name: skill.name,
+        localPath: skill.sourceLocalPath ?? skill.localPath,
+        conflict: Boolean(managerSkill?.conflict),
+        isSymlink: skill.sourceIsSymlink ?? skill.isSymlink,
+      });
+      grouped.set(key, group);
+    }
+
+    return Array.from(grouped.values())
+      .map((group) => ({
+        ...group,
+        items: [...group.items].sort((left, right) => left.name.localeCompare(right.name)),
+      }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }, [managerSkillById, scanScopedSkills]);
+  const conflictPairs = useMemo<SkillsConfigConflictPair[]>(() => {
+    const rows = (managerState?.skills ?? []).filter((skill) => scanScopedSkillIdSet.has(skill.id));
+    const conflictGroups = new Map<string, typeof rows>();
+    for (const row of rows) {
+      if (!row.conflict) {
+        continue;
+      }
+      const current = conflictGroups.get(row.name) ?? [];
+      current.push(row);
+      conflictGroups.set(row.name, current);
+    }
+
+    const pairs: SkillsConfigConflictPair[] = [];
+    for (const [name, list] of conflictGroups.entries()) {
+      if (list.length < 2) {
+        continue;
+      }
+      const sorted = [...list].sort((left, right) => left.localPath.localeCompare(right.localPath));
+      const pivot = sorted[0];
+      for (let index = 1; index < sorted.length; index += 1) {
+        const right = sorted[index];
+        pairs.push({
+          key: `${name}:${pivot.id}:${right.id}`,
+          name,
+          left: {
+            id: pivot.id,
+            localPath: pivot.localPath,
+          },
+          right: {
+            id: right.id,
+            localPath: right.localPath,
+          },
+        });
+      }
+    }
+    return pairs.sort((left, right) => left.name.localeCompare(right.name));
+  }, [managerState?.skills, scanScopedSkillIdSet]);
 
   const filteredAgentAssets = useMemo(() => {
     if (!agentQuery.trim()) {
@@ -882,9 +1139,35 @@ export function WorkbenchApp() {
     }
     void fetchPrompts(activeWorkspaceId);
     void fetchSkills();
+    void loadManagerState(activeWorkspaceId);
     void loadAgentModuleData(activeWorkspaceId);
     void loadModelWorkbenchData(activeWorkspaceId);
-  }, [activeWorkspaceId, fetchPrompts, fetchSkills, loadAgentModuleData]);
+  }, [activeWorkspaceId, fetchPrompts, fetchSkills, loadAgentModuleData, loadManagerState]);
+
+  useEffect(() => {
+    const inOperations = activeModule === "skills" && managerMode === "operations";
+    if (inOperations && !operationsModeEnteredRef.current && activeWorkspaceId) {
+      void (async () => {
+        // 切换进入运营模式时先渲染当前状态，扫描与刷新放到后台异步执行。
+        void loadManagerState(activeWorkspaceId);
+
+        if (operationsScanDirectories.length > 0) {
+          await scanSkills(activeWorkspaceId, operationsScanDirectories);
+        }
+        await fetchSkills();
+        await loadManagerState(activeWorkspaceId);
+      })();
+    }
+    operationsModeEnteredRef.current = inOperations;
+  }, [
+    activeModule,
+    managerMode,
+    activeWorkspaceId,
+    fetchSkills,
+    loadManagerState,
+    operationsScanDirectories,
+    scanSkills,
+  ]);
 
   useEffect(() => {
     if (!selectedModelProfile) {
@@ -949,14 +1232,8 @@ export function WorkbenchApp() {
     setPromptPage((prev) => Math.min(prev, totalPromptPages));
   }, [totalPromptPages]);
   useEffect(() => {
-    setSkillsPage((prev) => Math.min(prev, totalSkillsPages));
-  }, [totalSkillsPages]);
-  useEffect(() => {
     setPromptPage(1);
   }, [promptAllCategoryFilter, promptBrowseCategory, promptBrowseScope, promptQuery]);
-  useEffect(() => {
-    setSkillsPage(1);
-  }, [skillQuery, skillSourceFilter]);
 
   useEffect(() => {
     if (!activeWorkspaceId) {
@@ -1002,6 +1279,29 @@ export function WorkbenchApp() {
   useEffect(() => {
     setStorageDirDraft(activeWorkspace?.rootPath ?? "");
   }, [activeWorkspace?.rootPath]);
+
+  useEffect(() => {
+    setDistributionTargetDrafts((prev) => {
+      if (settingsTargets.length === 0) {
+        return {};
+      }
+      const next: Record<string, DistributionTargetDraft> = {};
+      settingsTargets.forEach((target) => {
+        next[target.id] = prev[target.id] ?? {
+          platform: target.platform,
+          targetPath: target.targetPath,
+          installMode: target.installMode === "symlink" ? "symlink" : "copy",
+        };
+      });
+      return next;
+    });
+  }, [settingsTargets]);
+
+  useEffect(() => {
+    setDistributionTargetEditingIds((prev) =>
+      prev.filter((targetId) => settingsTargets.some((target) => target.id === targetId)),
+    );
+  }, [settingsTargets]);
 
   useEffect(() => {
     if (creatingAgentAsset) {
@@ -1962,13 +2262,13 @@ export function WorkbenchApp() {
     }
   }
 
-  async function handleOpenSkillDetail(skill: SkillAsset) {
-    selectSkill(skill.id);
+  async function handleOpenSkillDetail(skillId: string) {
+    selectSkill(skillId);
     setSkillOpenMenuOpen(false);
     setSkillDetailView("detail");
     setSkillDetailTab("overview");
-    await handleLoadSkillTree(skill.id);
-    await handleReadSkillFile(skill.id, "SKILL.md");
+    await handleLoadSkillTree(skillId);
+    await handleReadSkillFile(skillId, "SKILL.md");
   }
 
   function handleToggleSkillDir(skillId: string, relativePath: string) {
@@ -2076,6 +2376,230 @@ export function WorkbenchApp() {
       setStorageDirDraft(defaultDir);
     } catch {
       // 忽略读取默认路径失败
+    }
+  }
+
+  function normalizeDistributionTargetDraft(draft: DistributionTargetDraft): DistributionTargetDraft {
+    return {
+      platform: normalizeAgentTypeInput(draft.platform),
+      targetPath: normalizeDirectoryInput(draft.targetPath),
+      installMode: draft.installMode === "symlink" ? "symlink" : "copy",
+    };
+  }
+
+  function deriveDistributionSkillsPath(targetPath: string): string {
+    const normalizedTargetPath = normalizeDirectoryInput(targetPath);
+    if (!normalizedTargetPath) {
+      return "";
+    }
+    return `${normalizedTargetPath}/skills`;
+  }
+
+  function validateDistributionTargetDraft(draft: DistributionTargetDraft): string | null {
+    if (!draft.platform) {
+      return l("平台不能为空", "Platform cannot be empty");
+    }
+    if (!isAbsolutePathInput(draft.targetPath)) {
+      return l("目标目录必须是绝对路径", "Target directory must be an absolute path");
+    }
+    if (draft.installMode !== "copy" && draft.installMode !== "symlink") {
+      return l("安装模式仅支持 copy / symlink", "Install mode only supports copy / symlink");
+    }
+    return null;
+  }
+
+  function handleDistributionTargetFieldChange(
+    targetId: string,
+    field: DistributionTargetDraftField,
+    value: string,
+  ) {
+    setDistributionTargetDrafts((prev) => {
+      const current = prev[targetId] ?? {
+        platform: "",
+        targetPath: "",
+        installMode: "copy",
+      };
+      if (field === "installMode") {
+        return {
+          ...prev,
+          [targetId]: {
+            ...current,
+            installMode: value === "symlink" ? "symlink" : "copy",
+          },
+        };
+      }
+      return {
+        ...prev,
+        [targetId]: {
+          ...current,
+          [field]: value,
+        },
+      };
+    });
+    setDirty("data", true);
+  }
+
+  function handleStartDistributionTargetEdit(targetId: string) {
+    setDistributionTargetEditingIds((prev) => (prev.includes(targetId) ? prev : [...prev, targetId]));
+  }
+
+  function handleCancelDistributionTargetEdit(targetId: string) {
+    const existing = settingsTargets.find((item) => item.id === targetId);
+    if (existing) {
+      setDistributionTargetDrafts((prev) => ({
+        ...prev,
+        [targetId]: {
+          platform: existing.platform,
+          targetPath: existing.targetPath,
+          installMode: existing.installMode === "symlink" ? "symlink" : "copy",
+        },
+      }));
+    }
+    setDistributionTargetEditingIds((prev) => prev.filter((item) => item !== targetId));
+  }
+
+  async function handleDeleteDistributionTarget(targetId: string) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    const existing = settingsTargets.find((item) => item.id === targetId);
+    if (!existing) {
+      toast({ title: l("目标不存在", "Target not found"), variant: "destructive" });
+      return;
+    }
+
+    setDistributionTargetSavingId(`delete:${targetId}`);
+    try {
+      const result = await deleteTarget({
+        workspaceId: activeWorkspaceId,
+        id: targetId,
+      });
+      if (!result.ok) {
+        toast({ title: result.message, variant: "destructive" });
+        return;
+      }
+      setDistributionTargetDrafts((prev) => {
+        const next = { ...prev };
+        delete next[targetId];
+        return next;
+      });
+      setDistributionTargetEditingIds((prev) => prev.filter((item) => item !== targetId));
+      setDirty("data", false);
+      toast({ title: l("目标目录已删除", "Target directory deleted") });
+    } catch (error) {
+      toast({
+        title: l("删除目标目录失败", "Failed to delete target directory"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+    } finally {
+      setDistributionTargetSavingId(null);
+    }
+  }
+
+  async function handleSaveDistributionTarget(targetId: string) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    const existing = settingsTargets.find((item) => item.id === targetId);
+    if (!existing) {
+      toast({ title: l("目标不存在", "Target not found"), variant: "destructive" });
+      return;
+    }
+    const draft =
+      distributionTargetDrafts[targetId] ??
+      ({
+        platform: existing.platform,
+        targetPath: existing.targetPath,
+        installMode: existing.installMode === "symlink" ? "symlink" : "copy",
+      } satisfies DistributionTargetDraft);
+    const normalized = normalizeDistributionTargetDraft(draft);
+    const validationError = validateDistributionTargetDraft(normalized);
+    if (validationError) {
+      toast({ title: validationError, variant: "destructive" });
+      return;
+    }
+
+    setDistributionTargetSavingId(targetId);
+    try {
+      const result = await upsertTarget({
+        workspaceId: activeWorkspaceId,
+        id: targetId,
+        platform: normalized.platform,
+        targetPath: normalized.targetPath,
+        skillsPath: deriveDistributionSkillsPath(normalized.targetPath),
+        installMode: normalized.installMode,
+      });
+      if (!result.ok) {
+        toast({ title: result.message, variant: "destructive" });
+        return;
+      }
+      setDistributionTargetDrafts((prev) => ({ ...prev, [targetId]: normalized }));
+      setDistributionTargetEditingIds((prev) => prev.filter((item) => item !== targetId));
+      setDirty("data", false);
+      toast({ title: l("目标目录已保存", "Target directory saved") });
+    } catch (error) {
+      toast({
+        title: l("保存目标目录失败", "Failed to save target directory"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+    } finally {
+      setDistributionTargetSavingId(null);
+    }
+  }
+
+  function handleNewDistributionTargetFieldChange(field: DistributionTargetDraftField, value: string) {
+    setNewDistributionTargetDraft((prev) => {
+      if (field === "installMode") {
+        return { ...prev, installMode: value === "symlink" ? "symlink" : "copy" };
+      }
+      return { ...prev, [field]: value };
+    });
+    setDirty("data", true);
+  }
+
+  async function handleCreateDistributionTarget() {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    const normalized = normalizeDistributionTargetDraft(newDistributionTargetDraft);
+    const validationError = validateDistributionTargetDraft(normalized);
+    if (validationError) {
+      toast({ title: validationError, variant: "destructive" });
+      return;
+    }
+
+    setDistributionTargetSavingId("__new__");
+    try {
+      const result = await upsertTarget({
+        workspaceId: activeWorkspaceId,
+        platform: normalized.platform,
+        targetPath: normalized.targetPath,
+        skillsPath: deriveDistributionSkillsPath(normalized.targetPath),
+        installMode: normalized.installMode,
+      });
+      if (!result.ok) {
+        toast({ title: result.message, variant: "destructive" });
+        return;
+      }
+      setNewDistributionTargetDraft({
+        ...normalized,
+        targetPath: "",
+      });
+      setDirty("data", false);
+      toast({ title: l("目标目录已新增", "Target directory created") });
+    } catch (error) {
+      toast({
+        title: l("新增目标目录失败", "Failed to create target directory"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+    } finally {
+      setDistributionTargetSavingId(null);
     }
   }
 
@@ -2451,19 +2975,380 @@ export function WorkbenchApp() {
     />
   );
 
-  function handleScanSkills() {
+  async function handleRefreshSkills() {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    try {
+      if (operationsScanDirectories.length > 0) {
+        await scanSkills(activeWorkspaceId, operationsScanDirectories);
+      }
+      await fetchSkills();
+      await loadManagerState(activeWorkspaceId);
+    } catch (error) {
+      toast({
+        title: l("刷新失败", "Refresh failed"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  const settleLinkConfirm = useCallback((confirmed: boolean) => {
+    const resolver = linkConfirmResolverRef.current;
+    linkConfirmResolverRef.current = null;
+    setLinkConfirmPreview(null);
+    if (resolver) {
+      resolver(confirmed);
+    }
+  }, []);
+
+  const requestLinkConfirm = useCallback(
+    async (preview: SkillsManagerLinkPreviewResult): Promise<boolean> =>
+      new Promise((resolve) => {
+        if (linkConfirmResolverRef.current) {
+          linkConfirmResolverRef.current(false);
+        }
+        linkConfirmResolverRef.current = resolve;
+        setLinkConfirmPreview(preview);
+      }),
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (linkConfirmResolverRef.current) {
+        linkConfirmResolverRef.current(false);
+        linkConfirmResolverRef.current = null;
+      }
+    };
+  }, []);
+
+  function buildLinkPreviewSummary(preview: SkillsManagerLinkPreviewResult): string {
+    return l(
+      `差异文件 ${preview.diffFiles} / 比较文件 ${preview.totalFiles}`,
+      `${preview.diffFiles} diff files / ${preview.totalFiles} compared files`,
+    );
+  }
+
+  async function confirmManagerLinkWithDiff(
+    skillId: string,
+    tool: string,
+  ): Promise<{ proceed: boolean; force: boolean; cancelled?: boolean }> {
+    if (!activeWorkspaceId || !tool) {
+      return { proceed: false, force: false };
+    }
+    const preview = await skillsManagerApi.linkPreview({
+      workspaceId: activeWorkspaceId,
+      skillId,
+      tool,
+      maxEntries: 24,
+    });
+    if (!preview.canLink) {
+      toast({
+        title: l("链接前检查失败", "Link precheck failed"),
+        description: preview.message || l("当前目标不可链接", "Target cannot be linked"),
+        variant: "destructive",
+      });
+      return { proceed: false, force: false };
+    }
+    if (!preview.requiresConfirm) {
+      return { proceed: true, force: false };
+    }
+    const confirmed = await requestLinkConfirm(preview);
+    if (!confirmed) {
+      return { proceed: false, force: false, cancelled: true };
+    }
+    return { proceed: true, force: true };
+  }
+
+  async function handleManagerLinkSkill(skillId: string, tool: string) {
+    if (!activeWorkspaceId || !tool) {
+      return;
+    }
+    try {
+      const decision = await confirmManagerLinkWithDiff(skillId, tool);
+      if (!decision.proceed) {
+        if (decision.cancelled) {
+          toast({
+            title: l("已取消链接", "Link canceled"),
+            description: l("你取消了差异覆盖链接。", "Diff overwrite link canceled."),
+          });
+        }
+        return;
+      }
+      await managerBatchLink(activeWorkspaceId, [skillId], tool, decision.force);
+    } catch (error) {
+      toast({
+        title: l("补链失败", "Link failed"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleManagerPurgeSkill(skillId: string, _skillName: string) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    setManagerPurgingSkillId(skillId);
+    try {
+      const result = await skillsManagerApi.purge({
+        workspaceId: activeWorkspaceId,
+        skillId,
+      });
+      await fetchSkills();
+      await loadManagerState(activeWorkspaceId);
+      toast({
+        title: l("清除完成", "Purge completed"),
+        description: l(
+          `${result.skillName} 已清除，处理 ${result.removedTools.length} 个链接目录。`,
+          `${result.skillName} purged. ${result.removedTools.length} link targets cleaned.`,
+        ),
+      });
+    } catch (error) {
+      toast({
+        title: l("清除失败", "Purge failed"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    } finally {
+      setManagerPurgingSkillId(null);
+    }
+  }
+
+  async function handleManagerUnlinkSkill(skillId: string, tool: string) {
+    if (!activeWorkspaceId || !tool) {
+      return;
+    }
+    try {
+      await managerBatchUnlink(activeWorkspaceId, [skillId], tool);
+    } catch (error) {
+      toast({
+        title: l("断链失败", "Unlink failed"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  const stopDiffPolling = useCallback(() => {
+    if (diffPollTimerRef.current) {
+      clearInterval(diffPollTimerRef.current);
+      diffPollTimerRef.current = null;
+    }
+  }, []);
+
+  const applyDiffProgress = useCallback(
+    (progress: SkillsManagerDiffProgress, forceOpen = true) => {
+      const running = DIFF_RUNNING_STATUSES.has(progress.status);
+      const terminal = DIFF_TERMINAL_STATUSES.has(progress.status);
+      setDiffView((prev) => ({
+        open: forceOpen ? true : prev.open,
+        status: progress.status,
+        running,
+        jobId: progress.jobId,
+        leftSkillName: progress.leftSkillName,
+        rightSkillName: progress.rightSkillName,
+        processedFiles: progress.processedFiles,
+        totalFiles: progress.totalFiles,
+        currentFile: progress.currentFile,
+        diffFiles: progress.diffFiles,
+        sameSkill: progress.sameSkill,
+        errorMessage: progress.errorMessage,
+        entries: progress.entries,
+      }));
+
+      if (terminal) {
+        stopDiffPolling();
+        diffPollContextRef.current = null;
+      }
+    },
+    [stopDiffPolling],
+  );
+
+  const pollDiffProgress = useCallback(
+    async (workspaceId: string, jobId: string) => {
+      try {
+        const progress = await skillsManagerApi.diffProgress({ workspaceId, jobId });
+        applyDiffProgress(progress, true);
+      } catch (error) {
+        stopDiffPolling();
+        diffPollContextRef.current = null;
+        setDiffView((prev) => ({
+          ...prev,
+          open: true,
+          status: "failed",
+          running: false,
+          errorMessage: error instanceof Error ? error.message : l("读取 Diff 进度失败", "Failed to read diff progress"),
+        }));
+      }
+    },
+    [applyDiffProgress, l, stopDiffPolling],
+  );
+
+  const startDiffPolling = useCallback(
+    (workspaceId: string, jobId: string) => {
+      stopDiffPolling();
+      diffPollContextRef.current = { workspaceId, jobId };
+      diffPollTimerRef.current = setInterval(() => {
+        void pollDiffProgress(workspaceId, jobId);
+      }, 450);
+    },
+    [pollDiffProgress, stopDiffPolling],
+  );
+
+  useEffect(() => {
+    return () => {
+      stopDiffPolling();
+    };
+  }, [stopDiffPolling]);
+
+  async function handleStartConflictDiff(leftSkillId: string, rightSkillId: string) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+
+    const left = managerState?.skills.find((item) => item.id === leftSkillId);
+    const right = managerState?.skills.find((item) => item.id === rightSkillId);
+    setDiffView({
+      ...createInitialDiffView(),
+      open: true,
+      status: "running",
+      running: true,
+      leftSkillName: left?.name ?? "",
+      rightSkillName: right?.name ?? "",
+    });
+
+    try {
+      const progress = await skillsManagerApi.diffStart({
+        workspaceId: activeWorkspaceId,
+        leftSkillId,
+        rightSkillId,
+      });
+      applyDiffProgress(progress, true);
+      if (DIFF_RUNNING_STATUSES.has(progress.status)) {
+        startDiffPolling(activeWorkspaceId, progress.jobId);
+      }
+    } catch (error) {
+      stopDiffPolling();
+      diffPollContextRef.current = null;
+      setDiffView((prev) => ({
+        ...prev,
+        open: true,
+        status: "failed",
+        running: false,
+        errorMessage: error instanceof Error ? error.message : l("启动 Diff 失败", "Failed to start diff"),
+      }));
+      toast({
+        title: l("启动 Diff 失败", "Failed to start diff"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleCancelDiff() {
+    const context = diffPollContextRef.current;
+    if (!context) {
+      return;
+    }
+    try {
+      const progress = await skillsManagerApi.diffCancel({
+        workspaceId: context.workspaceId,
+        jobId: context.jobId,
+      });
+      applyDiffProgress(progress, true);
+    } catch (error) {
+      toast({
+        title: l("中断 Diff 失败", "Failed to cancel diff"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  function handleCloseDiff() {
+    const context = diffPollContextRef.current;
+    if (diffView.running && context) {
+      void skillsManagerApi
+        .diffCancel({
+          workspaceId: context.workspaceId,
+          jobId: context.jobId,
+        })
+        .catch(() => undefined);
+    }
+    stopDiffPolling();
+    diffPollContextRef.current = null;
+    setDiffView(createInitialDiffView());
+  }
+
+  async function handleOperationsDistribute(skillId: string, tools: string[]) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    const normalizedTools = Array.from(new Set(tools.filter(Boolean)));
+    if (normalizedTools.length === 0) {
+      toast({
+        title: l("请至少选择一个目标目录", "Please select at least one target"),
+        variant: "destructive",
+      });
+      return;
+    }
+
+    let linkedCount = 0;
+    for (const tool of normalizedTools) {
+      const decision = await confirmManagerLinkWithDiff(skillId, tool);
+      if (!decision.proceed) {
+        continue;
+      }
+      await managerBatchLink(activeWorkspaceId, [skillId], tool, decision.force);
+      linkedCount += 1;
+    }
+
+    if (linkedCount === 0) {
+      toast({
+        title: l("已取消链接", "Link canceled"),
+        description: l("没有任何目标执行链接。", "No target was linked."),
+      });
+    }
+  }
+
+  async function handleScanSkills() {
     if (!activeWorkspaceId) {
       toast({ title: projectBootingMessage, variant: "destructive" });
       return;
     }
     if (selectedSkillScanDirectories.length === 0) {
       toast({
-        title: l("请至少选择一个 Skills 扫描目录", "Please select at least one Skills scan directory"),
+        title: l(
+          "请先配置至少一个 Skills 分发目标目录",
+          "Please configure at least one Skills distribution target first",
+        ),
         variant: "destructive",
       });
       return;
     }
-    void scanSkills(activeWorkspaceId, selectedSkillScanDirectories);
+    setScanPhase("loading");
+    setScanMessage(l("扫描进行中...", "Scanning..."));
+    try {
+      await scanSkills(activeWorkspaceId, selectedSkillScanDirectories);
+      setScanPhase("success");
+      setScanMessage(l("扫描完成，请查看下方分组结果。", "Scan completed. Review grouped results below."));
+    } catch (error) {
+      setScanPhase("error");
+      const message = error instanceof Error ? error.message : l("未知错误", "Unknown error");
+      setScanMessage(message);
+      toast({
+        title: l("扫描失败", "Scan failed"),
+        description: message,
+        variant: "destructive",
+      });
+    }
   }
 
   function handleLeaveSkillDetail() {
@@ -2491,10 +3376,49 @@ export function WorkbenchApp() {
     })();
   }
 
+  const skillsOperationsPanel = (
+    <SkillsOperationsPanel
+      rows={operationsRows}
+      matrixSummaries={operationsMatrixSummaries}
+      matrixFilter={managerMatrixFilter}
+      expandedSkillId={managerExpandedSkillId}
+      runningDistribution={managerLoading || managerCalibrating}
+      onMatrixFilterChange={(next) => setManagerMatrixFilter(next)}
+      onToggleExpanded={(skillId) => setManagerExpandedSkillId(skillId)}
+      onOpenSkillDetail={(skillId) => void handleOpenSkillDetail(skillId)}
+      onRunDistribution={(skillId, tools) => handleOperationsDistribute(skillId, tools)}
+      onRunLink={(skillId, tool) => handleManagerLinkSkill(skillId, tool)}
+      onRunUnlink={(skillId, tool) => handleManagerUnlinkSkill(skillId, tool)}
+      onPurgeSkill={(skillId, skillName) => handleManagerPurgeSkill(skillId, skillName)}
+      purgingSkillId={managerPurgingSkillId}
+      onDismissRowHint={(skillId) => clearManagerRowHint(skillId)}
+      onJumpToConfig={() => setManagerMode("config")}
+      l={l}
+    />
+  );
+  const skillsConfigPanel = (
+    <SkillsConfigPanel
+      scanPhase={scanPhase}
+      scanMessage={scanMessage}
+      scanGroups={scanGroups}
+      conflictPairs={conflictPairs}
+      diffView={diffView}
+      onScanSkills={() => void handleScanSkills()}
+      onStartConflictDiff={(leftSkillId, rightSkillId) => void handleStartConflictDiff(leftSkillId, rightSkillId)}
+      onCancelDiff={() => void handleCancelDiff()}
+      onCloseDiff={handleCloseDiff}
+      l={l}
+    />
+  );
+
   const skillsCenter = (
     <SkillsCenter
+      managerMode={managerMode}
+      setManagerMode={(value) => setManagerMode(value)}
+      operationsPanel={skillsOperationsPanel}
+      configPanel={skillsConfigPanel}
       skillDetailView={skillDetailView}
-      filteredSkills={filteredSkills}
+      filteredSkillCount={filteredSkills.length}
       skillsLoading={skillsLoading}
       skillQuery={skillQuery}
       setSkillQuery={(value) => setSkillQuery(value)}
@@ -2503,18 +3427,9 @@ export function WorkbenchApp() {
       skillOpenMode={skillOpenMode}
       setSkillOpenMode={(value) => setSkillOpenMode(value)}
       skillOpenModeOptions={skillOpenModeOptions}
-      skillSourceFilter={skillSourceFilter}
-      setSkillSourceFilter={(value) => setSkillSourceFilter(value)}
-      skillSources={skillSources}
-      onScanSkills={handleScanSkills}
-      onRefreshSkills={() => void fetchSkills()}
-      pagedSkills={pagedSkills}
-      onOpenSkillDetail={(skill) => void handleOpenSkillDetail(skill)}
+      onScanSkills={() => void handleScanSkills()}
+      onRefreshSkills={() => void handleRefreshSkills()}
       onSkillOpen={(skillId, relativePath) => void handleSkillOpen(skillId, relativePath)}
-      skillsPage={skillsPage}
-      setSkillsPage={setSkillsPage}
-      totalSkillsPages={totalSkillsPages}
-      skillsPageSize={SKILLS_PAGE_SIZE}
       onBackToSkillList={handleLeaveSkillDetail}
       selectedSkill={selectedSkill}
       skillDetailTab={skillDetailTab}
@@ -2592,9 +3507,11 @@ export function WorkbenchApp() {
       l={l}
       storageDirDraft={storageDirDraft}
       activeWorkspaceRootPath={activeWorkspace?.rootPath ?? null}
-      defaultSkillScanSuffixes={DEFAULT_SKILL_SCAN_SUFFIXES}
-      skillScanDirectories={skillScanDirectories}
-      skillScanDirInput={skillScanDirInput}
+      distributionTargets={settingsTargets}
+      distributionTargetDrafts={distributionTargetDrafts}
+      distributionTargetEditingIds={distributionTargetEditingIds}
+      newDistributionTargetDraft={newDistributionTargetDraft}
+      distributionTargetSavingId={distributionTargetSavingId}
       onStorageDirDraftChange={(value) => {
         setStorageDirDraft(value);
         setDirty("data", true);
@@ -2602,10 +3519,13 @@ export function WorkbenchApp() {
       onSaveStorageDirectory={() => void handleSaveStorageDirectory()}
       onUseDefaultStorageDirectory={() => void handleUseDefaultStorageDirectory()}
       onOpenStorageDirectoryInFinder={() => void handleOpenStorageDirectoryInFinder()}
-      onToggleSkillScanDirectory={handleToggleSkillScanDirectory}
-      onRemoveSkillScanDirectory={handleRemoveSkillScanDirectory}
-      onSkillScanDirInputChange={setSkillScanDirInput}
-      onAddSkillScanDirectory={handleAddSkillScanDirectory}
+      onDistributionTargetFieldChange={handleDistributionTargetFieldChange}
+      onStartDistributionTargetEdit={handleStartDistributionTargetEdit}
+      onCancelDistributionTargetEdit={handleCancelDistributionTargetEdit}
+      onSaveDistributionTarget={(targetId) => void handleSaveDistributionTarget(targetId)}
+      onDeleteDistributionTarget={(targetId) => void handleDeleteDistributionTarget(targetId)}
+      onNewDistributionTargetFieldChange={handleNewDistributionTargetFieldChange}
+      onCreateDistributionTarget={() => void handleCreateDistributionTarget()}
     />
   );
   const agentConnectionsPanel = (
@@ -2952,6 +3872,55 @@ export function WorkbenchApp() {
       mappingPreviewContent={mappingPreviewContent}
     />
   );
+  const linkConfirmDialog = (
+    <Dialog
+      open={linkConfirmPreview !== null}
+      onOpenChange={(open) => {
+        if (!open) {
+          settleLinkConfirm(false);
+        }
+      }}
+    >
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{l("确认覆盖链接", "Confirm Link Replacement")}</DialogTitle>
+          <DialogDescription>
+            {linkConfirmPreview
+              ? `${linkConfirmPreview.tool} / ${linkConfirmPreview.skillName}`
+              : ""}
+          </DialogDescription>
+        </DialogHeader>
+        {linkConfirmPreview ? (
+          <div className="space-y-3">
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {linkConfirmPreview.message}
+            </div>
+            <div className="text-xs text-slate-500">{buildLinkPreviewSummary(linkConfirmPreview)}</div>
+            <div className="max-h-56 space-y-1 overflow-auto rounded-md border border-slate-200 bg-slate-50 p-2">
+              {linkConfirmPreview.entries.length > 0 ? (
+                linkConfirmPreview.entries.slice(0, 12).map((entry) => (
+                  <div key={`${entry.relativePath}:${entry.status}`} className="font-mono text-[11px] text-slate-700">
+                    {entry.relativePath} ({entry.status})
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-slate-500">{l("无可展示差异明细。", "No diff entries to display.")}</div>
+              )}
+              {linkConfirmPreview.entriesTruncated ? (
+                <div className="text-xs text-slate-500">{l("仅展示部分差异文件。", "Showing partial diff entries.")}</div>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => settleLinkConfirm(false)}>
+            {l("取消", "Cancel")}
+          </Button>
+          <Button onClick={() => settleLinkConfirm(true)}>{l("确认链接", "Confirm Link")}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 
   const center =
     activeModule === "prompts"
@@ -2966,7 +3935,7 @@ export function WorkbenchApp() {
         />
       )
       : activeModule === "skills"
-        ? <SkillsModule skillsCenter={skillsCenter} />
+        ? <SkillsModule skillsCenter={skillsCenter} managerMode={managerMode} setManagerMode={setManagerMode} />
       : activeModule === "agents"
           ? (
             <AgentsModule
@@ -3050,6 +4019,7 @@ export function WorkbenchApp() {
         detail={detail}
       />
 
+      {linkConfirmDialog}
       {modelTestOutputSheetView}
     </>
   );
