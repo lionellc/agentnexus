@@ -94,7 +94,7 @@ jobs:
           cargo_path = pathlib.Path("src-tauri/Cargo.toml")
           cargo_text = cargo_path.read_text(encoding="utf-8")
           cargo_text_updated = re.sub(
-              r'(?m)^version\\s*=\\s*".*"$',
+              r'(?m)^version\s*=\s*".*"$',
               f'version = "{version}"',
               cargo_text,
               count=1,
