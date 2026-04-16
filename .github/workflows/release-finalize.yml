@@ -102,6 +102,7 @@ jobs:
           gh release download "$RELEASE_TAG" -p "notarization-state.json" -D finalize-artifacts
           gh release download "$RELEASE_TAG" -p "app-notary.zip" -D finalize-artifacts
           gh release download "$RELEASE_TAG" -p "*.dmg" -D finalize-artifacts
+          gh release download "$RELEASE_TAG" -p "release-notes-final.md" -D finalize-artifacts
 
       - name: Load notarization state
         run: |
@@ -218,12 +219,11 @@ jobs:
           release_state_clear_error "$STATE_FILE"
           release_state_validate "$STATE_FILE"
 
-          {
-            echo "# ${RELEASE_TAG}"
-            echo
-            echo "- Notarization completed for app and dmg."
-            echo "- Release promoted from [NOTARIZING] prerelease to stable release."
-          } > finalize-artifacts/release-notes-final.md
+          FINAL_NOTES_FILE="finalize-artifacts/release-notes-final.md"
+          if [ ! -s "$FINAL_NOTES_FILE" ]; then
+            echo "Missing final release notes asset: $FINAL_NOTES_FILE"
+            exit 1
+          fi
 
           gh release upload "$RELEASE_TAG" \
             finalize-artifacts/agentnexus.zip \
@@ -233,7 +233,7 @@ jobs:
           gh release edit "$RELEASE_TAG" \
             --title "$RELEASE_TAG" \
             --prerelease=false \
-            --notes-file finalize-artifacts/release-notes-final.md
+            --notes-file "$FINAL_NOTES_FILE"
 
       - name: Wait for next finalize cycle
         if: env.BOTH_ACCEPTED != 'true'
