@@ -61,6 +61,52 @@ jobs:
           echo "RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Resolved release: tag=${TAG}, version=${VERSION}"
 
+      - name: Apply release version to build manifests
+        env:
+          VERSION: ${{ env.RELEASE_VERSION }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+          import sys
+
+          version = os.environ["VERSION"]
+
+          tauri_conf_path = pathlib.Path("src-tauri/tauri.conf.json")
+          tauri_conf = json.loads(tauri_conf_path.read_text(encoding="utf-8"))
+          tauri_conf["version"] = version
+          tauri_conf_path.write_text(
+              json.dumps(tauri_conf, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          package_path = pathlib.Path("package.json")
+          package_json = json.loads(package_path.read_text(encoding="utf-8"))
+          package_json["version"] = version
+          package_path.write_text(
+              json.dumps(package_json, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          cargo_path = pathlib.Path("src-tauri/Cargo.toml")
+          cargo_text = cargo_path.read_text(encoding="utf-8")
+          cargo_text_updated = re.sub(
+              r'(?m)^version\\s*=\\s*".*"$',
+              f'version = "{version}"',
+              cargo_text,
+              count=1,
+          )
+          if cargo_text == cargo_text_updated:
+              sys.exit("failed to update version in src-tauri/Cargo.toml")
+          cargo_path.write_text(cargo_text_updated, encoding="utf-8")
+          PY
+
+          grep -n '^  "version":' package.json src-tauri/tauri.conf.json
+          grep -n '^version = ' src-tauri/Cargo.toml | head -n 1
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -249,7 +295,27 @@ jobs:
           echo "APP_SUBMISSION_ID=$APP_SUBMISSION_ID" >> "$GITHUB_ENV"
           echo "DMG_SUBMISSION_ID=$DMG_SUBMISSION_ID" >> "$GITHUB_ENV"
 
-      - name: Build latest.json and release notes
+      - name: Prepare final release notes asset
+        run: |
+          set -euo pipefail
+          TAG="${RELEASE_TAG}"
+          NOTES_SOURCE=".github/release-notes/${TAG}.md"
+          NOTES_TARGET="release-artifacts/release-notes-final.md"
+
+          if [ ! -f "$NOTES_SOURCE" ]; then
+            echo "Missing release notes file: $NOTES_SOURCE"
+            echo "Create and commit the file before tagging."
+            exit 1
+          fi
+
+          cp "$NOTES_SOURCE" "$NOTES_TARGET"
+
+          if [ ! -s "$NOTES_TARGET" ]; then
+            echo "Release notes file is empty: $NOTES_SOURCE"
+            exit 1
+          fi
+
+      - name: Build latest.json and prerelease notes
         run: |
           set -euo pipefail
           VERSION="${RELEASE_VERSION}"

@@ -2,8 +2,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createRoot, type Root } from "react-dom/client";
 import { act } from "react";
 
-const { toastMock, shellState, promptsState, skillsState, agentState, settingsState } = vi.hoisted(() => {
+const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, agentState, settingsState } = vi.hoisted(() => {
   const toastMock = vi.fn();
+  const pickDialogOpenMock = vi.fn(async () => "/picked/new-directory");
 
   const shellState = {
     activeModule: "settings" as const,
@@ -15,7 +16,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     mobileDetailOpen: false,
     promptViewMode: "table" as "list" | "gallery" | "table",
     skillDetailTab: "preview" as const,
-    settingsCategory: "general" as "general" | "data" | "agents" | "model" | "about",
+    settingsCategory: "general" as "general" | "data" | "model" | "about",
     searchHits: [] as Array<{ module: "agents"; id: string; title: string; subtitle?: string }>,
     setActiveModule: vi.fn(),
     setQuery: vi.fn(),
@@ -27,7 +28,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     setMobileDetailOpen: vi.fn(),
     setPromptViewMode: vi.fn(),
     setSkillDetailTab: vi.fn(),
-    setSettingsCategory: vi.fn((category: "general" | "data" | "agents" | "model" | "about") => {
+    setSettingsCategory: vi.fn((category: "general" | "data" | "model" | "about") => {
       shellState.settingsCategory = category;
     }),
     setSearchHits: vi.fn(),
@@ -234,7 +235,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     setDirty: vi.fn(),
   };
 
-  return { toastMock, shellState, promptsState, skillsState, agentState, settingsState };
+  return { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, agentState, settingsState };
 });
 
 vi.mock("../shared/stores", () => {
@@ -276,6 +277,10 @@ vi.mock("../shared/ui", async () => {
   };
 });
 
+vi.mock("@tauri-apps/plugin-dialog", () => ({
+  open: pickDialogOpenMock,
+}));
+
 import { WorkbenchApp } from "./WorkbenchApp";
 
 function findButton(text: string): HTMLButtonElement | undefined {
@@ -290,6 +295,13 @@ function findButtonByOptions(labels: string[]): HTMLButtonElement | undefined {
   ) as HTMLButtonElement | undefined;
 }
 
+function findButtonByTitle(options: string[]): HTMLButtonElement | undefined {
+  return Array.from(document.querySelectorAll("button")).find((button) => {
+    const title = button.getAttribute("title") ?? "";
+    return options.includes(title.trim());
+  }) as HTMLButtonElement | undefined;
+}
+
 describe("WorkbenchApp settings interactions", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -300,11 +312,14 @@ describe("WorkbenchApp settings interactions", () => {
     root = createRoot(container);
 
     vi.clearAllMocks();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    pickDialogOpenMock.mockResolvedValue("/picked/new-directory");
     shellState.activeModule = "settings";
     shellState.settingsCategory = "general";
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     act(() => {
       root.unmount();
     });
@@ -319,13 +334,13 @@ describe("WorkbenchApp settings interactions", () => {
     expect(container.textContent).toContain("通用设置");
   });
 
-  it("切到数据设置后可见存储位置和 Skills 配置", async () => {
+  it("切到基础设置后可见存储位置和 skills 目录配置", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     await act(async () => {
-      findButton("数据设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("基础设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     await act(async () => {
@@ -333,16 +348,16 @@ describe("WorkbenchApp settings interactions", () => {
     });
 
     expect(container.textContent).toContain("存储位置");
-    expect(container.textContent).toContain("Skills 配置");
+    expect(container.textContent).toContain("Skills 目录配置");
   });
 
-  it("数据设置页可保存已有分发目标目录", async () => {
+  it("基础设置页可保存已有分发目录", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     await act(async () => {
-      findButton("数据设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("基础设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     await act(async () => {
@@ -377,47 +392,150 @@ describe("WorkbenchApp settings interactions", () => {
     });
   });
 
-  it("数据设置页可删除分发目标目录", async () => {
+  it("基础设置页可新增分发目录并支持选择已有目录", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     await act(async () => {
-      findButton("数据设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("基础设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    const deleteTargetButton = findButtonByOptions(["删除", "Delete"]);
+    const addDirectoryButton = findButtonByOptions(["新增目录", "Add Directory"]);
+    expect(addDirectoryButton).toBeTruthy();
+
+    await act(async () => {
+      addDirectoryButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    const finderPickButton = findButtonByOptions(["从 Finder 选择文件夹", "Choose Folder in Finder"]);
+    expect(finderPickButton).toBeTruthy();
+
+    await act(async () => {
+      finderPickButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(pickDialogOpenMock).toHaveBeenCalled();
+
+    const saveButton = findButtonByOptions(["保存", "Save"]);
+    expect(saveButton).toBeTruthy();
+
+    await act(async () => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(settingsState.upsertTarget).toHaveBeenCalledWith({
+      workspaceId: "w1",
+      platform: ".codex",
+      targetPath: "/picked/new-directory",
+      skillsPath: "/picked/new-directory/skills",
+      installMode: "symlink",
+    });
+  });
+
+  it("基础设置页可删除分发目录", async () => {
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    await act(async () => {
+      findButton("基础设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    const deleteTargetButton = findButtonByTitle(["删除目录", "Delete directory"]);
     expect(deleteTargetButton).toBeTruthy();
 
     await act(async () => {
       deleteTargetButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
+    expect(window.confirm).toHaveBeenCalled();
     expect(settingsState.deleteTarget).toHaveBeenCalledWith({
       workspaceId: "w1",
       id: "t1",
     });
   });
 
-  it("切到 Agents 后可见 Agent 列表与保存 Agent 配置按钮", async () => {
+  it("基础设置页可见 Agents 配置模块", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     await act(async () => {
-      findButton("Agents")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("基础设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    expect(container.textContent).toContain("Agent 列表");
-    expect(container.textContent).toContain("保存 Agent 配置");
+    expect(container.textContent).toContain("Agents 配置");
+    expect(container.textContent).toContain("新增 Agent");
+  });
+
+  it("基础设置页 Agents 配置支持选择目录并保存", async () => {
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    await act(async () => {
+      findButton("基础设置")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    const editButtons = Array.from(document.querySelectorAll("button")).filter((button) =>
+      ["编辑", "Edit"].includes(button.textContent?.trim() ?? ""),
+    ) as HTMLButtonElement[];
+    expect(editButtons.length).toBeGreaterThan(1);
+    const editAgentButton = editButtons[1];
+    expect(editAgentButton).toBeTruthy();
+
+    await act(async () => {
+      editAgentButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const chooseFolderButton = findButtonByOptions(["选择", "Choose"]);
+    expect(chooseFolderButton).toBeTruthy();
+
+    await act(async () => {
+      chooseFolderButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(pickDialogOpenMock).toHaveBeenCalled();
+
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    const saveAgentSettingsButton = findButtonByOptions(["保存", "Save"]);
+    expect(saveAgentSettingsButton).toBeTruthy();
+
+    await act(async () => {
+      saveAgentSettingsButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(settingsState.upsertConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "w1",
+        platform: "codex",
+        rootDir: "/picked/new-directory",
+      }),
+    );
   });
 
   it("切到关于后可见应用版本", async () => {

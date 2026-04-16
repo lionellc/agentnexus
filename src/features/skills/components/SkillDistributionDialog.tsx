@@ -1,6 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../shared/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  FormDescription,
+  FormField,
+  FormFieldset,
+  FormLegend,
+  Tag,
+  type TagProps,
+} from "../../../shared/ui";
 
 type SkillDistributionTarget = {
   id: string;
@@ -33,14 +47,14 @@ export type SkillDistributionDialogProps = {
 
 type Step = "select" | "preview";
 
-function kindBadgeClass(kind: SkillDistributionPreviewItem["kind"]): string {
+function kindTagTone(kind: SkillDistributionPreviewItem["kind"]): NonNullable<TagProps["tone"]> {
   if (kind === "safe") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700/60 dark:bg-emerald-500/20 dark:text-emerald-200";
+    return "success";
   }
   if (kind === "conflict") {
-    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700/60 dark:bg-amber-500/20 dark:text-amber-200";
+    return "warning";
   }
-  return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-700/60 dark:bg-rose-500/20 dark:text-rose-200";
+  return "danger";
 }
 
 function kindLabel(kind: SkillDistributionPreviewItem["kind"], l: (zh: string, en: string) => string): string {
@@ -111,31 +125,35 @@ export function SkillDistributionDialog({
         </DialogHeader>
 
         {step === "select" ? (
-          <div className="space-y-3 text-sm">
+          <FormFieldset className="space-y-3 text-sm">
+            <FormLegend className="text-xs text-slate-500">
+              {l("目标目录", "Target Directories")}
+            </FormLegend>
             <div className="grid gap-2">
               {targets.map((target) => {
                 const checked = selectedSet.has(target.id);
                 return (
-                  <label
-                    key={target.id}
-                    className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={(event) => toggleTarget(target.id, event.currentTarget.checked)}
-                    />
-                    <span>{target.label}</span>
-                  </label>
+                  <FormField key={target.id} className="space-y-0">
+                    <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => toggleTarget(target.id, event.currentTarget.checked)}
+                      />
+                      <span>{target.label}</span>
+                    </label>
+                  </FormField>
                 );
               })}
             </div>
             {!hasSelection ? (
-              <div className="text-xs text-amber-600">
-                {l("请至少选择一个目标目录后继续。", "Select at least one target directory to continue.")}
-              </div>
+              <FormField>
+                <FormDescription className="text-amber-600">
+                  {l("请至少选择一个目标目录后继续。", "Select at least one target directory to continue.")}
+                </FormDescription>
+              </FormField>
             ) : null}
-          </div>
+          </FormFieldset>
         ) : (
           <div className="space-y-3 text-sm">
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
@@ -154,9 +172,9 @@ export function SkillDistributionDialog({
                   <div key={item.id} className="rounded-md border border-slate-200 px-3 py-2">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm text-slate-900">{item.label}</span>
-                      <span className={`rounded border px-2 py-0.5 text-xs ${kindBadgeClass(item.kind)}`}>
+                      <Tag tone={kindTagTone(item.kind)}>
                         {kindLabel(item.kind, l)}
-                      </span>
+                      </Tag>
                     </div>
                     {item.message ? <div className="mt-1 text-xs text-slate-600">{item.message}</div> : null}
                   </div>

@@ -13,6 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Tag,
 } from "../../../shared/ui";
 import type { SkillsManagerDiffEntry, SkillsManagerDiffStatus } from "../../../shared/types";
 
@@ -181,9 +182,9 @@ export function SkillsConfigPanel({
                   <summary className="list-none cursor-pointer px-3 py-2 text-sm font-medium text-slate-800 marker:content-none [&::-webkit-details-marker]:hidden">
                     <div className="flex items-center gap-2">
                       <span className="min-w-0 truncate">{group.label}</span>
-                      <span className="whitespace-nowrap rounded-sm bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-200">
+                      <Tag tone="neutral" className="whitespace-nowrap rounded-sm">
                         {group.total} {l("项", "items")} · {group.pendingCount} {l("待处理", "pending")}
-                      </span>
+                      </Tag>
                       <ChevronRight
                         aria-hidden="true"
                         className="ml-auto h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-90"
@@ -196,14 +197,14 @@ export function SkillsConfigPanel({
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-slate-800">{item.name}</span>
                           {item.isSymlink ? (
-                            <span className="rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] text-indigo-700 dark:border-indigo-500/60 dark:bg-indigo-500/15 dark:text-indigo-200">
+                            <Tag tone="info" size="sm">
                               {l("软链", "Symlink")}
-                            </span>
+                            </Tag>
                           ) : null}
                           {item.conflict ? (
-                            <span className="rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] text-amber-700 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-200">
+                            <Tag tone="warning" size="sm">
                               {l("冲突", "Conflict")}
-                            </span>
+                            </Tag>
                           ) : null}
                         </div>
                         <div className="mt-1 truncate text-slate-500" title={item.localPath}>

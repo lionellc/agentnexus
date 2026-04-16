@@ -7,7 +7,6 @@ type AgentsModuleProps = {
   agentVersionDialog: ReactElement;
   agentRuleEditorDialog: ReactElement;
   agentDistributionDialog: ReactElement;
-  agentMappingPreviewDialog: ReactElement;
 };
 
 export function AgentsModule({
@@ -15,14 +14,12 @@ export function AgentsModule({
   agentVersionDialog,
   agentRuleEditorDialog,
   agentDistributionDialog,
-  agentMappingPreviewDialog,
 }: AgentsModuleProps) {
   const { centerContent, dialogs } = useAgentsModuleController({
     agentsCenter,
     agentVersionDialog,
     agentRuleEditorDialog,
     agentDistributionDialog,
-    agentMappingPreviewDialog,
   });
 
   return (

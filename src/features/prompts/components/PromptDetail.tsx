@@ -195,7 +195,7 @@ export function PromptDetail({
                     setPromptTranslationStage("idle");
                   }
                 }}
-                onTranslate={() => void runPromptTranslation()}
+                onTranslate={() => runPromptTranslation()}
               />
             </div>
 

@@ -27,9 +27,9 @@ function createProps(overrides: Partial<PanelProps> = {}): PanelProps {
     argsTemplateText: "[]",
     onArgsTemplateTextChange: vi.fn(),
     onSaveProfile: vi.fn(),
-    newProfileKey: "",
-    onNewProfileKeyChange: vi.fn(),
-    onAddProfile: vi.fn(),
+    newProfileName: "",
+    onNewProfileNameChange: vi.fn(),
+    onAddProfile: vi.fn(async () => true),
     translationScenarioDefaultProfileKey: "codex",
     onOpenTranslationScenarioSettings: vi.fn(),
     onOpenTranslationScenarioTest: vi.fn(),
@@ -55,32 +55,30 @@ describe("ModelWorkbenchPanel", () => {
     container.remove();
   });
 
-  it("空列表渲染并触发新增与保存回调", () => {
+  it("空列表渲染并触发新增回调", async () => {
     const props = createProps({ profiles: [] });
 
     act(() => {
       root.render(<ModelWorkbenchPanel {...props} />);
     });
 
-    expect(container.textContent).toContain("AI 模型工作台（本地 Agent）");
-    expect(container.textContent).toContain("Agent 列表");
-
-    const newProfileInput = container.querySelector('input[placeholder="新 profile key"]') as HTMLInputElement;
-    expect(newProfileInput).toBeTruthy();
-
-    const addButton = findButton(container, "新增自定义 Agent");
+    expect(container.textContent).toContain("AI 模型配置");
+    const addButton = findButton(container, "新增模型");
     expect(addButton).toBeTruthy();
     act(() => {
       addButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    expect(props.onAddProfile).toHaveBeenCalledTimes(1);
 
-    const saveButton = findButton(container, "保存 Profile");
+    const newProfileInput = document.querySelector('input[placeholder="新模型名称"]') as HTMLInputElement;
+    expect(newProfileInput).toBeTruthy();
+
+    const saveButton = findButton(document.body, "保存");
     expect(saveButton).toBeTruthy();
-    act(() => {
+    await act(async () => {
       saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    expect(props.onSaveProfile).toHaveBeenCalledTimes(1);
+    expect(props.onAddProfile).toHaveBeenCalledTimes(1);
+    expect(props.onAddProfile).toHaveBeenCalledWith("localAgent");
   });
 
   it("有数据渲染并触发选择 profile、删除、场景设置和测试运行", () => {
@@ -92,6 +90,7 @@ describe("ModelWorkbenchPanel", () => {
         argsTemplate: [],
         isBuiltin: true,
         enabled: true,
+        sourceType: "localAgent",
       },
       {
         profileKey: "custom",
@@ -100,27 +99,57 @@ describe("ModelWorkbenchPanel", () => {
         argsTemplate: ["--json"],
         isBuiltin: false,
         enabled: true,
+        sourceType: "localAgent",
+      },
+      {
+        profileKey: "remote",
+        name: "Remote",
+        executable: "remote-api",
+        argsTemplate: [],
+        isBuiltin: false,
+        enabled: true,
+        sourceType: "api",
       },
     ];
-    const props = createProps({ profiles, selectedProfileKey: "builtin" });
+    const props = createProps({
+      profiles,
+      selectedProfileKey: "builtin",
+      translationScenarioDefaultProfileKey: "builtin",
+    });
 
     act(() => {
       root.render(<ModelWorkbenchPanel {...props} />);
     });
 
-    expect(container.textContent).toContain("builtin");
-    expect(container.textContent).toContain("custom");
+    expect(container.textContent).toContain("Builtin");
+    expect(container.textContent).toContain("Custom");
+    expect(container.textContent).toContain("本地");
+    expect(container.textContent).toContain("API");
+    expect(container.textContent).toContain("默认模型：");
+    expect(container.textContent).toContain("Builtin (本地)");
 
-    const profileSelectButton = Array.from(container.querySelectorAll("button")).find((button) =>
-      button.textContent?.includes("custom"),
-    ) as HTMLButtonElement | undefined;
+    const customRow = container.querySelector('[data-testid="model-profile-row-custom"]');
+    expect(customRow).toBeTruthy();
+
+    const profileSelectButton = container.querySelector(
+      '[data-testid="model-profile-edit-custom"]',
+    ) as HTMLButtonElement | null;
     expect(profileSelectButton).toBeTruthy();
     act(() => {
       profileSelectButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(props.onSelectProfile).toHaveBeenCalledWith("custom");
 
-    const deleteButton = findButton(container, "删除");
+    const saveButton = findButton(document.body, "保存");
+    expect(saveButton).toBeTruthy();
+    act(() => {
+      saveButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(props.onSaveProfile).toHaveBeenCalledTimes(1);
+
+    const deleteButton = container.querySelector(
+      '[data-testid="model-profile-delete-custom"]',
+    ) as HTMLButtonElement | null;
     expect(deleteButton).toBeTruthy();
     act(() => {
       deleteButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));

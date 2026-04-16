@@ -1,7 +1,7 @@
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 
 import { SectionTitle } from "../../common/components/SectionTitle";
-import { Button, Card, CardContent, Input, Tabs, TabsList, TabsTrigger } from "../../../shared/ui";
+import { Button, Card, CardContent, Input, Select, Tabs, TabsList, TabsTrigger } from "../../../shared/ui";
 import type { PromptBrowseScope } from "../utils/promptBrowseContext";
 import { PromptResults, type PromptResultsProps, type PromptViewMode } from "./PromptResults";
 
@@ -75,21 +75,17 @@ export function PromptCenter({
               className="w-56"
             />
             {promptBrowseScope === "all" ? (
-              <div className="relative">
-                <select
-                  aria-label={l("All 视角分类筛选", "All scope category filter")}
-                  className={`${selectBaseClass} h-10 w-44`}
-                  value={promptAllCategoryFilter}
-                  onChange={(event) => setPromptAllCategoryFilter(event.currentTarget.value)}
-                >
-                  {promptCategoryOptions.map((item) => (
-                    <option key={item.key} value={item.key}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              </div>
+              <Select
+                aria-label={l("All 视角分类筛选", "All scope category filter")}
+                className="w-44"
+                buttonClassName={selectBaseClass}
+                value={promptAllCategoryFilter}
+                onChange={setPromptAllCategoryFilter}
+                options={promptCategoryOptions.map((item) => ({
+                  value: item.key,
+                  label: item.label,
+                }))}
+              />
             ) : null}
             <Button variant="outline" onClick={() => setCreatePromptOpen(true)}>
               {l("新建 Prompt", "New Prompt")}
@@ -102,8 +98,12 @@ export function PromptCenter({
         }
       />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <Tabs value={promptBrowseScope} onValueChange={(value) => handleChangePromptBrowseScope(value as PromptBrowseScope)}>
+      <div className="flex items-center justify-between gap-3 overflow-x-auto">
+        <Tabs
+          className="w-auto shrink-0"
+          value={promptBrowseScope}
+          onValueChange={(value) => handleChangePromptBrowseScope(value as PromptBrowseScope)}
+        >
           <TabsList>
             <TabsTrigger value="all" aria-label={l("Prompts 视角 All", "Prompts scope all")}>
               {l("All", "All")}
@@ -117,7 +117,11 @@ export function PromptCenter({
           </TabsList>
         </Tabs>
 
-        <Tabs value={promptViewMode} onValueChange={(value) => setPromptViewMode(value as PromptViewMode)}>
+        <Tabs
+          className="w-auto shrink-0"
+          value={promptViewMode}
+          onValueChange={(value) => setPromptViewMode(value as PromptViewMode)}
+        >
           <TabsList>
             <TabsTrigger value="list">{l("列表", "List")}</TabsTrigger>
             <TabsTrigger value="gallery">{l("卡片", "Cards")}</TabsTrigger>

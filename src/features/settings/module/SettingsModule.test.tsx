@@ -28,8 +28,8 @@ describe("SettingsModule", () => {
           l={(zh) => zh}
           settingCategories={[
             { key: "general", label: "通用设置" },
-            { key: "data", label: "数据设置" },
-            { key: "agents", label: "Agents" },
+            { key: "data", label: "基础设置" },
+            { key: "model", label: "AI 模型" },
             { key: "about", label: "关于" },
           ]}
           settingsCategory="general"
@@ -37,7 +37,6 @@ describe("SettingsModule", () => {
           onChangeSettingsCategory={vi.fn()}
           generalPanel={<div>general-panel</div>}
           dataPanel={<div>data-panel</div>}
-          agentConnectionsPanel={<div>agents-panel</div>}
           modelPanel={<div>model-panel</div>}
           aboutPanel={<div>about-panel</div>}
         />,
@@ -46,12 +45,11 @@ describe("SettingsModule", () => {
 
     expect(container.textContent).toContain("general-panel");
     expect(container.textContent).not.toContain("data-panel");
-    expect(container.textContent).not.toContain("agents-panel");
     expect(container.textContent).not.toContain("model-panel");
     expect(container.textContent).not.toContain("about-panel");
   });
 
-  it("根据 settingsCategory 渲染 data / agents / model panel", () => {
+  it("根据 settingsCategory 渲染 data / model panel", () => {
     const onChangeSettingsCategory = vi.fn();
 
     act(() => {
@@ -60,8 +58,7 @@ describe("SettingsModule", () => {
           l={(zh) => zh}
           settingCategories={[
             { key: "general", label: "通用设置" },
-            { key: "data", label: "数据设置" },
-            { key: "agents", label: "Agents" },
+            { key: "data", label: "基础设置" },
             { key: "model", label: "AI 模型" },
             { key: "about", label: "关于" },
           ]}
@@ -70,7 +67,6 @@ describe("SettingsModule", () => {
           onChangeSettingsCategory={onChangeSettingsCategory}
           generalPanel={<div>general-panel</div>}
           dataPanel={<div>data-panel</div>}
-          agentConnectionsPanel={<div>agents-panel</div>}
           modelPanel={<div>model-panel</div>}
           aboutPanel={<div>about-panel</div>}
         />,
@@ -85,33 +81,7 @@ describe("SettingsModule", () => {
           l={(zh) => zh}
           settingCategories={[
             { key: "general", label: "通用设置" },
-            { key: "data", label: "数据设置" },
-            { key: "agents", label: "Agents" },
-            { key: "model", label: "AI 模型" },
-            { key: "about", label: "关于" },
-          ]}
-          settingsCategory="agents"
-          settingsLoading={false}
-          onChangeSettingsCategory={onChangeSettingsCategory}
-          generalPanel={<div>general-panel</div>}
-          dataPanel={<div>data-panel</div>}
-          agentConnectionsPanel={<div>agents-panel</div>}
-          modelPanel={<div>model-panel</div>}
-          aboutPanel={<div>about-panel</div>}
-        />,
-      );
-    });
-
-    expect(container.textContent).toContain("agents-panel");
-
-    act(() => {
-      root.render(
-        <SettingsModule
-          l={(zh) => zh}
-          settingCategories={[
-            { key: "general", label: "通用设置" },
-            { key: "data", label: "数据设置" },
-            { key: "agents", label: "Agents" },
+            { key: "data", label: "基础设置" },
             { key: "model", label: "AI 模型" },
             { key: "about", label: "关于" },
           ]}
@@ -120,7 +90,6 @@ describe("SettingsModule", () => {
           onChangeSettingsCategory={onChangeSettingsCategory}
           generalPanel={<div>general-panel</div>}
           dataPanel={<div>data-panel</div>}
-          agentConnectionsPanel={<div>agents-panel</div>}
           modelPanel={<div>model-panel</div>}
           aboutPanel={<div>about-panel</div>}
         />,
@@ -137,8 +106,8 @@ describe("SettingsModule", () => {
           l={(zh) => zh}
           settingCategories={[
             { key: "general", label: "通用设置" },
-            { key: "data", label: "数据设置" },
-            { key: "agents", label: "Agents" },
+            { key: "data", label: "基础设置" },
+            { key: "model", label: "AI 模型" },
             { key: "about", label: "关于" },
           ]}
           settingsCategory="about"
@@ -146,7 +115,6 @@ describe("SettingsModule", () => {
           onChangeSettingsCategory={vi.fn()}
           generalPanel={<div>general-panel</div>}
           dataPanel={<div>data-panel</div>}
-          agentConnectionsPanel={<div>agents-panel</div>}
           modelPanel={<div>model-panel</div>}
           aboutPanel={<div>about-panel</div>}
         />,
@@ -156,7 +124,6 @@ describe("SettingsModule", () => {
     expect(container.textContent).toContain("about-panel");
     expect(container.textContent).not.toContain("general-panel");
     expect(container.textContent).not.toContain("data-panel");
-    expect(container.textContent).not.toContain("agents-panel");
     expect(container.textContent).not.toContain("model-panel");
   });
 });

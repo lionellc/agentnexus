@@ -18,7 +18,6 @@ export type SettingsModuleProps = {
   onChangeSettingsCategory: (category: SettingsCategory) => void;
   generalPanel: ReactElement;
   dataPanel: ReactElement;
-  agentConnectionsPanel: ReactElement;
   modelPanel: ReactElement;
   aboutPanel: ReactElement;
 };
@@ -31,7 +30,6 @@ export function SettingsModule({
   onChangeSettingsCategory,
   generalPanel,
   dataPanel,
-  agentConnectionsPanel,
   modelPanel,
   aboutPanel,
 }: SettingsModuleProps) {
@@ -40,13 +38,11 @@ export function SettingsModule({
       ? generalPanel
       : settingsCategory === "data"
         ? dataPanel
-        : settingsCategory === "agents"
-          ? agentConnectionsPanel
-          : settingsCategory === "model"
-            ? modelPanel
-            : settingsCategory === "about"
-              ? aboutPanel
-              : null;
+        : settingsCategory === "model"
+          ? modelPanel
+          : settingsCategory === "about"
+            ? aboutPanel
+            : null;
 
   const { centerContent } = useSettingsModuleController({
     centerContent: (

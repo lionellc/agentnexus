@@ -7,6 +7,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  FormField,
+  FormFieldset,
+  FormLabel,
   Input,
 } from "../../../shared/ui";
 
@@ -58,13 +61,13 @@ export function CreatePromptDialog({
             {isZh ? "创建并立即加入列表。" : "Create and add it to the list immediately."}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3">
-          <label className="block text-xs text-slate-500">
-            {isZh ? "名称" : "Name"}
+        <FormFieldset>
+          <FormField>
+            <FormLabel>{isZh ? "名称" : "Name"}</FormLabel>
             <Input value={name} onChange={(event) => onNameChange(event.currentTarget.value)} />
-          </label>
-          <div className="space-y-1">
-            <div className="text-xs text-slate-500">{isZh ? "内容（Markdown）" : "Content (Markdown)"}</div>
+          </FormField>
+          <FormField>
+            <FormLabel>{isZh ? "内容（Markdown）" : "Content (Markdown)"}</FormLabel>
             <MarkdownEditor
               value={content}
               onChange={onContentChange}
@@ -73,8 +76,8 @@ export function CreatePromptDialog({
               language={language}
               modeLabels={markdownModeLabels}
             />
-          </div>
-        </div>
+          </FormField>
+        </FormFieldset>
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>{isZh ? "取消" : "Cancel"}</Button>
           <Button disabled={createDisabled} onClick={onCreate}>{isZh ? "创建" : "Create"}</Button>

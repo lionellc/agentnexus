@@ -2,7 +2,7 @@ import { Copy, Pencil, Star, Trash2 } from "lucide-react";
 
 import { DataTable } from "../../common/components/DataTable";
 import { EmptyState } from "../../common/components/EmptyState";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "../../../shared/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, DeleteIconButton, Input } from "../../../shared/ui";
 import type { PromptAsset } from "../../../shared/types/prompts";
 import type { PromptBrowseScope } from "../utils/promptBrowseContext";
 
@@ -303,14 +303,13 @@ export function PromptResults({
                 {l("批量移动", "Batch Move")}
               </Button>
             </div>
-            <Button
+            <DeleteIconButton
               size="sm"
-              variant="destructive"
+              variant="outline"
+              label={l("批量删除", "Batch Delete")}
               disabled={promptSelectedIds.length === 0}
               onClick={() => void runPromptBatchAction("delete")}
-            >
-              {l("批量删除", "Batch Delete")}
-            </Button>
+            />
             <Button
               size="sm"
               variant="ghost"
