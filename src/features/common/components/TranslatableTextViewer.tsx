@@ -1,10 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Columns2, Eye, FileText, Pencil } from "lucide-react";
 
-import { Button } from "../../../shared/ui";
+import { Button, Select } from "../../../shared/ui";
 import { MarkdownEditor, MarkdownPreview } from "./MarkdownEditor";
 
 type SourceViewMode = "view" | "preview" | "split-preview" | "edit";
+
+function normalizeTargetLanguageKey(value: string): string {
+  return value.trim().toLowerCase();
+}
 
 export function TranslatableTextViewer({
   isZh,
@@ -27,7 +31,7 @@ export function TranslatableTextViewer({
   targetLanguageOptions: Array<{ value: string; label: string }>;
   translating: boolean;
   onTargetLanguageChange: (value: string) => void;
-  onTranslate: () => void;
+  onTranslate: () => void | Promise<void>;
   onSourceTextChange?: (value: string) => void;
   sourceEditPlaceholder?: string;
   defaultSourceViewMode?: SourceViewMode;
@@ -39,13 +43,30 @@ export function TranslatableTextViewer({
     sourceEditable
       ? defaultMode
       : (defaultMode === "edit" ? "view" : defaultMode);
+  const currentTargetLanguageKey = normalizeTargetLanguageKey(targetLanguage);
   const [sourceViewMode, setSourceViewMode] = useState<SourceViewMode>(effectiveDefaultSourceViewMode);
   const [showTranslatedPreview, setShowTranslatedPreview] = useState(false);
-  const hasTranslatedText = Boolean(translatedText?.trim());
-  const previewContent = showTranslatedPreview && hasTranslatedText
-    ? translatedText ?? ""
+  const [translatedByTarget, setTranslatedByTarget] = useState<Record<string, string>>(() => {
+    const initialText = translatedText?.trim() ?? "";
+    if (!currentTargetLanguageKey || !initialText) {
+      return {};
+    }
+    return { [currentTargetLanguageKey]: translatedText ?? "" };
+  });
+  const [translatingTargetLanguageKey, setTranslatingTargetLanguageKey] = useState<string | null>(null);
+  const [translateSubmitting, setTranslateSubmitting] = useState(false);
+  const currentTargetLanguageRef = useRef(currentTargetLanguageKey);
+  const currentTranslatedText = translatedByTarget[currentTargetLanguageKey] ?? "";
+  const hasCurrentTargetTranslatedText = Boolean(currentTranslatedText.trim());
+  const currentTargetTranslating = Boolean(
+    translatingTargetLanguageKey
+      && translatingTargetLanguageKey === currentTargetLanguageKey
+      && (translating || translateSubmitting),
+  );
+  const previewContent = showTranslatedPreview && hasCurrentTargetTranslatedText
+    ? currentTranslatedText
     : sourceText;
-  const previewTitle = showTranslatedPreview && hasTranslatedText
+  const previewTitle = showTranslatedPreview && hasCurrentTargetTranslatedText
     ? (isZh ? "译文" : "Translated")
     : (isZh ? "原文" : "Source");
 
@@ -54,14 +75,82 @@ export function TranslatableTextViewer({
   }, [effectiveDefaultSourceViewMode, sourceViewModeResetKey]);
 
   useEffect(() => {
-    if (!hasTranslatedText) {
+    if (!hasCurrentTargetTranslatedText) {
       setShowTranslatedPreview(false);
     }
-  }, [hasTranslatedText]);
+  }, [hasCurrentTargetTranslatedText]);
 
   useEffect(() => {
     setShowTranslatedPreview(false);
+    setTranslatingTargetLanguageKey(null);
+    setTranslateSubmitting(false);
+    if (!currentTargetLanguageKey || !translatedText?.trim()) {
+      setTranslatedByTarget({});
+      return;
+    }
+    setTranslatedByTarget({
+      [currentTargetLanguageKey]: translatedText,
+    });
   }, [sourceViewModeResetKey]);
+
+  useEffect(() => {
+    currentTargetLanguageRef.current = currentTargetLanguageKey;
+  }, [currentTargetLanguageKey]);
+
+  useEffect(() => {
+    const key = currentTargetLanguageRef.current;
+    if (!key) {
+      return;
+    }
+    const nextText = translatedText?.trim() ?? "";
+    setTranslatedByTarget((prev) => {
+      if (!nextText) {
+        if (!(key in prev)) {
+          return prev;
+        }
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      }
+      if (prev[key] === translatedText) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [key]: translatedText ?? "",
+      };
+    });
+  }, [translatedText]);
+
+  useEffect(() => {
+    if (!translating && !translateSubmitting) {
+      setTranslatingTargetLanguageKey(null);
+    }
+  }, [translating, translateSubmitting]);
+
+  async function handleTranslateClick() {
+    if (hasCurrentTargetTranslatedText) {
+      const confirmed = window.confirm(
+        isZh
+          ? "当前目标语言已有译文，是否重新翻译？"
+          : "A translation already exists for this target language. Retranslate?",
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setTranslatingTargetLanguageKey(currentTargetLanguageKey || null);
+    setTranslateSubmitting(true);
+    try {
+      await Promise.resolve(onTranslate());
+    } finally {
+      setTranslateSubmitting(false);
+      if (!translating) {
+        setTranslatingTargetLanguageKey(null);
+      }
+    }
+  }
 
   return (
     <div className="space-y-2 rounded-md border border-slate-200 bg-white p-3">
@@ -72,37 +161,35 @@ export function TranslatableTextViewer({
         <div className="text-[11px] font-medium text-slate-500">
           {isZh ? "翻译功能" : "Translation"}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <select
-            className="h-8 min-w-24 appearance-none rounded-lg border border-border bg-background px-2 text-xs text-foreground transition-colors hover:border-ring focus:outline-none"
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <Select
+            className="w-28 shrink-0"
+            buttonClassName="h-8 rounded-lg px-2 pr-7 text-xs"
             value={targetLanguage}
-            onChange={(event) => onTargetLanguageChange(event.currentTarget.value)}
-          >
-            {targetLanguageOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            onChange={onTargetLanguageChange}
+            options={targetLanguageOptions}
+          />
           <Button
             type="button"
             size="sm"
             variant="outline"
-            disabled={translating || !sourceText.trim()}
-            onClick={onTranslate}
+            disabled={currentTargetTranslating || !sourceText.trim()}
+            onClick={() => {
+              void handleTranslateClick();
+            }}
           >
-            {translating
+            {currentTargetTranslating
               ? (isZh ? "翻译中..." : "Translating...")
               : (isZh ? "翻译" : "Translate")}
           </Button>
           <Button
             type="button"
             size="sm"
-            variant={showTranslatedPreview && hasTranslatedText ? "default" : "outline"}
-            disabled={!hasTranslatedText}
+            variant={showTranslatedPreview && hasCurrentTargetTranslatedText ? "default" : "outline"}
+            disabled={!hasCurrentTargetTranslatedText}
             onClick={() => setShowTranslatedPreview((prev) => !prev)}
           >
-            {showTranslatedPreview && hasTranslatedText
+            {showTranslatedPreview && hasCurrentTargetTranslatedText
               ? (isZh ? "隐藏译文" : "Hide Translation")
               : (isZh ? "显示译文" : "Show Translation")}
           </Button>
@@ -113,7 +200,7 @@ export function TranslatableTextViewer({
           {previewTitle}
         </div>
         <div className="relative">
-          <div className="absolute right-3 top-0 z-10 inline-flex -translate-y-1/2 items-center gap-1 rounded-md border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur">
+          <div className="absolute right-0 top-0 z-10 inline-flex items-center gap-1 rounded-bl-md rounded-tr-md border border-slate-200 bg-white/90 p-1 shadow-sm backdrop-blur opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 dark:border-slate-700 dark:bg-slate-900/85 dark:shadow-black/50">
               <Button
                 type="button"
                 size="icon"
@@ -191,7 +278,7 @@ export function TranslatableTextViewer({
                 maxHeight={420}
                 language={isZh ? "zh" : "en"}
                 emptyText={
-                  showTranslatedPreview && hasTranslatedText
+                  showTranslatedPreview && hasCurrentTargetTranslatedText
                     ? (isZh ? "暂无译文内容" : "No translated text")
                     : (isZh ? "暂无原文内容" : "No source text")
                 }
@@ -227,7 +314,7 @@ export function TranslatableTextViewer({
                   maxHeight={420}
                   language={isZh ? "zh" : "en"}
                   emptyText={
-                    showTranslatedPreview && hasTranslatedText
+                    showTranslatedPreview && hasCurrentTargetTranslatedText
                       ? (isZh ? "暂无译文内容" : "No translated text")
                       : (isZh ? "暂无原文内容" : "No source text")
                   }

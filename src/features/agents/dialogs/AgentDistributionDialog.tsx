@@ -1,4 +1,16 @@
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../shared/ui";
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  FormField,
+  FormFieldset,
+  FormLabel,
+  Select,
+} from "../../../shared/ui";
 
 type AgentAssetItem = {
   id: string;
@@ -51,21 +63,23 @@ export function AgentDistributionDialog({
           <DialogDescription>{l("确认规则资产与目标 Agent 后立即应用。", "Apply immediately after confirming rule asset and target agents.")}</DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">
-          <label className="block text-xs text-slate-500">
-            {l("规则资产", "Rule Asset")}
-            <select
-              className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+          <FormFieldset>
+            <FormField>
+              <FormLabel>{l("规则资产", "Rule Asset")}</FormLabel>
+            <Select
               value={selectedAssetId ?? ""}
-              onChange={(event) => setSelectedAssetId(event.currentTarget.value || null)}
-            >
-              <option value="">{l("请选择规则资产", "Select a rule asset")}</option>
-              {agentAssets.map((asset) => (
-                <option key={asset.id} value={asset.id}>
-                  {asset.name} · v{asset.latestVersion ?? "-"}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={(nextValue) => setSelectedAssetId(nextValue || null)}
+              options={[
+                { value: "", label: l("请选择规则资产", "Select a rule asset") },
+                ...agentAssets.map((asset) => ({
+                  value: asset.id,
+                  label: `${asset.name} · v${asset.latestVersion ?? "-"}`,
+                })),
+              ]}
+              buttonClassName="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            />
+            </FormField>
+          </FormFieldset>
           <div className="grid gap-2">
             {agentConnections.length === 0 ? (
               <div className="rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">{l("暂无 Agent 连接，请先在设置中配置。", "No agent connections. Configure in Settings first.")}</div>
@@ -114,4 +128,3 @@ export function AgentDistributionDialog({
     </Dialog>
   );
 }
-

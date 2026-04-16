@@ -1,19 +1,18 @@
 import { type ReactNode } from "react";
 
-import { ModelWorkbenchPanel, type LocalAgentProfileItem } from "./ModelWorkbenchPanel";
+import { ModelWorkbenchPanel, type LocalAgentProfileItem, type ModelProfileSourceType } from "./ModelWorkbenchPanel";
 import {
   Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Dialog,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
+  FormField,
+  FormFieldset,
+  FormLabel,
+  Select,
   Textarea,
 } from "../../../shared/ui";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
@@ -44,9 +43,9 @@ export type ModelSettingsPanelProps = {
   modelArgsTemplateText: string;
   onModelArgsTemplateTextChange: (value: string) => void;
   onSaveModelProfile: () => void;
-  newModelProfileKey: string;
-  onNewModelProfileKeyChange: (value: string) => void;
-  onAddModelProfile: () => void;
+  newModelProfileName: string;
+  onNewModelProfileNameChange: (value: string) => void;
+  onAddModelProfile: (sourceType: ModelProfileSourceType) => Promise<boolean> | boolean;
   translationDefaultProfileKey: string;
   modelTestRunning: boolean;
   modelScenarioSettingsOpen: boolean;
@@ -86,8 +85,8 @@ export function ModelSettingsPanel({
   modelArgsTemplateText,
   onModelArgsTemplateTextChange,
   onSaveModelProfile,
-  newModelProfileKey,
-  onNewModelProfileKeyChange,
+  newModelProfileName,
+  onNewModelProfileNameChange,
   onAddModelProfile,
   translationDefaultProfileKey,
   modelTestRunning,
@@ -111,6 +110,25 @@ export function ModelSettingsPanel({
   onRunModelTranslationTest,
   onOpenModelTestOutputSheet,
 }: ModelSettingsPanelProps) {
+  const defaultAgentOptions = localAgentProfiles.map((item) => ({
+    value: item.profileKey,
+    label: item.name || item.profileKey,
+  }));
+  const hasCurrentDefaultAgent =
+    translationDefaultProfileKey.trim().length > 0 &&
+    defaultAgentOptions.some((option) => option.value === translationDefaultProfileKey);
+  const currentDefaultAgentOption = hasCurrentDefaultAgent
+    ? []
+    : translationDefaultProfileKey.trim()
+      ? [
+          {
+            value: translationDefaultProfileKey,
+            label: translationDefaultProfileKey,
+          },
+        ]
+      : [];
+  const allDefaultAgentOptions = [...currentDefaultAgentOption, ...defaultAgentOptions];
+
   let resultFeedback: ReactNode = null;
   if (modelTestResult) {
     resultFeedback = (
@@ -128,20 +146,6 @@ export function ModelSettingsPanel({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>{l("场景默认模型", "Scenario Defaults")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm text-slate-600">
-          <div>
-            {l(
-              "当前仅启用“翻译 / 双语处理”场景。选择默认 Profile 后，Prompt 翻译会按该设置执行。",
-              "Only the \"Translation / Bilingual\" scenario is enabled in V1. Prompt translation uses the selected default profile.",
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
       <ModelWorkbenchPanel
         isZh={isZh}
         loading={modelLoading || modelSaving}
@@ -152,6 +156,7 @@ export function ModelSettingsPanel({
           argsTemplate: item.argsTemplate,
           isBuiltin: item.isBuiltin,
           enabled: item.enabled,
+          sourceType: "localAgent",
         }))}
         selectedProfileKey={selectedModelProfileKey}
         onSelectProfile={onSelectModelProfileKey}
@@ -163,8 +168,8 @@ export function ModelSettingsPanel({
         argsTemplateText={modelArgsTemplateText}
         onArgsTemplateTextChange={onModelArgsTemplateTextChange}
         onSaveProfile={onSaveModelProfile}
-        newProfileKey={newModelProfileKey}
-        onNewProfileKeyChange={onNewModelProfileKeyChange}
+        newProfileName={newModelProfileName}
+        onNewProfileNameChange={onNewModelProfileNameChange}
         onAddProfile={onAddModelProfile}
         translationScenarioDefaultProfileKey={translationDefaultProfileKey}
         onOpenTranslationScenarioSettings={onOpenModelScenarioSettings}
@@ -178,28 +183,30 @@ export function ModelSettingsPanel({
             <DialogTitle>{l("翻译场景设置", "Translation Scenario Settings")}</DialogTitle>
             <DialogDescription>
               {l(
-                "配置翻译场景的默认 Profile 和 Prompt 模板。",
-                "Configure default profile and prompt template for translation scenario.",
+                "配置翻译场景的默认 Agent 和 Prompt 模板。",
+                "Configure default agent and prompt template for translation scenario.",
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3">
-            <label className="block text-xs text-slate-500">
-              {l("默认 Profile", "Default Profile")}
-              <Input
+          <FormFieldset>
+            <FormField>
+              <FormLabel>{l("Agent", "Agent")}</FormLabel>
+              <Select
                 value={translationDefaultProfileKey}
-                onChange={(event) => onTranslationDefaultProfileKeyChange(event.currentTarget.value)}
+                onChange={onTranslationDefaultProfileKeyChange}
+                options={allDefaultAgentOptions}
+                placeholder={l("请选择 Agent", "Select agent")}
               />
-            </label>
-            <label className="block text-xs text-slate-500">
-              {l("模板配置", "Prompt Template")}
+            </FormField>
+            <FormField>
+              <FormLabel>{l("模板配置", "Prompt Template")}</FormLabel>
               <Textarea
                 value={translationPromptTemplate}
                 onChange={(event) => onTranslationPromptTemplateChange(event.currentTarget.value)}
                 rows={12}
               />
-            </label>
-          </div>
+            </FormField>
+          </FormFieldset>
           <DialogFooter>
             <Button variant="outline" onClick={onRestoreDefaultTranslationConfig}>
               {l("恢复默认配置", "Restore Defaults")}
@@ -223,15 +230,17 @@ export function ModelSettingsPanel({
             </DialogDescription>
           </DialogHeader>
           <div className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
-            <label className="block text-xs text-slate-500">
-              {l("测试原文", "Source Text")}
+            <FormFieldset>
+              <FormField>
+                <FormLabel>{l("测试原文", "Source Text")}</FormLabel>
               <Textarea
                 value={modelTestSourceText}
                 onChange={(event) => onModelTestSourceTextChange(event.currentTarget.value)}
                 rows={6}
                 placeholder={l("输入测试原文", "Input source text")}
               />
-            </label>
+              </FormField>
+            </FormFieldset>
             <TranslatableTextViewer
               isZh={isZh}
               sourceText={modelTestSourceText}

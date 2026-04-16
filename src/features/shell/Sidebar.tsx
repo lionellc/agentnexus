@@ -1,6 +1,6 @@
 import { Bot, LayoutGrid, Settings, Sparkles, Wrench } from "lucide-react";
 
-import { Button, Badge } from "../../shared/ui";
+import { Button, Tag } from "../../shared/ui";
 import type { AppLanguage, MainModule } from "./types";
 
 type SidebarProps = {
@@ -64,7 +64,7 @@ export function Sidebar({
                 <Icon className="h-4 w-4" />
                 {item.label}
               </span>
-              {count !== undefined ? <Badge variant={active ? "secondary" : "outline"}>{count}</Badge> : null}
+              {count !== undefined ? <Tag tone={active ? "info" : "neutral"}>{count}</Tag> : null}
             </Button>
           );
         })}

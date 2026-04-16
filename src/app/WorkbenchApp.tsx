@@ -17,6 +17,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { isTauri } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { appDataDir } from "@tauri-apps/api/path";
+import { open as pickDialog } from "@tauri-apps/plugin-dialog";
 import { openPath } from "@tauri-apps/plugin-opener";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { check, type DownloadEvent, type Update } from "@tauri-apps/plugin-updater";
@@ -35,10 +36,8 @@ import { AgentsCenter } from "../features/agents/components/AgentsCenter";
 import { AgentVersionDialog } from "../features/agents/dialogs/AgentVersionDialog";
 import { AgentRuleEditorDialog } from "../features/agents/dialogs/AgentRuleEditorDialog";
 import { AgentDistributionDialog } from "../features/agents/dialogs/AgentDistributionDialog";
-import { AgentMappingPreviewDialog } from "../features/agents/dialogs/AgentMappingPreviewDialog";
 import { GeneralSettingsPanel } from "../features/settings/components/GeneralSettingsPanel";
 import { DataSettingsPanel } from "../features/settings/components/DataSettingsPanel";
-import { AgentConnectionsPanel } from "../features/settings/components/AgentConnectionsPanel";
 import { AboutPanel } from "../features/settings/components/AboutPanel";
 import {
   PROMPT_CATEGORY_ALL_KEY,
@@ -117,7 +116,7 @@ import {
   unknownToMessage,
   waitForUiPaint,
 } from "./workbench/utils";
-import { agentConnectionApi, skillsApi, skillsManagerApi, translationApi, workspaceApi } from "../shared/services/api";
+import { skillsApi, skillsManagerApi, translationApi, workspaceApi } from "../shared/services/api";
 import {
   usePromptsStore,
   useAgentRulesStore,
@@ -209,11 +208,23 @@ type DistributionTargetDraft = {
   targetPath: string;
   installMode: "copy" | "symlink";
 };
+type AgentConnectionDraftField = "platform" | "rootDir" | "ruleFile";
+type AgentConnectionDraft = {
+  platform: string;
+  rootDir: string;
+  ruleFile: string;
+};
 
 const DEFAULT_NEW_DISTRIBUTION_TARGET_DRAFT: DistributionTargetDraft = {
   platform: ".codex",
   targetPath: "",
   installMode: "symlink",
+};
+
+const DEFAULT_NEW_AGENT_CONNECTION_DRAFT: AgentConnectionDraft = {
+  platform: "",
+  rootDir: "",
+  ruleFile: "",
 };
 
 export function WorkbenchApp() {
@@ -323,7 +334,6 @@ export function WorkbenchApp() {
   const showSkillOpenModeInStatusBar =
     typeof window !== "undefined" && window.innerWidth >= 1024 && /mac/i.test(navigator.platform);
   const isZh = language === "zh-CN";
-  const isDarkTheme = theme === "dark";
   const l = useCallback((zh: string, en: string): string => (isZh ? zh : en), [isZh]);
   const projectBootingMessage = l(PROJECT_BOOTING_ZH, PROJECT_BOOTING_EN);
   const uiLanguage = isZh ? "zh" : "en";
@@ -377,8 +387,11 @@ export function WorkbenchApp() {
   const [diffView, setDiffView] = useState<SkillsConfigDiffView>(() => createInitialDiffView());
   const [agentQuery, setAgentQuery] = useState("");
   const [storageDirDraft, setStorageDirDraft] = useState("");
-  const [settingsAgentType, setSettingsAgentType] = useState("codex");
-  const [newSettingsAgentInput, setNewSettingsAgentInput] = useState("");
+  const [newAgentConnectionDraft, setNewAgentConnectionDraft] = useState<AgentConnectionDraft>(
+    () => DEFAULT_NEW_AGENT_CONNECTION_DRAFT,
+  );
+  const [agentConnectionEditingPlatforms, setAgentConnectionEditingPlatforms] = useState<string[]>([]);
+  const [agentConnectionSavingId, setAgentConnectionSavingId] = useState<string | null>(null);
   const {
     homePath,
     selectedSkillScanDirectories,
@@ -396,7 +409,7 @@ export function WorkbenchApp() {
   const [modelProfileName, setModelProfileName] = useState("");
   const [modelExecutable, setModelExecutable] = useState("");
   const [modelArgsTemplateText, setModelArgsTemplateText] = useState("[]");
-  const [newModelProfileKey, setNewModelProfileKey] = useState("");
+  const [newModelProfileName, setNewModelProfileName] = useState("");
   const [translationPromptTemplate, setTranslationPromptTemplate] = useState("");
   const [translationDefaultProfileKey, setTranslationDefaultProfileKey] = useState("codex");
   const [modelTestSourceText, setModelTestSourceText] = useState("");
@@ -409,14 +422,14 @@ export function WorkbenchApp() {
   const translationTargetLanguageOptions = useMemo(() => {
     const presets = MODEL_TEST_TARGET_LANGUAGE_PRESETS.map((item) => ({
       value: item.value,
-      label: isZh ? item.zh : item.en,
+      label: item.value,
     }));
     const current = translationTargetLanguage.trim();
     if (!current || presets.some((item) => item.value === current)) {
       return presets;
     }
     return [{ value: current, label: current }, ...presets];
-  }, [isZh, translationTargetLanguage]);
+  }, [translationTargetLanguage]);
 
   const [compareLeftVersion, setCompareLeftVersion] = useState<number | null>(null);
   const [compareRightVersion, setCompareRightVersion] = useState<number | null>(null);
@@ -433,20 +446,8 @@ export function WorkbenchApp() {
   const [agentRuleTranslatedText, setAgentRuleTranslatedText] = useState("");
   const [skillFileTranslatedByKey, setSkillFileTranslatedByKey] = useState<Record<string, string>>({});
   const [agentTargetIds, setAgentTargetIds] = useState<string[]>([]);
-  const [mappingPreviewOpen, setMappingPreviewOpen] = useState(false);
-  const [mappingPreviewPlatform, setMappingPreviewPlatform] = useState("");
-  const [mappingPreviewPath, setMappingPreviewPath] = useState("");
-  const [mappingPreviewContent, setMappingPreviewContent] = useState("");
-  const [mappingPreviewExists, setMappingPreviewExists] = useState(false);
-  const [mappingPreviewMessage, setMappingPreviewMessage] = useState("");
-  const [connectionDrafts, setConnectionDrafts] = useState<Record<string, string>>({
-    codex: "",
-    claude: "",
-  });
-  const [connectionRuleFileDrafts, setConnectionRuleFileDrafts] = useState<Record<string, string>>({
-    codex: "AGENTS.md",
-    claude: "CLAUDE.md",
-  });
+  const [connectionDrafts, setConnectionDrafts] = useState<Record<string, string>>({});
+  const [connectionRuleFileDrafts, setConnectionRuleFileDrafts] = useState<Record<string, string>>({});
   const [distributionTargetDrafts, setDistributionTargetDrafts] = useState<Record<string, DistributionTargetDraft>>(
     {},
   );
@@ -486,10 +487,7 @@ export function WorkbenchApp() {
           return { key, label: l("通用设置", "General") };
         }
         if (key === "data") {
-          return { key, label: l("数据设置", "Data") };
-        }
-        if (key === "agents") {
-          return { key, label: l("Agents", "Agents") };
+          return { key, label: l("基础设置", "Basic") };
         }
         if (key === "model") {
           return { key, label: l("AI 模型", "AI Models") };
@@ -766,16 +764,19 @@ export function WorkbenchApp() {
     });
     return keys;
   }, [connectionDrafts]);
-
-  const selectedSettingsAgentType = settingsAgentTypes.includes(settingsAgentType)
-    ? settingsAgentType
-    : settingsAgentTypes[0] ?? "codex";
-  const selectedSettingsRootDir = connectionDrafts[selectedSettingsAgentType] ?? "";
-  const selectedSettingsRuleFile =
-    connectionRuleFileDrafts[selectedSettingsAgentType] ?? defaultAgentRuleFile(selectedSettingsAgentType);
-  const selectedSettingsResolvedPath = selectedSettingsRootDir.trim()
-    ? joinRuleFilePath(selectedSettingsRootDir, selectedSettingsRuleFile)
-    : selectedSettingsRuleFile;
+  const settingsAgentRows = useMemo(
+    () =>
+      settingsAgentTypes.map((agentType) => {
+        const rootDir = (connectionDrafts[agentType] ?? "").trim();
+        const ruleFile = (connectionRuleFileDrafts[agentType] ?? defaultAgentRuleFile(agentType)).trim();
+        return {
+          platform: agentType,
+          rootDir,
+          ruleFile,
+        };
+      }),
+    [connectionDrafts, connectionRuleFileDrafts, settingsAgentTypes],
+  );
 
   const {
     selectedPromptVersions,
@@ -809,8 +810,14 @@ export function WorkbenchApp() {
   const selectedSkillTranslationKey = selectedSkillId
     ? `${selectedSkillId}:${selectedSkillFilePath}`
     : "";
+  const selectedSkillOverviewTranslationKey = selectedSkillId
+    ? `${selectedSkillId}:SKILL.md`
+    : "";
   const selectedSkillTranslatedText = selectedSkillTranslationKey
     ? skillFileTranslatedByKey[selectedSkillTranslationKey] ?? ""
+    : "";
+  const selectedSkillOverviewTranslatedText = selectedSkillOverviewTranslationKey
+    ? skillFileTranslatedByKey[selectedSkillOverviewTranslationKey] ?? ""
     : "";
   const selectedSkillOpenModeOption = skillOpenModeOptions.find((item) => item.value === skillOpenMode) ?? skillOpenModeOptions[0];
   const skillOpenModeLabel = selectedSkillOpenModeOption?.label ?? "VS Code";
@@ -1147,16 +1154,22 @@ export function WorkbenchApp() {
   useEffect(() => {
     const inOperations = activeModule === "skills" && managerMode === "operations";
     if (inOperations && !operationsModeEnteredRef.current && activeWorkspaceId) {
-      void (async () => {
-        // 切换进入运营模式时先渲染当前状态，扫描与刷新放到后台异步执行。
-        void loadManagerState(activeWorkspaceId);
+      const workspaceId = activeWorkspaceId;
+      // 切换进入运营模式时先渲染当前状态，扫描与刷新放到后台异步执行。
+      void loadManagerState(workspaceId);
+      void fetchSkills();
 
-        if (operationsScanDirectories.length > 0) {
-          await scanSkills(activeWorkspaceId, operationsScanDirectories);
-        }
-        await fetchSkills();
-        await loadManagerState(activeWorkspaceId);
-      })();
+      if (operationsScanDirectories.length > 0) {
+        window.setTimeout(() => {
+          void (async () => {
+            try {
+              await scanSkills(workspaceId, operationsScanDirectories);
+            } finally {
+              await Promise.allSettled([fetchSkills(), loadManagerState(workspaceId)]);
+            }
+          })();
+        }, 0);
+      }
     }
     operationsModeEnteredRef.current = inOperations;
   }, [
@@ -1355,11 +1368,6 @@ export function WorkbenchApp() {
   useEffect(() => {
     const nextRoots: Record<string, string> = {};
     const nextRules: Record<string, string> = {};
-    const defaults = ["codex", "claude"];
-    defaults.forEach((agentType) => {
-      nextRoots[agentType] = defaultAgentConfigDir(homePath, agentType);
-      nextRules[agentType] = defaultAgentRuleFile(agentType);
-    });
     settingsConnections.forEach((connection) => {
       const key = normalizeAgentTypeInput(connection.platform);
       nextRoots[key] = connection.rootDir || defaultAgentConfigDir(homePath, key);
@@ -1370,14 +1378,10 @@ export function WorkbenchApp() {
   }, [settingsConnections, homePath]);
 
   useEffect(() => {
-    const keys = Object.keys(connectionDrafts);
-    if (keys.length === 0) {
-      return;
-    }
-    if (!keys.includes(settingsAgentType)) {
-      setSettingsAgentType(keys[0]);
-    }
-  }, [connectionDrafts, settingsAgentType]);
+    setAgentConnectionEditingPlatforms((prev) =>
+      prev.filter((platform) => settingsAgentTypes.includes(platform)),
+    );
+  }, [settingsAgentTypes]);
 
   useEffect(() => {
     if (!selectedPrompt) {
@@ -1592,45 +1596,6 @@ export function WorkbenchApp() {
         description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
         variant: "destructive",
       });
-    }
-  }
-
-  async function handleOpenAgentMappingPreview(platform: string) {
-    if (!activeWorkspaceId) {
-      toast({ title: projectBootingMessage, variant: "destructive" });
-      return;
-    }
-    const normalizedPlatform = normalizeAgentTypeInput(platform);
-    const connection = agentConnections.find(
-      (item) => normalizeAgentTypeInput(String(item.agentType ?? "")) === normalizedPlatform,
-    );
-    const fallbackPath = connection?.rootDir
-      ? joinRuleFilePath(connection.rootDir, connection.ruleFile || defaultAgentRuleFile(normalizedPlatform))
-      : connection?.ruleFile || defaultAgentRuleFile(normalizedPlatform);
-    try {
-      const result = await agentConnectionApi.preview({
-        workspaceId: activeWorkspaceId,
-        platform: normalizedPlatform,
-      });
-      setMappingPreviewPlatform(platform);
-      setMappingPreviewPath(result.resolvedPath || fallbackPath);
-      setMappingPreviewExists(result.exists);
-      setMappingPreviewContent(result.content);
-      setMappingPreviewMessage(
-        result.exists
-          ? l("读取成功", "Loaded successfully")
-          : l("文件不存在或不可读取", "File does not exist or cannot be read"),
-      );
-      setMappingPreviewOpen(true);
-    } catch (error) {
-      setMappingPreviewPlatform(platform);
-      setMappingPreviewPath(fallbackPath);
-      setMappingPreviewExists(false);
-      setMappingPreviewContent("");
-      setMappingPreviewMessage(
-        error instanceof Error ? error.message : l("读取失败", "Read failed"),
-      );
-      setMappingPreviewOpen(true);
     }
   }
 
@@ -1918,36 +1883,98 @@ export function WorkbenchApp() {
     }
   }
 
-  function handleAddModelProfile() {
-    const key = newModelProfileKey.trim().toLowerCase();
-    if (!key) {
-      toast({
-        title: l("请输入 profile key", "Please input profile key"),
-        variant: "destructive",
-      });
-      return;
+  function normalizeModelProfileName(value: string): string {
+    return value.trim();
+  }
+
+  function generateProfileKeyFromName(name: string): string {
+    const normalized = name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+    if (normalized) {
+      return normalized;
     }
-    if (!/^[a-z0-9_-]+$/.test(key)) {
-      toast({
-        title: l("profile key 仅支持字母、数字、-、_", "Profile key only allows letters, numbers, - and _"),
-        variant: "destructive",
-      });
-      return;
+    return `profile-${Date.now().toString(36)}`;
+  }
+
+  function ensureUniqueProfileKey(baseKey: string, existingKeys: string[]): string {
+    const taken = new Set(existingKeys.map((item) => item.trim().toLowerCase()).filter(Boolean));
+    if (!taken.has(baseKey)) {
+      return baseKey;
     }
-    if (localAgentProfiles.some((item) => item.profileKey === key)) {
+    let counter = 2;
+    while (taken.has(`${baseKey}-${counter}`)) {
+      counter += 1;
+    }
+    return `${baseKey}-${counter}`;
+  }
+
+  async function handleAddModelProfile(sourceType: "localAgent" | "api"): Promise<boolean> {
+    if (sourceType === "api") {
       toast({
-        title: l("profile 已存在", "Profile already exists"),
+        title: l("API 模型暂未支持", "API model is not supported yet"),
         variant: "destructive",
       });
-      return;
+      return false;
+    }
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return false;
     }
 
-    setSelectedModelProfileKey(key);
-    setModelProfileName(key);
-    setModelExecutable(key);
-    setModelArgsTemplateText("[]");
-    setNewModelProfileKey("");
-    setDirty("model", true);
+    const name = normalizeModelProfileName(newModelProfileName);
+    if (!name) {
+      toast({
+        title: l("请输入名称", "Please input name"),
+        variant: "destructive",
+      });
+      return false;
+    }
+    if (
+      localAgentProfiles.some(
+        (item) => normalizeModelProfileName(item.name).toLowerCase() === name.toLowerCase(),
+      )
+    ) {
+      toast({
+        title: l("名称已存在", "Name already exists"),
+        variant: "destructive",
+      });
+      return false;
+    }
+    const baseKey = generateProfileKeyFromName(name);
+    const key = ensureUniqueProfileKey(
+      baseKey,
+      localAgentProfiles.map((item) => item.profileKey),
+    );
+
+    setModelSaving(true);
+    try {
+      const profile = await translationApi.upsertProfile({
+        workspaceId: activeWorkspaceId,
+        profileKey: key,
+        name,
+        executable: key,
+        argsTemplate: [],
+        enabled: true,
+      });
+      await loadModelWorkbenchData(activeWorkspaceId);
+      setSelectedModelProfileKey(profile.profileKey);
+      setNewModelProfileName("");
+      setDirty("model", false);
+      toast({ title: l("Profile 已新增", "Profile created") });
+      return true;
+    } catch (error) {
+      toast({
+        title: l("新增 Profile 失败", "Failed to create profile"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+      return false;
+    } finally {
+      setModelSaving(false);
+    }
   }
 
   async function handleSaveModelProfile() {
@@ -2293,8 +2320,8 @@ export function WorkbenchApp() {
           key={`${node.relativePath}-row`}
           className={`flex w-full items-center gap-1 rounded-md px-2 py-1 text-left text-xs transition-colors ${
             selectedSkillFilePath === node.relativePath
-              ? "bg-blue-50 text-blue-700"
-              : "text-slate-700 hover:bg-slate-100"
+              ? "bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-200"
+              : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/80"
           }`}
           style={{ paddingLeft: `${8 + depth * 14}px` }}
           onClick={() => {
@@ -2316,7 +2343,11 @@ export function WorkbenchApp() {
             <FileCode2 className="h-3.5 w-3.5 text-slate-400" />
           )}
           <span className="truncate">{node.name}</span>
-          {node.isSymlink ? <span className="ml-auto rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-500">{l("软链", "Symlink")}</span> : null}
+          {node.isSymlink ? (
+            <span className="ml-auto rounded bg-slate-100 px-1 py-0.5 text-[10px] text-slate-500 dark:bg-slate-800 dark:text-slate-300">
+              {l("软链", "Symlink")}
+            </span>
+          ) : null}
         </button>
       );
 
@@ -2370,6 +2401,22 @@ export function WorkbenchApp() {
     }
   }
 
+  async function handlePickStorageDirectory() {
+    const fallbackPath =
+      normalizeDirectoryInput(storageDirDraft) ||
+      normalizeDirectoryInput(activeWorkspace?.rootPath ?? "");
+    const picked = await pickDirectoryInFinder(
+      fallbackPath,
+      "选择目录失败",
+      "Failed to choose directory",
+    );
+    if (!picked) {
+      return;
+    }
+    setStorageDirDraft(picked);
+    setDirty("data", true);
+  }
+
   async function handleUseDefaultStorageDirectory() {
     try {
       const defaultDir = await appDataDir();
@@ -2377,6 +2424,66 @@ export function WorkbenchApp() {
     } catch {
       // 忽略读取默认路径失败
     }
+  }
+
+  async function pickDirectoryInFinder(
+    basePath: string,
+    errorTitleZh: string,
+    errorTitleEn: string,
+  ): Promise<string | null> {
+    try {
+      const selected = await pickDialog({
+        directory: true,
+        multiple: false,
+        defaultPath: normalizeDirectoryInput(basePath) || undefined,
+      });
+      if (!selected || Array.isArray(selected)) {
+        return null;
+      }
+      const normalized = normalizeDirectoryInput(selected);
+      return isAbsolutePathInput(normalized) ? normalized : null;
+    } catch (error) {
+      toast({
+        title: l(errorTitleZh, errorTitleEn),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+      return null;
+    }
+  }
+
+  async function handlePickNewDistributionTargetDirectory() {
+    const fallbackPath =
+      normalizeDirectoryInput(newDistributionTargetDraft.targetPath) ||
+      normalizeDirectoryInput(activeWorkspace?.rootPath ?? "") ||
+      normalizeDirectoryInput(defaultAgentConfigDir(homePath, newDistributionTargetDraft.platform));
+    const picked = await pickDirectoryInFinder(
+      fallbackPath,
+      "选择目录失败",
+      "Failed to choose directory",
+    );
+    if (!picked) {
+      return;
+    }
+    handleNewDistributionTargetFieldChange("targetPath", picked);
+  }
+
+  async function handlePickDistributionTargetDirectory(targetId: string) {
+    const existingTarget = settingsTargets.find((item) => item.id === targetId);
+    const currentDraft = distributionTargetDrafts[targetId];
+    const fallbackPath =
+      normalizeDirectoryInput(currentDraft?.targetPath ?? "") ||
+      normalizeDirectoryInput(existingTarget?.targetPath ?? "") ||
+      normalizeDirectoryInput(activeWorkspace?.rootPath ?? "");
+    const picked = await pickDirectoryInFinder(
+      fallbackPath,
+      "选择目录失败",
+      "Failed to choose directory",
+    );
+    if (!picked) {
+      return;
+    }
+    handleDistributionTargetFieldChange(targetId, "targetPath", picked);
   }
 
   function normalizeDistributionTargetDraft(draft: DistributionTargetDraft): DistributionTargetDraft {
@@ -2466,6 +2573,16 @@ export function WorkbenchApp() {
     const existing = settingsTargets.find((item) => item.id === targetId);
     if (!existing) {
       toast({ title: l("目标不存在", "Target not found"), variant: "destructive" });
+      return;
+    }
+    if (
+      !window.confirm(
+        l(
+          `确认删除目录「${existing.platform}」吗？`,
+          `Delete directory "${existing.platform}"?`,
+        ),
+      )
+    ) {
       return;
     }
 
@@ -2603,140 +2720,298 @@ export function WorkbenchApp() {
     }
   }
 
-  async function handleSaveAgentConnections() {
+  function normalizeAgentConnectionDraft(draft: AgentConnectionDraft): AgentConnectionDraft {
+    const platform = normalizeAgentTypeInput(draft.platform);
+    const rootDir = normalizeDirectoryInput(draft.rootDir);
+    const normalizedRule = draft.ruleFile.trim();
+    return {
+      platform,
+      rootDir,
+      ruleFile: normalizedRule || defaultAgentRuleFile(platform || "codex"),
+    };
+  }
+
+  function validateAgentConnectionDraft(draft: AgentConnectionDraft, mode: "create" | "edit"): string | null {
+    if (!draft.platform) {
+      return l("Agent 名称不能为空", "Agent name cannot be empty");
+    }
+    if (!/^[a-z0-9_-]+$/.test(draft.platform)) {
+      return l("Agent 名称仅允许字母/数字/-/_", "Agent name only allows letters/numbers/-/_");
+    }
+    if (mode === "create" && settingsAgentTypes.includes(draft.platform)) {
+      return l("Agent 已存在", "Agent already exists");
+    }
+    if (!isAbsolutePathInput(draft.rootDir)) {
+      return l(
+        `${draft.platform} Global Config file 必须是绝对路径`,
+        `${draft.platform} Global Config file must be an absolute path`,
+      );
+    }
+    if (!isValidRuleFileInput(draft.ruleFile)) {
+      return l(
+        `${draft.platform} 规则文件必须是相对路径，且不能包含 ..`,
+        `${draft.platform} rule file must be a relative path and cannot include ..`,
+      );
+    }
+    return null;
+  }
+
+  function getAgentConnectionDefaults(agentType: string): { rootDir: string; ruleFile: string } {
+    const normalizedType = normalizeAgentTypeInput(agentType);
+    const persisted = settingsConnections.find(
+      (item) => normalizeAgentTypeInput(item.platform) === normalizedType,
+    );
+    return {
+      rootDir: persisted?.rootDir || defaultAgentConfigDir(homePath, normalizedType),
+      ruleFile: persisted?.ruleFile || defaultAgentRuleFile(normalizedType),
+    };
+  }
+
+  function handleAgentConnectionFieldChange(
+    platform: string,
+    field: "rootDir" | "ruleFile",
+    value: string,
+  ) {
+    const normalized = normalizeAgentTypeInput(platform);
+    if (!normalized) {
+      return;
+    }
+    if (field === "rootDir") {
+      setConnectionDrafts((prev) => ({
+        ...prev,
+        [normalized]: value,
+      }));
+    } else {
+      setConnectionRuleFileDrafts((prev) => ({
+        ...prev,
+        [normalized]: value,
+      }));
+    }
+    setDirty("data", true);
+  }
+
+  function handleStartAgentConnectionEdit(platform: string) {
+    const normalized = normalizeAgentTypeInput(platform);
+    if (!normalized) {
+      return;
+    }
+    setAgentConnectionEditingPlatforms((prev) =>
+      prev.includes(normalized) ? prev : [...prev, normalized],
+    );
+  }
+
+  function handleCancelAgentConnectionEdit(platform: string) {
+    const normalized = normalizeAgentTypeInput(platform);
+    if (!normalized) {
+      return;
+    }
+    const defaults = getAgentConnectionDefaults(normalized);
+    setConnectionDrafts((prev) => ({
+      ...prev,
+      [normalized]: defaults.rootDir,
+    }));
+    setConnectionRuleFileDrafts((prev) => ({
+      ...prev,
+      [normalized]: defaults.ruleFile,
+    }));
+    setAgentConnectionEditingPlatforms((prev) => prev.filter((item) => item !== normalized));
+    setDirty("data", false);
+  }
+
+  async function handleSaveAgentConnection(platform: string) {
     if (!activeWorkspaceId) {
       toast({ title: projectBootingMessage, variant: "destructive" });
       return;
     }
-
-    const agentTypes = Object.keys(connectionDrafts)
-      .map((item) => normalizeAgentTypeInput(item))
-      .filter(Boolean);
-    for (const agentType of agentTypes) {
-      const rootDir = (connectionDrafts[agentType] ?? "").trim();
-      const ruleFile = (connectionRuleFileDrafts[agentType] ?? defaultAgentRuleFile(agentType)).trim();
-      if (!isAbsolutePathInput(rootDir)) {
-        toast({ title: l(`${agentType} Global Config file 必须是绝对路径`, `${agentType} Global Config file must be an absolute path`), variant: "destructive" });
-        return;
-      }
-      if (!isValidRuleFileInput(ruleFile)) {
-        toast({ title: l(`${agentType} 规则文件必须是相对路径，且不能包含 ..`, `${agentType} rule file must be a relative path and cannot include ..`), variant: "destructive" });
-        return;
-      }
+    const normalizedPlatform = normalizeAgentTypeInput(platform);
+    if (!normalizedPlatform) {
+      toast({ title: l("Agent 名称不能为空", "Agent name cannot be empty"), variant: "destructive" });
+      return;
+    }
+    const normalized = normalizeAgentConnectionDraft({
+      platform: normalizedPlatform,
+      rootDir: connectionDrafts[normalizedPlatform] ?? "",
+      ruleFile: connectionRuleFileDrafts[normalizedPlatform] ?? defaultAgentRuleFile(normalizedPlatform),
+    });
+    const validationError = validateAgentConnectionDraft(normalized, "edit");
+    if (validationError) {
+      toast({ title: validationError, variant: "destructive" });
+      return;
     }
 
-    for (const agentType of agentTypes) {
+    setAgentConnectionSavingId(normalizedPlatform);
+    try {
       const result = await upsertConnection({
         workspaceId: activeWorkspaceId,
-        platform: agentType,
-        rootDir: (connectionDrafts[agentType] ?? "").trim(),
-        ruleFile: (connectionRuleFileDrafts[agentType] ?? defaultAgentRuleFile(agentType)).trim(),
+        platform: normalized.platform,
+        rootDir: normalized.rootDir,
+        ruleFile: normalized.ruleFile,
         enabled: true,
       });
       if (!result.ok) {
         toast({ title: result.message, variant: "destructive" });
         return;
       }
+      await Promise.all([
+        loadSettingsConnections(activeWorkspaceId),
+        loadAgentConnections(activeWorkspaceId),
+      ]);
+      setAgentConnectionEditingPlatforms((prev) => prev.filter((item) => item !== normalizedPlatform));
+      setDirty("data", false);
+      toast({ title: l("Agent 配置已保存", "Agent settings saved") });
+    } catch (error) {
+      toast({
+        title: l("保存 Agent 配置失败", "Failed to save agent settings"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+    } finally {
+      setAgentConnectionSavingId(null);
     }
-
-    await Promise.all([
-      loadSettingsConnections(activeWorkspaceId),
-      loadAgentConnections(activeWorkspaceId),
-    ]);
-    setDirty("agents", false);
-    toast({ title: l("Agent 连接配置已保存", "Agent connection settings saved") });
   }
 
-  function handleAddSettingsAgent() {
-    const agentType = normalizeAgentTypeInput(newSettingsAgentInput);
-    if (!agentType) {
-      toast({ title: l("Agent 名称不能为空", "Agent name cannot be empty"), variant: "destructive" });
-      return;
-    }
-    if (!/^[a-z0-9_-]+$/.test(agentType)) {
-      toast({ title: l("Agent 名称仅允许字母/数字/-/_", "Agent name only allows letters/numbers/-/_"), variant: "destructive" });
-      return;
-    }
-    if (connectionDrafts[agentType] !== undefined) {
-      toast({ title: l("Agent 已存在", "Agent already exists"), variant: "destructive" });
-      return;
-    }
-    setConnectionDrafts((prev) => ({
+  function handleNewAgentConnectionFieldChange(field: AgentConnectionDraftField, value: string) {
+    setNewAgentConnectionDraft((prev) => ({
       ...prev,
-      [agentType]: defaultAgentConfigDir(homePath, agentType),
+      [field]: value,
     }));
-    setConnectionRuleFileDrafts((prev) => ({
-      ...prev,
-      [agentType]: defaultAgentRuleFile(agentType),
-    }));
-    setSettingsAgentType(agentType);
-    setNewSettingsAgentInput("");
-    setDirty("agents", true);
+    setDirty("data", true);
   }
 
-  async function handleRemoveSettingsAgent(agentType: string) {
-    const normalized = normalizeAgentTypeInput(agentType);
-    if (normalized === "codex" || normalized === "claude") {
-      toast({ title: l("codex / claude 为内置 Agent，不能移除", "codex / claude are built-in agents and cannot be removed"), variant: "destructive" });
+  async function handleCreateAgentConnection() {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    const normalized = normalizeAgentConnectionDraft(newAgentConnectionDraft);
+    const validationError = validateAgentConnectionDraft(normalized, "create");
+    if (validationError) {
+      toast({ title: validationError, variant: "destructive" });
       return;
     }
 
-    const isPersisted = settingsConnections.some(
-      (item) => normalizeAgentTypeInput(item.platform) === normalized,
-    );
+    setAgentConnectionSavingId("__new_agent__");
     try {
-      if (isPersisted) {
-        if (!activeWorkspaceId) {
-          toast({ title: projectBootingMessage, variant: "destructive" });
-          return;
-        }
-        const result = await deleteConnection({
-          workspaceId: activeWorkspaceId,
-          platform: normalized,
-        });
-        if (!result.ok) {
-          toast({ title: result.message, variant: "destructive" });
-          return;
-        }
-        await Promise.all([
-          loadSettingsConnections(activeWorkspaceId),
-          loadAgentConnections(activeWorkspaceId),
-        ]);
-      } else {
-        setConnectionDrafts((prev) => {
-          const { [normalized]: _removed, ...next } = prev;
-          return next;
-        });
-        setConnectionRuleFileDrafts((prev) => {
-          const { [normalized]: _removed, ...next } = prev;
-          return next;
-        });
+      const result = await upsertConnection({
+        workspaceId: activeWorkspaceId,
+        platform: normalized.platform,
+        rootDir: normalized.rootDir,
+        ruleFile: normalized.ruleFile,
+        enabled: true,
+      });
+      if (!result.ok) {
+        toast({ title: result.message, variant: "destructive" });
+        return;
       }
-      setDirty("agents", !isPersisted);
+      await Promise.all([
+        loadSettingsConnections(activeWorkspaceId),
+        loadAgentConnections(activeWorkspaceId),
+      ]);
+      setNewAgentConnectionDraft(DEFAULT_NEW_AGENT_CONNECTION_DRAFT);
+      setDirty("data", false);
+      toast({ title: l("Agent 已新增", "Agent created") });
+    } catch (error) {
+      toast({
+        title: l("新增 Agent 失败", "Failed to create agent"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+    } finally {
+      setAgentConnectionSavingId(null);
+    }
+  }
+
+  async function handleDeleteAgentConnection(platform: string) {
+    const normalized = normalizeAgentTypeInput(platform);
+    if (!normalized) {
+      return;
+    }
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    if (
+      !window.confirm(
+        l(
+          `确认删除 Agent 配置「${normalized}」吗？`,
+          `Delete agent settings "${normalized}"?`,
+        ),
+      )
+    ) {
+      return;
+    }
+
+    setAgentConnectionSavingId(`delete:${normalized}`);
+    try {
+      const result = await deleteConnection({
+        workspaceId: activeWorkspaceId,
+        platform: normalized,
+      });
+      if (!result.ok) {
+        toast({ title: result.message, variant: "destructive" });
+        return;
+      }
+      await Promise.all([
+        loadSettingsConnections(activeWorkspaceId),
+        loadAgentConnections(activeWorkspaceId),
+      ]);
+      setAgentConnectionEditingPlatforms((prev) => prev.filter((item) => item !== normalized));
+      setDirty("data", false);
       toast({ title: l(`${normalized} 已移除`, `${normalized} removed`) });
     } catch (error) {
       toast({
         title: l("移除 Agent 失败", "Failed to remove agent"),
-        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
-        variant: "destructive",
-      });
-    }
-  }
-  async function handleOpenAgentConfigInFinder(agentType: string) {
-    const configPath = (connectionDrafts[agentType] ?? "").trim();
-    if (!isAbsolutePathInput(configPath)) {
-      toast({ title: l("Global Config file 不是有效绝对路径", "Global Config file is not a valid absolute path"), variant: "destructive" });
-      return;
-    }
-    try {
-      await openPath(configPath);
-    } catch (error) {
-      toast({
-        title: l("打开失败", "Open failed"),
         description: unknownToMessage(error, l("未知错误", "Unknown error")),
         variant: "destructive",
       });
+    } finally {
+      setAgentConnectionSavingId(null);
     }
+  }
+
+  async function handlePickAgentConnectionRootDir(agentType: string) {
+    const normalized = normalizeAgentTypeInput(agentType);
+    if (!normalized) {
+      return;
+    }
+    const fallbackPath =
+      normalizeDirectoryInput(connectionDrafts[normalized] ?? "") ||
+      normalizeDirectoryInput(defaultAgentConfigDir(homePath, normalized)) ||
+      normalizeDirectoryInput(activeWorkspace?.rootPath ?? "");
+    const picked = await pickDirectoryInFinder(
+      fallbackPath,
+      "选择目录失败",
+      "Failed to choose directory",
+    );
+    if (!picked) {
+      return;
+    }
+    setConnectionDrafts((prev) => ({
+      ...prev,
+      [normalized]: picked,
+    }));
+    setDirty("data", true);
+  }
+
+  async function handlePickNewAgentConnectionRootDir() {
+    const normalizedPlatform = normalizeAgentTypeInput(newAgentConnectionDraft.platform);
+    const fallbackPath =
+      normalizeDirectoryInput(newAgentConnectionDraft.rootDir) ||
+      normalizeDirectoryInput(defaultAgentConfigDir(homePath, normalizedPlatform || "codex")) ||
+      normalizeDirectoryInput(activeWorkspace?.rootPath ?? "");
+    const picked = await pickDirectoryInFinder(
+      fallbackPath,
+      "选择目录失败",
+      "Failed to choose directory",
+    );
+    if (!picked) {
+      return;
+    }
+    setNewAgentConnectionDraft((prev) => ({
+      ...prev,
+      rootDir: picked,
+    }));
+    setDirty("data", true);
   }
 
   async function handleRefreshAgentModule() {
@@ -3356,24 +3631,36 @@ export function WorkbenchApp() {
     setSkillOpenMenuOpen(false);
   }
 
-  function handleTranslateSelectedSkillFile() {
+  async function handleTranslateSkillContent(sourceText: string, translationKey: string) {
+    if (!translationKey || !sourceText.trim()) {
+      return;
+    }
+    const result = await handleRunModelTranslationTest({
+      sourceText,
+      targetLanguage: translationTargetLanguage,
+      syncModelTestForm: false,
+    });
+    if (!result) {
+      return;
+    }
+    setSkillFileTranslatedByKey((prev) => ({
+      ...prev,
+      [translationKey]: result.translatedText,
+    }));
+  }
+
+  async function handleTranslateSelectedSkillFile() {
     if (!selectedSkillFileRead || !selectedSkillTranslationKey) {
       return;
     }
-    void (async () => {
-      const result = await handleRunModelTranslationTest({
-        sourceText: selectedSkillFileRead.content,
-        targetLanguage: translationTargetLanguage,
-        syncModelTestForm: false,
-      });
-      if (!result) {
-        return;
-      }
-      setSkillFileTranslatedByKey((prev) => ({
-        ...prev,
-        [selectedSkillTranslationKey]: result.translatedText,
-      }));
-    })();
+    await handleTranslateSkillContent(selectedSkillFileRead.content, selectedSkillTranslationKey);
+  }
+
+  async function handleTranslateSelectedSkillOverview() {
+    if (!selectedSkillOverviewRead?.supported || !selectedSkillOverviewTranslationKey) {
+      return;
+    }
+    await handleTranslateSkillContent(selectedSkillOverviewRead.content, selectedSkillOverviewTranslationKey);
   }
 
   const skillsOperationsPanel = (
@@ -3437,13 +3724,14 @@ export function WorkbenchApp() {
       onReadSkillFile={(skillId, relativePath) => void handleReadSkillFile(skillId, relativePath)}
       skillFileReadLoading={skillFileReadLoading}
       selectedSkillOverviewRead={selectedSkillOverviewRead}
-      uiLanguage={uiLanguage}
       selectedSkillTree={selectedSkillTree}
       skillTreeLoading={skillTreeLoading}
       onLoadSkillTree={(skillId, force) => void handleLoadSkillTree(skillId, force)}
       renderSkillTreeNodes={renderSkillTreeNodes}
       selectedSkillFilePath={selectedSkillFilePath}
       selectedSkillFileRead={selectedSkillFileRead}
+      selectedSkillOverviewTranslationKey={selectedSkillOverviewTranslationKey}
+      selectedSkillOverviewTranslatedText={selectedSkillOverviewTranslatedText}
       selectedSkillTranslationKey={selectedSkillTranslationKey}
       selectedSkillTranslatedText={selectedSkillTranslatedText}
       isZh={isZh}
@@ -3451,6 +3739,7 @@ export function WorkbenchApp() {
       translationTargetLanguageOptions={translationTargetLanguageOptions}
       modelTestRunning={modelTestRunning}
       setTranslationTargetLanguage={(value) => setTranslationTargetLanguage(value)}
+      onTranslateSkillOverview={handleTranslateSelectedSkillOverview}
       onTranslateSkillFile={handleTranslateSelectedSkillFile}
       shouldUseMarkdownPreview={shouldUseMarkdownPreview}
       l={l}
@@ -3459,7 +3748,6 @@ export function WorkbenchApp() {
   const agentsCenter = (
     <AgentsCenter
       l={l}
-      isDarkTheme={isDarkTheme}
       activeWorkspaceId={activeWorkspaceId}
       agentAssets={agentAssets}
       agentConnections={agentConnections}
@@ -3485,10 +3773,6 @@ export function WorkbenchApp() {
       setAgentRulesPage={setAgentRulesPage}
       totalAgentPages={totalAgentPages}
       agentRulesPageSize={AGENT_RULES_PAGE_SIZE}
-      normalizeAgentTypeInput={normalizeAgentTypeInput}
-      defaultAgentRuleFile={defaultAgentRuleFile}
-      joinRuleFilePath={joinRuleFilePath}
-      handleOpenAgentMappingPreview={handleOpenAgentMappingPreview}
     />
   );
 
@@ -3506,7 +3790,6 @@ export function WorkbenchApp() {
     <DataSettingsPanel
       l={l}
       storageDirDraft={storageDirDraft}
-      activeWorkspaceRootPath={activeWorkspace?.rootPath ?? null}
       distributionTargets={settingsTargets}
       distributionTargetDrafts={distributionTargetDrafts}
       distributionTargetEditingIds={distributionTargetEditingIds}
@@ -3519,6 +3802,9 @@ export function WorkbenchApp() {
       onSaveStorageDirectory={() => void handleSaveStorageDirectory()}
       onUseDefaultStorageDirectory={() => void handleUseDefaultStorageDirectory()}
       onOpenStorageDirectoryInFinder={() => void handleOpenStorageDirectoryInFinder()}
+      onPickStorageDirectory={() => void handlePickStorageDirectory()}
+      onPickNewDistributionTargetDirectory={() => void handlePickNewDistributionTargetDirectory()}
+      onPickDistributionTargetDirectory={(targetId) => void handlePickDistributionTargetDirectory(targetId)}
       onDistributionTargetFieldChange={handleDistributionTargetFieldChange}
       onStartDistributionTargetEdit={handleStartDistributionTargetEdit}
       onCancelDistributionTargetEdit={handleCancelDistributionTargetEdit}
@@ -3526,59 +3812,19 @@ export function WorkbenchApp() {
       onDeleteDistributionTarget={(targetId) => void handleDeleteDistributionTarget(targetId)}
       onNewDistributionTargetFieldChange={handleNewDistributionTargetFieldChange}
       onCreateDistributionTarget={() => void handleCreateDistributionTarget()}
-    />
-  );
-  const agentConnectionsPanel = (
-    <AgentConnectionsPanel
-      l={l}
-      isDarkTheme={isDarkTheme}
-      settingsAgentTypes={settingsAgentTypes}
-      selectedSettingsAgentType={selectedSettingsAgentType}
-      newSettingsAgentInput={newSettingsAgentInput}
-      selectedSettingsRootDir={selectedSettingsRootDir}
-      selectedSettingsRuleFile={selectedSettingsRuleFile}
-      selectedSettingsResolvedPath={selectedSettingsResolvedPath}
-      onSelectSettingsAgentType={setSettingsAgentType}
-      onNewSettingsAgentInputChange={setNewSettingsAgentInput}
-      onAddSettingsAgent={handleAddSettingsAgent}
-      onRemoveSettingsAgent={(agentType) => void handleRemoveSettingsAgent(agentType)}
-      onSelectedSettingsRootDirChange={(value) => {
-        setConnectionDrafts((prev) => ({
-          ...prev,
-          [selectedSettingsAgentType]: value,
-        }));
-        setDirty("agents", true);
-      }}
-      onUseDefaultSelectedSettingsRootDir={() => {
-        const fallback = defaultAgentConfigDir(homePath, selectedSettingsAgentType);
-        if (!fallback) {
-          toast({
-            title: l("该 Agent 暂无默认路径", "This agent has no default path"),
-            description: l("请手动填写绝对路径", "Please enter an absolute path manually"),
-            variant: "destructive",
-          });
-          return;
-        }
-        setConnectionDrafts((prev) => ({
-          ...prev,
-          [selectedSettingsAgentType]: fallback,
-        }));
-        setDirty("agents", true);
-      }}
-      onOpenSelectedSettingsAgentConfigInFinder={() => void handleOpenAgentConfigInFinder(selectedSettingsAgentType)}
-      onSelectedSettingsRuleFileChange={(value) => {
-        setConnectionRuleFileDrafts((prev) => ({
-          ...prev,
-          [selectedSettingsAgentType]: value,
-        }));
-        setDirty("agents", true);
-      }}
-      selectedSettingsRootDirPlaceholder={
-        defaultAgentConfigDir(homePath, selectedSettingsAgentType) ||
-        "/Users/you/.agent-config"
-      }
-      selectedSettingsRuleFilePlaceholder={defaultAgentRuleFile(selectedSettingsAgentType)}
-      onSaveAgentConnections={() => void handleSaveAgentConnections()}
+      agentConnectionRows={settingsAgentRows}
+      agentConnectionEditingPlatforms={agentConnectionEditingPlatforms}
+      newAgentConnectionDraft={newAgentConnectionDraft}
+      agentConnectionSavingId={agentConnectionSavingId}
+      onPickNewAgentConnectionRootDir={() => void handlePickNewAgentConnectionRootDir()}
+      onPickAgentConnectionRootDir={(platform) => void handlePickAgentConnectionRootDir(platform)}
+      onAgentConnectionFieldChange={handleAgentConnectionFieldChange}
+      onStartAgentConnectionEdit={handleStartAgentConnectionEdit}
+      onCancelAgentConnectionEdit={handleCancelAgentConnectionEdit}
+      onSaveAgentConnection={(platform) => void handleSaveAgentConnection(platform)}
+      onDeleteAgentConnection={(platform) => void handleDeleteAgentConnection(platform)}
+      onNewAgentConnectionFieldChange={handleNewAgentConnectionFieldChange}
+      onCreateAgentConnection={() => void handleCreateAgentConnection()}
     />
   );
   const modelSettingsPanel = (
@@ -3607,8 +3853,8 @@ export function WorkbenchApp() {
         setDirty("model", true);
       }}
       onSaveModelProfile={() => void handleSaveModelProfile()}
-      newModelProfileKey={newModelProfileKey}
-      onNewModelProfileKeyChange={setNewModelProfileKey}
+      newModelProfileName={newModelProfileName}
+      onNewModelProfileNameChange={setNewModelProfileName}
       onAddModelProfile={handleAddModelProfile}
       translationDefaultProfileKey={translationDefaultProfileKey}
       modelTestRunning={modelTestRunning}
@@ -3635,7 +3881,9 @@ export function WorkbenchApp() {
       translationTargetLanguage={translationTargetLanguage}
       translationTargetLanguageOptions={translationTargetLanguageOptions}
       onTranslationTargetLanguageChange={setTranslationTargetLanguage}
-      onRunModelTranslationTest={() => void handleRunModelTranslationTest()}
+      onRunModelTranslationTest={async () => {
+        await handleRunModelTranslationTest();
+      }}
       onOpenModelTestOutputSheet={() => modelTestOutputSheet.setOpen(true)}
     />
   );
@@ -3659,7 +3907,6 @@ export function WorkbenchApp() {
       onChangeSettingsCategory={handleChangeSettingsCategory}
       generalPanel={generalSettingsPanel}
       dataPanel={dataSettingsPanel}
-      agentConnectionsPanel={agentConnectionsPanel}
       modelPanel={modelSettingsPanel}
       aboutPanel={aboutPanel}
     />
@@ -3859,19 +4106,6 @@ export function WorkbenchApp() {
       handleRunAgentDistribution={handleRunAgentDistribution}
     />
   );
-  const agentMappingPreviewDialog = (
-    <AgentMappingPreviewDialog
-      l={l}
-      uiLanguage={language}
-      open={mappingPreviewOpen}
-      onOpenChange={setMappingPreviewOpen}
-      mappingPreviewPlatform={mappingPreviewPlatform}
-      mappingPreviewPath={mappingPreviewPath}
-      mappingPreviewExists={mappingPreviewExists}
-      mappingPreviewMessage={mappingPreviewMessage}
-      mappingPreviewContent={mappingPreviewContent}
-    />
-  );
   const linkConfirmDialog = (
     <Dialog
       open={linkConfirmPreview !== null}
@@ -3943,7 +4177,6 @@ export function WorkbenchApp() {
               agentVersionDialog={agentVersionDialog}
               agentRuleEditorDialog={agentRuleEditorDialog}
               agentDistributionDialog={agentDistributionDialog}
-              agentMappingPreviewDialog={agentMappingPreviewDialog}
             />
           )
           : settingsCenter;

@@ -362,13 +362,13 @@ describe("WorkbenchApp skills operations", () => {
     container.remove();
   });
 
-  it("默认渲染链接中控内容", async () => {
+  it("默认渲染中控内容", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     expect(container.textContent).not.toContain("Skills 运营");
-    expect(container.textContent).toContain("链接中控");
+    expect(container.textContent).toContain("中控");
     expect(container.textContent).toContain("扫描");
   });
 
@@ -385,7 +385,7 @@ describe("WorkbenchApp skills operations", () => {
     expect(sourceSelect).toBeUndefined();
   });
 
-  it("从扫描进入链接中控时会自动刷新一次", async () => {
+  it("从扫描进入中控时会自动刷新一次", async () => {
     skillsState.managerMode = "config";
 
     await act(async () => {
@@ -396,13 +396,17 @@ describe("WorkbenchApp skills operations", () => {
 
     await act(async () => {
       const operationsTab = Array.from(container.querySelectorAll("button")).find((button) =>
-        button.textContent?.includes("链接中控"),
+        button.textContent?.includes("中控"),
       );
       operationsTab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
     await act(async () => {
       root.render(<WorkbenchApp />);
+    });
+
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
 
     expect(skillsState.loadManagerState.mock.calls.length).toBeGreaterThan(baselineCalls);

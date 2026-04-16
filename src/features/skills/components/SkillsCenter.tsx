@@ -1,10 +1,9 @@
-import { ArrowLeft, ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { ArrowLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { ReactElement } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
-import { MarkdownPreview } from "../../common/components/MarkdownEditor";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
-import { Button, Input, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
+import { Button, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
 import type {
   SkillOpenMode,
   SkillsManagerMode,
@@ -52,13 +51,14 @@ export type SkillsCenterProps = {
   onReadSkillFile: (skillId: string, relativePath: string) => void;
   skillFileReadLoading: boolean;
   selectedSkillOverviewRead: SkillsFileReadResult | null;
-  uiLanguage: "zh" | "en";
   selectedSkillTree: SkillsFileTreeResult | undefined;
   skillTreeLoading: boolean;
   onLoadSkillTree: (skillId: string, force?: boolean) => void;
   renderSkillTreeNodes: (nodes: SkillsFileTreeNode[], skillId: string, depth?: number) => ReactElement[];
   selectedSkillFilePath: string;
   selectedSkillFileRead: SkillsFileReadResult | null;
+  selectedSkillOverviewTranslationKey: string;
+  selectedSkillOverviewTranslatedText: string;
   selectedSkillTranslationKey: string;
   selectedSkillTranslatedText: string;
   isZh: boolean;
@@ -66,6 +66,7 @@ export type SkillsCenterProps = {
   translationTargetLanguageOptions: TranslationTargetLanguageOption[];
   modelTestRunning: boolean;
   setTranslationTargetLanguage: (value: string) => void;
+  onTranslateSkillOverview: () => void;
   onTranslateSkillFile: () => void;
   shouldUseMarkdownPreview: (language: string) => boolean;
   l: (zh: string, en: string) => string;
@@ -96,13 +97,14 @@ export function SkillsCenter({
   onReadSkillFile,
   skillFileReadLoading,
   selectedSkillOverviewRead,
-  uiLanguage,
   selectedSkillTree,
   skillTreeLoading,
   onLoadSkillTree,
   renderSkillTreeNodes,
   selectedSkillFilePath,
   selectedSkillFileRead,
+  selectedSkillOverviewTranslationKey,
+  selectedSkillOverviewTranslatedText,
   selectedSkillTranslationKey,
   selectedSkillTranslatedText,
   isZh,
@@ -110,6 +112,7 @@ export function SkillsCenter({
   translationTargetLanguageOptions,
   modelTestRunning,
   setTranslationTargetLanguage,
+  onTranslateSkillOverview,
   onTranslateSkillFile,
   shouldUseMarkdownPreview,
   l,
@@ -133,20 +136,16 @@ export function SkillsCenter({
                 className="w-56"
               />
               {!showSkillOpenModeInStatusBar ? (
-                <div className="relative">
-                  <select
-                    className={`${selectBaseClass} w-44`}
-                    value={skillOpenMode}
-                    onChange={(event) => setSkillOpenMode(event.currentTarget.value as SkillOpenMode)}
-                  >
-                    {skillOpenModeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                </div>
+                <Select
+                  className="w-44"
+                  buttonClassName={selectBaseClass}
+                  value={skillOpenMode}
+                  onChange={(nextValue) => setSkillOpenMode(nextValue as SkillOpenMode)}
+                  options={skillOpenModeOptions.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                />
               ) : null}
               {managerMode === "config" ? (
                 <Button variant="outline" onClick={onScanSkills}>
@@ -162,7 +161,7 @@ export function SkillsCenter({
 
           <Tabs value={managerMode} onValueChange={(value) => setManagerMode(value as SkillsManagerMode)}>
             <TabsList>
-              <TabsTrigger value="operations">{l("链接中控", "Link Hub")}</TabsTrigger>
+              <TabsTrigger value="operations">{l("中控", "Hub")}</TabsTrigger>
               <TabsTrigger value="config">{l("扫描", "Scan")}</TabsTrigger>
             </TabsList>
             <TabsContent value="operations" className="mt-3">
@@ -190,7 +189,7 @@ export function SkillsCenter({
             </div>
             {selectedSkill ? (
               <Button variant="outline" onClick={() => void onSkillOpen(selectedSkill.id)}>
-                {l("打开目录", "Open Folder")}
+                {l("打开", "Open")}
               </Button>
             ) : null}
           </div>
@@ -227,11 +226,19 @@ export function SkillsCenter({
                       {l("未找到 SKILL.md", "SKILL.md not found")}
                     </div>
                   ) : selectedSkillOverviewRead.supported ? (
-                    <MarkdownPreview
-                      content={selectedSkillOverviewRead.content}
-                      minHeight={420}
-                      maxHeight={720}
-                      language={uiLanguage}
+                    <TranslatableTextViewer
+                      isZh={isZh}
+                      sourceText={selectedSkillOverviewRead.content}
+                      translatedText={selectedSkillOverviewTranslatedText}
+                      targetLanguage={translationTargetLanguage}
+                      targetLanguageOptions={translationTargetLanguageOptions}
+                      translating={modelTestRunning}
+                      onTargetLanguageChange={setTranslationTargetLanguage}
+                      onTranslate={onTranslateSkillOverview}
+                      defaultSourceViewMode={
+                        shouldUseMarkdownPreview(selectedSkillOverviewRead.language) ? "preview" : "view"
+                      }
+                      sourceViewModeResetKey={selectedSkillOverviewTranslationKey}
                     />
                   ) : (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-700">

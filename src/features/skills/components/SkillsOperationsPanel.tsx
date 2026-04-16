@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
-import { Button, Card, CardContent, Input } from "../../../shared/ui";
+import { cn } from "../../../shared/lib/cn";
+import { Button, Card, CardContent, Input, Tag, type TagProps, tagVariants } from "../../../shared/ui";
 import type {
   SkillManagerStatus,
   SkillsManagerMatrixFilter,
@@ -53,20 +54,20 @@ function isLinkCandidateStatus(status: SkillManagerStatus): boolean {
   );
 }
 
-function statusBadgeClass(status: SkillManagerStatus): string {
+function statusTagTone(status: SkillManagerStatus): NonNullable<TagProps["tone"]> {
   if (status === "linked") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700/60 dark:bg-emerald-500/20 dark:text-emerald-200";
+    return "success";
   }
   if (isPendingLinkStatus(status)) {
-    return "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-700/60 dark:bg-orange-500/20 dark:text-orange-200";
+    return "warning";
   }
   if (status === "manual") {
-    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700/60 dark:bg-amber-500/20 dark:text-amber-200";
+    return "warning";
   }
   if (status === "blocked") {
-    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-700/60 dark:bg-rose-500/20 dark:text-rose-200";
+    return "danger";
   }
-  return "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-200";
+  return "neutral";
 }
 
 function statusLabel(status: SkillManagerStatus, l: (zh: string, en: string) => string): string {
@@ -279,7 +280,7 @@ export function SkillsOperationsPanel({
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {matrixSummaries.map((summary) => {
           const active = matrixFilter.tool === summary.tool;
           return (
@@ -308,7 +309,10 @@ export function SkillsOperationsPanel({
                 <div className="flex flex-wrap items-center gap-2 text-xs">
                   <button
                     type="button"
-                    className={`rounded border px-2 py-0.5 ${statusBadgeClass("linked")}`}
+                    className={cn(
+                      tagVariants({ tone: statusTagTone("linked") }),
+                      "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    )}
                     onClick={() =>
                       onMatrixFilterChange({
                         tool: summary.tool,
@@ -320,7 +324,10 @@ export function SkillsOperationsPanel({
                   </button>
                   <button
                     type="button"
-                    className={`rounded border px-2 py-0.5 ${statusBadgeClass("missing")}`}
+                    className={cn(
+                      tagVariants({ tone: statusTagTone("missing") }),
+                      "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    )}
                     onClick={() =>
                       onMatrixFilterChange({
                         tool: summary.tool,
@@ -332,7 +339,10 @@ export function SkillsOperationsPanel({
                   </button>
                   <button
                     type="button"
-                    className={`rounded border px-2 py-0.5 ${statusBadgeClass("wrong")}`}
+                    className={cn(
+                      tagVariants({ tone: statusTagTone("wrong") }),
+                      "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    )}
                     onClick={() =>
                       onMatrixFilterChange({
                         tool: summary.tool,
@@ -391,21 +401,21 @@ export function SkillsOperationsPanel({
                   <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                     <div className="min-w-0 space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-900">{row.name}</span>
-                        {row.sourceMissing ? (
-                          <span className="rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-xs text-rose-700 dark:border-rose-700/60 dark:bg-rose-500/20 dark:text-rose-200">
+                      <span className="font-medium text-slate-900">{row.name}</span>
+                      {row.sourceMissing ? (
+                          <Tag tone="danger">
                             {l("源目录缺失", "Source Missing")}
-                          </span>
+                          </Tag>
                         ) : null}
-                        {row.conflict ? (
-                          <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-700/60 dark:bg-amber-500/20 dark:text-amber-200">
+                      {row.conflict ? (
+                          <Tag tone="warning">
                             {l("命名冲突", "Conflict")}
-                          </span>
+                          </Tag>
                         ) : null}
-                        {row.rowHint ? (
-                          <span className="rounded border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs text-amber-700 dark:border-amber-700/60 dark:bg-amber-500/20 dark:text-amber-200">
+                      {row.rowHint ? (
+                          <Tag tone="warning">
                             {row.rowHint}
-                          </span>
+                          </Tag>
                         ) : null}
                       </div>
                       <div className="text-xs text-slate-500">
@@ -419,7 +429,10 @@ export function SkillsOperationsPanel({
                         <button
                           key={`${row.id}:${cell.tool}`}
                           type="button"
-                          className={`rounded border px-2 py-0.5 text-xs ${statusBadgeClass(cell.status)}`}
+                          className={cn(
+                            tagVariants({ tone: statusTagTone(cell.status) }),
+                            "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                          )}
                           onClick={() => setActiveStatus({ row, tool: cell.tool, status: cell.status })}
                         >
                           {cell.tool}: {statusLabel(cell.status, l)}
@@ -478,9 +491,9 @@ export function SkillsOperationsPanel({
                                 onClick={() => setActiveStatus({ row, tool: cell.tool, status: cell.status })}
                               >
                                 <span className="text-sm text-slate-800">{cell.tool}</span>
-                                <span className={`rounded border px-2 py-0.5 text-xs ${statusBadgeClass(cell.status)}`}>
+                                <Tag tone={statusTagTone(cell.status)}>
                                   {statusLabel(cell.status, l)}
-                                </span>
+                                </Tag>
                               </button>
                             ))
                           )}

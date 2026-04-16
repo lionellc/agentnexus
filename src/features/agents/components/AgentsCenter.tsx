@@ -1,9 +1,22 @@
 import { AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
 
 import { SectionTitle } from "../../common/components/SectionTitle";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "../../../shared/ui";
+import { Button, Card, CardContent, Input, Tag, type TagProps } from "../../../shared/ui";
 
 type AgentTagStatus = "drifted" | "clean" | "synced" | "success" | "error" | string;
+
+function agentTagTone(status: AgentTagStatus): NonNullable<TagProps["tone"]> {
+  if (status === "drifted") {
+    return "danger";
+  }
+  if (status === "clean" || status === "synced" || status === "success") {
+    return "success";
+  }
+  if (status === "error") {
+    return "warning";
+  }
+  return "neutral";
+}
 
 export type AgentAssetTag = Record<string, unknown>;
 
@@ -25,7 +38,6 @@ export type AgentConnectionListItem = {
 
 export type AgentsCenterProps = {
   l: (zh: string, en: string) => string;
-  isDarkTheme: boolean;
   activeWorkspaceId: string | null;
   agentAssets: AgentAssetListItem[];
   agentConnections: AgentConnectionListItem[];
@@ -51,15 +63,10 @@ export type AgentsCenterProps = {
   setAgentRulesPage: (updater: number | ((prev: number) => number)) => void;
   totalAgentPages: number;
   agentRulesPageSize: number;
-  normalizeAgentTypeInput: (value: string) => string;
-  defaultAgentRuleFile: (platform: string) => string;
-  joinRuleFilePath: (rootDir: string, ruleFile: string) => string;
-  handleOpenAgentMappingPreview: (platform: string) => Promise<void> | void;
 };
 
 export function AgentsCenter({
   l,
-  isDarkTheme,
   activeWorkspaceId,
   agentAssets,
   agentConnections,
@@ -85,10 +92,6 @@ export function AgentsCenter({
   setAgentRulesPage,
   totalAgentPages,
   agentRulesPageSize,
-  normalizeAgentTypeInput,
-  defaultAgentRuleFile,
-  joinRuleFilePath,
-  handleOpenAgentMappingPreview,
 }: AgentsCenterProps) {
   return (
     <div className="space-y-4">
@@ -129,10 +132,7 @@ export function AgentsCenter({
       ) : null}
 
       <Card>
-        <CardHeader>
-          <CardTitle>{l("规则列表", "Rule Files")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <CardContent className="space-y-3 py-6 text-sm">
           {filteredAgentAssets.length === 0 ? (
             <div className="text-slate-500">{l("暂无规则文件，点击“新建规则文件”开始。", "No rule files yet. Click \"New Rule File\" to start.")}</div>
           ) : (
@@ -212,13 +212,14 @@ export function AgentsCenter({
                               </Button>
                               <Button
                                 size="sm"
-                                className="bg-red-600 hover:bg-red-700"
+                                variant="outline"
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   void handleDeleteAgentRuleAsset(asset.id, asset.name);
                                 }}
                               >
-                                {l("确认删除", "Delete")}
+                                <Trash2 className="mr-1 h-4 w-4 text-red-600" />
+                                {l("确认", "Confirm")}
                               </Button>
                             </div>
                           </div>
@@ -236,32 +237,16 @@ export function AgentsCenter({
                             (tag as Record<string, unknown>).driftStatus ??
                             "clean",
                         ) as AgentTagStatus;
-                        const label =
-                          status === "drifted"
-                            ? isDarkTheme
-                              ? "border-rose-400/40 bg-rose-500/15 text-rose-200"
-                              : "border-[#ffccc7] bg-[#fff2f0] text-[#ff4d4f]"
-                            : status === "clean" || status === "synced" || status === "success"
-                              ? isDarkTheme
-                                ? "border-emerald-400/40 bg-emerald-500/15 text-emerald-200"
-                                : "border-[#b7eb8f] bg-[#f6ffed] text-[#52c41a]"
-                              : status === "error"
-                                ? isDarkTheme
-                                  ? "border-amber-400/40 bg-amber-500/15 text-amber-200"
-                                  : "border-amber-200 bg-amber-50 text-amber-700"
-                                : isDarkTheme
-                                  ? "border-slate-500/40 bg-slate-500/15 text-slate-200"
-                                  : "border-slate-200 bg-slate-50 text-slate-700";
                         const agentType = String(
                           (tag as Record<string, unknown>).agentType ??
                             (tag as Record<string, unknown>).agent_type ??
                             "unknown",
                         );
                         return (
-                          <span key={`${asset.id}-${agentType}`} className={`rounded-full border px-2 py-1 text-xs ${label}`}>
+                          <Tag key={`${asset.id}-${agentType}`} tone={agentTagTone(status)} className="px-2 py-1">
                             {agentType}
                             {status === "drifted" ? " · drifted" : ""}
-                          </span>
+                          </Tag>
                         );
                       })
                     )}
@@ -303,45 +288,6 @@ export function AgentsCenter({
           ) : null}
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{l("平台文件映射", "Platform File Mapping")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          {agentConnections.length === 0 ? (
-            <div className="text-slate-500">{l("暂无接入 Agent，请先在设置中配置根目录。", "No connected agents. Configure root directories in Settings first.")}</div>
-          ) : (
-            agentConnections.map((connection) => {
-              const platform = normalizeAgentTypeInput(connection.agentType);
-              const mappedPath = connection.ruleFile || defaultAgentRuleFile(platform);
-              const resolvedPath =
-                connection.resolvedPath ||
-                (connection.rootDir
-                  ? joinRuleFilePath(connection.rootDir, mappedPath)
-                  : mappedPath);
-              return (
-                <div
-                  key={`mapping-${connection.id}`}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-slate-200 px-3 py-2"
-                >
-                  <div>
-                    <div className="font-medium">{platform}</div>
-                    <div className="text-xs text-slate-500">{connection.rootDir || l("(未配置根目录)", "(root directory not configured)")}</div>
-                    <div className="text-xs text-slate-500">
-                      <code>{resolvedPath}</code>
-                    </div>
-                  </div>
-                  <Button size="sm" variant="outline" onClick={() => void handleOpenAgentMappingPreview(platform)}>
-                    {l("预览", "Preview")}
-                  </Button>
-                </div>
-              );
-            })
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
-

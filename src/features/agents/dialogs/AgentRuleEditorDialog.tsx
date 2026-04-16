@@ -9,6 +9,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  FormField,
+  FormFieldset,
+  FormLabel,
   Input,
 } from "../../../shared/ui";
 
@@ -83,14 +86,16 @@ export function AgentRuleEditorDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 space-y-3 overflow-auto pr-1 text-sm">
-          <label className="block text-xs text-slate-500">
-            {l("规则文件名称", "Rule File Name")}
-            <Input
-              value={agentAssetNameInput}
-              onChange={(event) => setAgentAssetNameInput(event.currentTarget.value)}
-              placeholder={l("例如：团队规范A", "e.g. Team Policy A")}
-            />
-          </label>
+          <FormFieldset>
+            <FormField>
+              <FormLabel>{l("规则文件名称", "Rule File Name")}</FormLabel>
+              <Input
+                value={agentAssetNameInput}
+                onChange={(event) => setAgentAssetNameInput(event.currentTarget.value)}
+                placeholder={l("例如：团队规范A", "e.g. Team Policy A")}
+              />
+            </FormField>
+          </FormFieldset>
           {!creatingAgentAsset ? (
             <div className="text-xs text-slate-500">
               {l("最后更新时间", "Last Updated")}: {toLocalTime(selectedAgentAsset?.updatedAt)}
@@ -105,18 +110,16 @@ export function AgentRuleEditorDialog({
             targetLanguageOptions={translationTargetLanguageOptions}
             translating={modelTestRunning}
             onTargetLanguageChange={setTranslationTargetLanguage}
-            onTranslate={() => {
-              void (async () => {
-                const result = await handleRunModelTranslationTest({
-                  sourceText: agentEditorContent,
-                  targetLanguage: translationTargetLanguage,
-                  syncModelTestForm: false,
-                });
-                if (!result) {
-                  return;
-                }
-                setAgentRuleTranslatedText(result.translatedText);
-              })();
+            onTranslate={async () => {
+              const result = await handleRunModelTranslationTest({
+                sourceText: agentEditorContent,
+                targetLanguage: translationTargetLanguage,
+                syncModelTestForm: false,
+              });
+              if (!result) {
+                return;
+              }
+              setAgentRuleTranslatedText(result.translatedText);
             }}
             onSourceTextChange={(value) => {
               setAgentEditorContent(value);
@@ -149,4 +152,3 @@ export function AgentRuleEditorDialog({
     </Dialog>
   );
 }
-

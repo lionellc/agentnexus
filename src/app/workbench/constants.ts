@@ -8,7 +8,7 @@ export const SKILLS_PAGE_SIZE = 10;
 export const SELECT_BASE_CLASS =
   "h-10 w-full appearance-none rounded-lg border border-border bg-background px-3 pr-9 text-sm text-foreground transition-colors hover:border-ring focus:outline-none";
 
-export const SETTING_CATEGORY_KEYS: SettingsCategory[] = ["general", "data", "agents", "model", "about"];
+export const SETTING_CATEGORY_KEYS: SettingsCategory[] = ["general", "data", "model", "about"];
 
 export const SKILL_OPEN_MODE_STORAGE_KEY = "agentnexus.skills.open-mode";
 export const SKILL_SCAN_DIR_STORAGE_KEY = "agentnexus.skills.scan.directories";

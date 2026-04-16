@@ -513,12 +513,11 @@ describe("WorkbenchApp agents interactions", () => {
     container.remove();
   });
 
-  it("渲染规则列表并展示 drifted 标签", async () => {
+  it("渲染规则项并展示 drifted 标签", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    expect(document.body.textContent).toContain("规则列表");
     expect(document.body.textContent).toContain("团队规范A");
     expect(document.body.textContent).toContain("codex · drifted");
   });
@@ -648,7 +647,7 @@ describe("WorkbenchApp agents interactions", () => {
     expect(document.body.textContent).toContain("确认彻底删除");
 
     await act(async () => {
-      findButton("确认删除")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("确认")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(agentState.deleteAsset).toHaveBeenCalledWith("w1", "asset-a");
   });
@@ -666,17 +665,12 @@ describe("WorkbenchApp agents interactions", () => {
     expect(document.body.textContent).toContain("选择版本");
   });
 
-  it("平台文件映射预览会调用 preview 并展示弹窗内容", async () => {
+  it("全局 Agent 规则页不再展示平台文件映射入口", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    await act(async () => {
-      findButton("预览")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-    expect(previewMock).toHaveBeenCalled();
-    expect(document.body.textContent).toContain("平台文件预览");
-    expect(document.body.textContent).toContain("读取成功");
-    expect(document.body.textContent).toContain("codex rules");
+    expect(findButton("预览")).toBeUndefined();
+    expect(document.body.textContent).not.toContain("平台文件映射");
   });
 });

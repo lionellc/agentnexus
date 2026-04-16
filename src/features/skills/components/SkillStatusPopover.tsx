@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { Button, Card, CardContent, CardHeader, CardTitle } from "../../../shared/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, Tag, type TagProps } from "../../../shared/ui";
 import type { SkillManagerStatus } from "../../../shared/types";
 
 export type SkillStatusAction = {
@@ -29,20 +29,20 @@ function isPendingLinkStatus(status: SkillManagerStatus): boolean {
   return status === "wrong" || status === "directory";
 }
 
-function statusCapsuleClass(status: SkillManagerStatus): string {
+function statusTagTone(status: SkillManagerStatus): NonNullable<TagProps["tone"]> {
   if (status === "linked") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700/60 dark:bg-emerald-500/20 dark:text-emerald-200";
+    return "success";
   }
   if (isPendingLinkStatus(status)) {
-    return "border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-700/60 dark:bg-orange-500/20 dark:text-orange-200";
+    return "warning";
   }
   if (status === "manual") {
-    return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700/60 dark:bg-amber-500/20 dark:text-amber-200";
+    return "warning";
   }
   if (status === "blocked") {
-    return "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-700/60 dark:bg-rose-500/20 dark:text-rose-200";
+    return "danger";
   }
-  return "border-slate-300 bg-slate-50 text-slate-700 dark:border-slate-600 dark:bg-slate-800/70 dark:text-slate-200";
+  return "neutral";
 }
 
 function statusLabel(status: SkillManagerStatus, l: (zh: string, en: string) => string): string {
@@ -99,9 +99,9 @@ export function SkillStatusPopover({
       >
         <CardHeader className="space-y-3 pb-3">
           <div className="flex items-center justify-between gap-3">
-            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${statusCapsuleClass(status)}`}>
+            <Tag tone={statusTagTone(status)} className="px-2.5 py-1">
               {statusLabel(status, l)}
-            </span>
+            </Tag>
             <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} aria-label={l("关闭", "Close")}>
               {l("关闭", "Close")}
             </Button>

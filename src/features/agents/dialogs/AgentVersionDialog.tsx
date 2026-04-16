@@ -7,6 +7,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  Tag,
 } from "../../../shared/ui";
 
 export type AgentVersionListItem = {
@@ -145,13 +146,13 @@ export function AgentVersionDialog({
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm">
-                      <span className="rounded-md bg-red-100 px-2 py-1 font-medium text-red-700">
+                      <Tag tone="danger" className="rounded-md px-2 py-1">
                         {agentCompareLeft ? `v${agentCompareLeft.version}` : l("未选择", "N/A")}
-                      </span>
+                      </Tag>
                       <span className="text-slate-500">→</span>
-                      <span className="rounded-md bg-emerald-100 px-2 py-1 font-medium text-emerald-700">
+                      <Tag tone="success" className="rounded-md px-2 py-1">
                         {agentCompareRight ? `v${agentCompareRight.version}` : l("未选择", "N/A")}
-                      </span>
+                      </Tag>
                     </div>
                     <div className="text-sm text-slate-500">
                       {agentCompareLeft && agentCompareRight
