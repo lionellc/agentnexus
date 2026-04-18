@@ -1,200 +1,174 @@
 # AgentNexus
 
-[简体中文](./README.md) · [English](./docs/README.en.md)
+[English](./README.md) · [简体中文](./docs/README.zh.md)
 
-AgentNexus 是一个本地优先的 Agent 中控台（Control Plane）。
-它的起点是解决一个实际痛点：当前 Agent 产品众多、配置分散，用户在迁移和日常管理时成本很高。
-
-当前版本已实现 **全局 Agent 规则管理**，并在同一控制面逐步扩展 **Prompts、Skills、Spec** 能力。
+AgentNexus is a local-first Agent control plane.
+It brings rules, prompts, and skills scattered across multiple Agent tools into one place, so migration and daily operations become faster and safer.
 
 ---
 
-## 核心价值
+## What Problem It Solves
 
-- 统一管理：把分散在不同 Agent 工具中的配置和规则拉回一个控制面
-- 降低迁移成本：减少手工复制/对齐规则文件的重复劳动
-- 降低运维成本：通过版本、分发状态、审计记录降低不可见风险
+If you work with multiple Agent tools, you usually hit the same issues:
 
----
+- Scattered configuration: rules, prompts, and skills live in different locations
+- High migration cost: environment switches require repeated manual sync
+- Low visibility: hard to trace what changed, where it failed, and whether it took effect
 
-## 当前能力（V1）
-
-### 1. 全局 Agent 规则管理
-
-- 规则资产管理：创建、编辑、版本发布、版本回滚
-- Agent 连接管理：按 Agent 类型配置根目录与规则文件路径
-- 批量应用与状态追踪：支持分发任务状态查看与失败重试
-- 分发模式：`copy` / `symlink`（可配置降级）
-- 审计记录：关键动作（发布、应用、回滚等）可追踪
-
-### 2. 单项目模式（默认 Workspace 隐式化）
-
-- 启动时自动确保“默认项目”存在并激活
-- UI 层不强调 Workspace 概念，按“当前项目目录”工作
-- 减少用户在单项目场景下的心智负担
-
-### 3. Settings / Storage
-
-- 可配置当前项目目录（绝对路径）
-- 支持恢复默认路径
-- 支持在系统文件管理器中打开目录
-
-### 4. Skills 能力
-
-- 可配置 Skills 扫描目录（多目录）
-- 扫描并识别 `SKILL.md`
-- 展示技能详情并支持分发/卸载流程
-
-### 5. Agent Connections
-
-- 按 Agent 类型维护连接信息
-- 配置 `root_dir` 与 `rule_file`
-- 支持启停与连通性相关操作
-
-### 6. Prompts（已接入基础能力）
-
-- Prompt 资产管理与版本化能力
-- 后续与 Agent 规则、Skills 做统一治理联动
+AgentNexus turns these into visible, traceable, and reusable workflows.
 
 ---
 
-## 路线图（Roadmap）
+## Who It Is For
 
-- 已完成：全局 Agent 规则管理主闭环
-- 进行中：Prompts、Skills 体验完善与联动
-- 下一步：引入 Spec 管理，形成 Rule / Prompt / Skill / Spec 一体化控制面
-
----
-
-## 产品截图
-
-
-### 1. 全局 Agent 规则页
-
-![全局 Agent 规则页](./docs/screenshots/01-agent-rules.png)
-
-### 2. Settings - General
-
-![Settings General](./docs/screenshots/02-settings-general.png)
-
-### 3. Settings - Data / Storage / Skills
-
-![Settings Data Storage](./docs/screenshots/03-settings-storage.png)
-
-### 4. Agent Connections 配置
-
-![Agent Connections 配置](./docs/screenshots/04-agent-connections.png)
-
-### 5. Prompts 列表与版本
-
-![Prompts 列表与版本](./docs/screenshots/05-prompts.png)
-
-### 6. Skill 详情
-
-![Skill 详情](./docs/screenshots/06-skill-detail.png)
+- Individual developers who want one place to manage local Agent assets
+- Team maintainers who need stable distribution to multiple target directories
+- AI engineering leads who need visibility over status, versions, and audit logs
 
 ---
 
-## 快速开始
+## Core Value
 
-### 环境要求
+- Unified management: Rule / Prompt / Skill under one control plane
+- Less repetitive work: fewer manual copy-and-sync operations
+- Lower operational risk: better visibility through versioning, status, and audit records
 
-- Node.js（建议 LTS）
+---
+
+## Current Capabilities (V1)
+
+### 1. Agents Center
+
+- Manage Agent connections (such as `root_dir` and `rule_file`)
+- Enable connection-related operations and status management
+
+### 2. Prompts Center
+
+- Manage prompt assets and versions
+- Support detail view, run flow, and version comparison
+
+### 3. Skills Center
+
+- Manage multi-directory skills scanning
+- Detect skills via `SKILL.md` and show details
+- Support distribution and uninstall workflows
+
+### 4. Settings Center
+
+- Configure current project directory (absolute path)
+- Reset to default path
+- Open the directory in system file explorer
+
+### 5. Global Rules and Distribution
+
+- Rule lifecycle: create, edit, release, rollback
+- Distribution modes: `copy` / `symlink` (with fallback)
+- Distribution status tracking and retry
+- Audit trail for key actions (release, apply, rollback)
+
+---
+
+## 5-Minute Quick Start
+
+### Requirements
+
+- Node.js (LTS recommended)
 - pnpm
-- Rust toolchain（Tauri 桌面端）
+- Rust toolchain (only needed for Tauri desktop development)
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
-cd AgentNexus
 pnpm install
 ```
 
-### 本地开发（Web）
+### Start Web App
 
 ```bash
-cd AgentNexus
 pnpm dev
 ```
 
-### 本地开发（Tauri 桌面端）
+### Start Desktop App (Tauri)
 
 ```bash
-cd AgentNexus
 pnpm tauri dev
 ```
 
-### 构建
+---
+
+## Common Dev Commands
 
 ```bash
-cd AgentNexus
-pnpm build
+pnpm test:run     # run tests
+pnpm typecheck    # type check
+pnpm build        # build
 ```
-
-### 测试
-
-```bash
-cd AgentNexus
-pnpm test:run
-```
-
-### 类型检查
-
-```bash
-cd AgentNexus
-pnpm typecheck
-```
-
-### GitHub 发布（macOS + 内置更新）
-
-`AgentNexus` 已接入 Tauri Updater，更新源为：
-
-- `https://github.com/lionellc/agentnexus/releases/latest/download/latest.json`
-
-发布前需在 GitHub 仓库 Secrets 配置：
-
-- `TAURI_SIGNING_PRIVATE_KEY_B64`
-- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`
-
-发布方式：
-
-1. 更新 `src-tauri/tauri.conf.json` 与 `src-tauri/Cargo.toml` 版本号（如 `0.1.1`）
-2. 打 tag：`v0.1.1`
-3. 推送 tag：`git push origin v0.1.1`
-4. GitHub Actions 先执行 `.github/workflows/release.yml`（submit 阶段），创建/更新带 `[NOTARIZING]` 的 `prerelease`，并写入 release 状态资产
-5. `release-finalize.yml` 按每 30 分钟 schedule 自动推进；也可手动触发 finalize
-6. 当 app 与 dmg 公证都 `Accepted` 后，finalize 执行收尾并发布正式 release（移除 `[NOTARIZING]` 与 prerelease）
-
-`[NOTARIZING]` 含义：
-
-- 当前版本已完成打包与提交公证，但公证尚未完成
-- 该阶段 release 为 `prerelease`，仅用于验证，不建议生产使用
-
-手动触发 finalize（示例）：
-
-```bash
-gh workflow run release-finalize.yml -f release_tag=v0.1.1
-```
-
-公证排障入口：
-
-- 优先查看 release 资产 `notarization-state.json`（submission id、当前状态、最近检查时间）
-- 再查看 `release-finalize.yml` 对应 run 日志（含 app/dmg 分支与 notary 查询结果）
-- 详见 `docs/ops/release-notarization-runbook.md`
 
 ---
 
-## 项目结构
+## Documentation Map
+
+If you are new to the project:
+
+- `README.md`: English documentation (this file)
+- `docs/README.zh.md`: Chinese documentation
+
+If you maintain the release pipeline:
+
+- `docs/ops/release-standard-playbook.md`: standard release SOP
+- `docs/ops/release-notarization-runbook.md`: notarization failure and recovery
+- `.github/release-notes/`: versioned release notes
+
+---
+
+## Product Screenshots
+
+### 1. Global Agent Rules
+
+![Global Agent Rules](./docs/screenshots/01-agent-rules.png)
+
+### 2. Skills Hub (Distribution and Status)
+
+![Skills Hub](./docs/screenshots/07-skills-hub.png)
+
+### 3. Skills Scan
+
+![Skills Scan](./docs/screenshots/08-skills-scan.png)
+
+### 4. Skill Detail
+
+![Skill Detail](./docs/screenshots/06-skill-detail.png)
+
+### 5. Prompts (All, Categories, Favorites)
+
+![Prompts](./docs/screenshots/05-prompts.png)
+
+### 6. Settings - Basic
+
+![Settings Basic](./docs/screenshots/03-settings-basic.png)
+
+### 7. Settings - AI Models
+
+![Settings AI Models](./docs/screenshots/04-settings-model.png)
+
+### 8. Settings - General
+
+![Settings General](./docs/screenshots/02-settings-general.png)
+
+---
+
+## Project Structure
 
 ```text
 AgentNexus/
-├── src/                         # React 前端控制面
-│   ├── app/                     # Workbench 主入口
+├── src/                         # React frontend control plane
+│   ├── app/                     # Workbench entry
 │   ├── features/                # agents / prompts / skills / settings
-│   └── shared/                  # 类型、API、状态管理、通用组件
-├── src-tauri/                   # Tauri + Rust 后端能力
-│   ├── src/control_plane/       # 规则、提示词、技能、审计等命令
-│   ├── src/execution_plane/     # 分发与扫描执行
-│   └── src/db.rs                # SQLite 结构与迁移
-└── .docs/                       # 产品与工程文档
+│   └── shared/                  # types, API, stores, shared components
+├── src-tauri/                   # Tauri + Rust backend
+│   ├── src/control_plane/       # commands for rules, prompts, skills, audit
+│   ├── src/execution_plane/     # distribution and scanning execution
+│   └── src/db.rs                # SQLite schema and migrations
+├── docs/                        # product and engineering docs
+└── .docs/                       # working drafts and planning artifacts (optional)
 ```
