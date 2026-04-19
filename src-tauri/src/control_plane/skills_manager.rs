@@ -22,6 +22,7 @@ use crate::{
         SkillsManagerDeleteInput, SkillsManagerDiffJobInput, SkillsManagerDiffStartInput,
         SkillsManagerLinkPreviewInput, SkillsManagerRestoreInput, SkillsManagerRuleValue,
         SkillsManagerRulesUpdateInput, SkillsManagerStateInput, SkillsManagerToolRuleValue,
+        SkillsManagerUpdateThenLinkInput,
     },
     error::AppError,
     security::resolve_distribution_target_path,
@@ -807,6 +808,95 @@ pub fn skills_manager_link_preview(
     serde_json::to_value(preview).map_err(|err| AppError::internal(err.to_string()))
 }
 
+#[tauri::command]
+pub fn skills_manager_update_then_link(
+    state: State<'_, AppState>,
+    input: SkillsManagerUpdateThenLinkInput,
+) -> Result<Value, AppError> {
+    let conn = state.open()?;
+    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
+    let mut config = load_skills_manager_config(&conn, &input.workspace_id)?;
+    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let skills = list_skills(&conn)?;
+    let deleted: HashSet<String> = config.deleted_skills.iter().cloned().collect();
+
+    let skill_map: HashMap<String, SkillRuntime> = skills
+        .iter()
+        .map(|item| (item.id.clone(), to_runtime_skill(item)))
+        .collect();
+    let tool_map: HashMap<String, ToolTarget> = tools
+        .iter()
+        .map(|item| (item.platform.clone(), item.clone()))
+        .collect();
+
+    let skill = skill_map
+        .get(&input.skill_id)
+        .ok_or_else(|| AppError::invalid_argument("skill 不存在"))?;
+    let tool = tool_map
+        .get(&input.tool)
+        .ok_or_else(|| AppError::invalid_argument("工具不存在"))?;
+    if deleted.contains(&skill.name) {
+        return Err(AppError::invalid_argument("skill 已被删除（soft-delete）"));
+    }
+
+    let preview = build_link_preview(
+        &workspace_root,
+        &input.workspace_id,
+        skill,
+        tool,
+        &config,
+        0,
+    )?;
+    if !preview.can_link {
+        return Err(AppError::invalid_argument(preview.message));
+    }
+
+    let update_source_path = resolve_update_source_path(&preview)?;
+    let updated = replace_source_skill_from_target(&skill.local_path, &update_source_path)?;
+
+    let batch_item = SkillsManagerBatchItemInput {
+        skill_id: input.skill_id.clone(),
+        tool: input.tool.clone(),
+        force: Some(true),
+    };
+    let link_result = run_single_batch_item(
+        &workspace_root,
+        &batch_item,
+        &skill_map,
+        &tool_map,
+        &mut config,
+        &deleted,
+        true,
+    );
+    if !link_result.ok {
+        return Err(AppError::invalid_argument(link_result.message));
+    }
+
+    save_skills_manager_config(&conn, &input.workspace_id, &config)?;
+    append_audit_event(
+        &conn,
+        Some(&input.workspace_id),
+        "skills_manager_update_then_link",
+        input.operator.as_deref().unwrap_or("system"),
+        json!({
+            "workspaceId": input.workspace_id,
+            "skillId": input.skill_id,
+            "tool": input.tool,
+            "updated": updated,
+            "targetPath": preview.target_path,
+            "targetKind": preview.target_kind,
+            "diffFiles": preview.diff_files,
+        }),
+    )?;
+
+    Ok(json!({
+        "ok": true,
+        "updated": updated,
+        "linked": true,
+        "message": if updated { "已更新 skill 并完成链接。" } else { "已完成链接，未发生内容更新。" },
+    }))
+}
+
 fn run_batch_action(
     state: State<'_, AppState>,
     input: SkillsManagerBatchInput,
@@ -888,6 +978,42 @@ fn run_batch_action(
             "failed": failed,
         },
     }))
+}
+
+fn resolve_update_source_path(preview: &SkillsManagerLinkPreview) -> Result<PathBuf, AppError> {
+    let target = PathBuf::from(&preview.target_path);
+    let metadata = fs::symlink_metadata(&target)
+        .map_err(|_| AppError::invalid_argument("目标不存在，无法执行更新后链接"))?;
+
+    if metadata.file_type().is_symlink() {
+        let resolved = resolve_link_target_path(&target)
+            .map_err(|_| AppError::invalid_argument("目标软链接读取失败，无法执行更新后链接"))?;
+        if resolved.exists() && resolved.is_dir() {
+            return Ok(resolved);
+        }
+        return Err(AppError::invalid_argument(
+            "目标软链接未指向可读目录，无法执行更新后链接",
+        ));
+    }
+
+    if metadata.is_dir() {
+        return Ok(target);
+    }
+
+    Err(AppError::invalid_argument(
+        "目标不是目录，无法执行更新后链接",
+    ))
+}
+
+fn replace_source_skill_from_target(
+    source_skill_path: &Path,
+    update_source_path: &Path,
+) -> Result<bool, AppError> {
+    if normalize_path(source_skill_path) == normalize_path(update_source_path) {
+        return Ok(false);
+    }
+    replace_link_target_with_copy(update_source_path, source_skill_path)?;
+    Ok(true)
 }
 
 #[derive(Debug)]
@@ -2072,9 +2198,9 @@ mod tests {
 
     use super::{
         build_link_preview, collect_skill_files, compare_skill_file_pair, compute_status,
-        is_allowed, run_single_batch_item, sanitize_rule_map, SkillRuntime, SkillsManagerConfig,
-        SkillsManagerRuleValue, SkillsManagerToolRuleValue, ToolTarget, STATUS_LINKED,
-        STATUS_MISSING,
+        is_allowed, replace_source_skill_from_target, run_single_batch_item, sanitize_rule_map,
+        SkillRuntime, SkillsManagerConfig, SkillsManagerRuleValue, SkillsManagerToolRuleValue,
+        ToolTarget, STATUS_LINKED, STATUS_MISSING,
     };
 
     fn build_rule(only: Option<Vec<&str>>, exclude: Option<Vec<&str>>) -> SkillsManagerRuleValue {
@@ -2244,6 +2370,41 @@ mod tests {
     }
 
     #[test]
+    fn replace_source_skill_from_target_overwrites_source_content() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let source_skill = workspace.path().join("source").join("demo-skill");
+        let target_skill = workspace.path().join("target").join("demo-skill");
+        fs::create_dir_all(&source_skill).expect("create source");
+        fs::create_dir_all(&target_skill).expect("create target");
+        fs::write(source_skill.join("SKILL.md"), "source").expect("write source");
+        fs::write(target_skill.join("SKILL.md"), "target").expect("write target");
+
+        let updated =
+            replace_source_skill_from_target(&source_skill, &target_skill).expect("replace source");
+        assert!(updated);
+        assert_eq!(
+            fs::read_to_string(source_skill.join("SKILL.md")).expect("read source"),
+            "target"
+        );
+    }
+
+    #[test]
+    fn replace_source_skill_from_target_returns_false_when_paths_same() {
+        let workspace = tempfile::tempdir().expect("workspace");
+        let source_skill = workspace.path().join("source").join("demo-skill");
+        fs::create_dir_all(&source_skill).expect("create source");
+        fs::write(source_skill.join("SKILL.md"), "source").expect("write source");
+
+        let updated =
+            replace_source_skill_from_target(&source_skill, &source_skill).expect("replace source");
+        assert!(!updated);
+        assert_eq!(
+            fs::read_to_string(source_skill.join("SKILL.md")).expect("read source"),
+            "source"
+        );
+    }
+
+    #[test]
     fn run_single_batch_item_copy_mode_link_creates_directory_copy() {
         let workspace = tempfile::tempdir().expect("workspace");
         let source_skill = workspace.path().join("source").join("demo-skill");
@@ -2379,10 +2540,9 @@ mod tests {
         };
 
         let mut config = SkillsManagerConfig::default();
-        config.manual_unlinks.insert(
-            "demo-skill".to_string(),
-            vec!["codex".to_string()],
-        );
+        config
+            .manual_unlinks
+            .insert("demo-skill".to_string(), vec!["codex".to_string()]);
 
         let status = compute_status(workspace.path(), &skill, &tool, &config);
         assert_eq!(status, STATUS_MISSING);

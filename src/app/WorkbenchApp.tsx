@@ -63,6 +63,7 @@ import {
   type SkillsConfigGroup,
 } from "../features/skills/components/SkillsConfigPanel";
 import { SkillsOperationsPanel } from "../features/skills/components/SkillsOperationsPanel";
+import { SkillUsageTimelineDialog } from "../features/skills/components/SkillUsageTimelineDialog";
 import { useRuntimeOutputSheet } from "../features/common/hooks/useRuntimeOutputSheet";
 import { ModelSettingsPanel } from "../features/settings/components/ModelSettingsPanel";
 import {
@@ -215,6 +216,8 @@ type AgentConnectionDraft = {
   ruleFile: string;
 };
 
+type ManagerLinkConfirmDecision = "cancel" | "force-link" | "update-then-link";
+
 const DEFAULT_NEW_DISTRIBUTION_TARGET_DRAFT: DistributionTargetDraft = {
   platform: ".codex",
   targetPath: "",
@@ -275,6 +278,16 @@ export function WorkbenchApp() {
   const managerExpandedSkillId = useSkillsStore((state) => state.managerExpandedSkillId);
   const managerMatrixFilter = useSkillsStore((state) => state.managerMatrixFilter);
   const managerRowHints = useSkillsStore((state) => state.managerRowHints);
+  const usageAgentFilter = useSkillsStore((state) => state.usageAgentFilter);
+  const usageSourceFilter = useSkillsStore((state) => state.usageSourceFilter);
+  const usageStatsLoading = useSkillsStore((state) => state.usageStatsLoading);
+  const usageStatsError = useSkillsStore((state) => state.usageStatsError);
+  const usageListSyncJob = useSkillsStore((state) => state.usageListSyncJob);
+  const usageDetailSyncJob = useSkillsStore((state) => state.usageDetailSyncJob);
+  const usageDetailCalls = useSkillsStore((state) => state.usageDetailCalls);
+  const usageDetailCallsTotal = useSkillsStore((state) => state.usageDetailCallsTotal);
+  const usageDetailCallsLoading = useSkillsStore((state) => state.usageDetailCallsLoading);
+  const usageDetailCallsError = useSkillsStore((state) => state.usageDetailCallsError);
   const getManagerOperationsRows = useSkillsStore((state) => state.getManagerOperationsRows);
   const loadManagerState = useSkillsStore((state) => state.loadManagerState);
   const managerBatchLink = useSkillsStore((state) => state.managerBatchLink);
@@ -283,6 +296,12 @@ export function WorkbenchApp() {
   const setManagerExpandedSkillId = useSkillsStore((state) => state.setManagerExpandedSkillId);
   const setManagerMatrixFilter = useSkillsStore((state) => state.setManagerMatrixFilter);
   const clearManagerRowHint = useSkillsStore((state) => state.clearManagerRowHint);
+  const setUsageFilters = useSkillsStore((state) => state.setUsageFilters);
+  const refreshUsageStats = useSkillsStore((state) => state.refreshUsageStats);
+  const startListUsageSync = useSkillsStore((state) => state.startListUsageSync);
+  const startDetailUsageSync = useSkillsStore((state) => state.startDetailUsageSync);
+  const loadUsageCalls = useSkillsStore((state) => state.loadUsageCalls);
+  const clearUsageDetail = useSkillsStore((state) => state.clearUsageDetail);
 
   const agentAssets = useAgentRulesStore((state) => state.assets);
   const agentTagsByAsset = useAgentRulesStore((state) => state.tagsByAsset);
@@ -385,6 +404,8 @@ export function WorkbenchApp() {
   const [scanPhase, setScanPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [scanMessage, setScanMessage] = useState("");
   const [diffView, setDiffView] = useState<SkillsConfigDiffView>(() => createInitialDiffView());
+  const [usageTimelineOpen, setUsageTimelineOpen] = useState(false);
+  const [usageTimelineSkillId, setUsageTimelineSkillId] = useState<string | null>(null);
   const [agentQuery, setAgentQuery] = useState("");
   const [storageDirDraft, setStorageDirDraft] = useState("");
   const [newAgentConnectionDraft, setNewAgentConnectionDraft] = useState<AgentConnectionDraft>(
@@ -458,7 +479,7 @@ export function WorkbenchApp() {
   const [distributionTargetSavingId, setDistributionTargetSavingId] = useState<string | null>(null);
   const [managerPurgingSkillId, setManagerPurgingSkillId] = useState<string | null>(null);
   const [linkConfirmPreview, setLinkConfirmPreview] = useState<SkillsManagerLinkPreviewResult | null>(null);
-  const linkConfirmResolverRef = useRef<((confirmed: boolean) => void) | null>(null);
+  const linkConfirmResolverRef = useRef<((decision: ManagerLinkConfirmDecision) => void) | null>(null);
 
   const selectedPrompt = useMemo(() => prompts.find((item) => item.id === selectedPromptId) ?? null, [prompts, selectedPromptId]);
   const selectedModelProfile = useMemo(
@@ -468,6 +489,10 @@ export function WorkbenchApp() {
   const modelTestRunning = modelTestOutputSheet.running;
   const modelTestResult = modelTestOutputSheet.result;
   const selectedSkill = useMemo(() => skills.find((item) => item.id === selectedSkillId) ?? null, [skills, selectedSkillId]);
+  const usageTimelineSkill = useMemo(
+    () => skills.find((item) => item.id === usageTimelineSkillId) ?? null,
+    [skills, usageTimelineSkillId],
+  );
   const activeWorkspace = useMemo(
     () => workspaces.find((item) => item.id === activeWorkspaceId) ?? workspaces[0] ?? null,
     [workspaces, activeWorkspaceId],
@@ -1144,12 +1169,22 @@ export function WorkbenchApp() {
     if (!activeWorkspaceId) {
       return;
     }
+    clearUsageDetail();
     void fetchPrompts(activeWorkspaceId);
     void fetchSkills();
     void loadManagerState(activeWorkspaceId);
+    void refreshUsageStats(activeWorkspaceId).catch(() => undefined);
     void loadAgentModuleData(activeWorkspaceId);
     void loadModelWorkbenchData(activeWorkspaceId);
-  }, [activeWorkspaceId, fetchPrompts, fetchSkills, loadAgentModuleData, loadManagerState]);
+  }, [
+    activeWorkspaceId,
+    clearUsageDetail,
+    fetchPrompts,
+    fetchSkills,
+    loadAgentModuleData,
+    loadManagerState,
+    refreshUsageStats,
+  ]);
 
   useEffect(() => {
     const inOperations = activeModule === "skills" && managerMode === "operations";
@@ -1158,6 +1193,7 @@ export function WorkbenchApp() {
       // 切换进入运营模式时先渲染当前状态，扫描与刷新放到后台异步执行。
       void loadManagerState(workspaceId);
       void fetchSkills();
+      void refreshUsageStats(workspaceId).catch(() => undefined);
 
       if (operationsScanDirectories.length > 0) {
         window.setTimeout(() => {
@@ -1165,7 +1201,11 @@ export function WorkbenchApp() {
             try {
               await scanSkills(workspaceId, operationsScanDirectories);
             } finally {
-              await Promise.allSettled([fetchSkills(), loadManagerState(workspaceId)]);
+              await Promise.allSettled([
+                fetchSkills(),
+                loadManagerState(workspaceId),
+                refreshUsageStats(workspaceId),
+              ]);
             }
           })();
         }, 0);
@@ -1179,7 +1219,26 @@ export function WorkbenchApp() {
     fetchSkills,
     loadManagerState,
     operationsScanDirectories,
+    refreshUsageStats,
     scanSkills,
+  ]);
+
+  useEffect(() => {
+    if (!activeWorkspaceId) {
+      return;
+    }
+    void refreshUsageStats(activeWorkspaceId).catch(() => undefined);
+    if (usageTimelineOpen && usageTimelineSkillId) {
+      void loadUsageCalls(activeWorkspaceId, usageTimelineSkillId).catch(() => undefined);
+    }
+  }, [
+    activeWorkspaceId,
+    loadUsageCalls,
+    refreshUsageStats,
+    usageAgentFilter,
+    usageSourceFilter,
+    usageTimelineOpen,
+    usageTimelineSkillId,
   ]);
 
   useEffect(() => {
@@ -3250,6 +3309,59 @@ export function WorkbenchApp() {
     />
   );
 
+  async function handleRefreshUsageAnalysis() {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    try {
+      await startListUsageSync(activeWorkspaceId);
+    } catch (error) {
+      toast({
+        title: l("启动分析失败", "Failed to start analysis"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  function handleUsageFilterChange(next: { agent?: string; source?: string }) {
+    setUsageFilters(next);
+  }
+
+  async function handleOpenUsageTimeline(skillId: string) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    setUsageTimelineSkillId(skillId);
+    setUsageTimelineOpen(true);
+    try {
+      await loadUsageCalls(activeWorkspaceId, skillId);
+    } catch (error) {
+      toast({
+        title: l("读取调用记录失败", "Failed to load call history"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
+  async function handleRefreshUsageTimeline() {
+    if (!activeWorkspaceId || !usageTimelineSkillId) {
+      return;
+    }
+    try {
+      await startDetailUsageSync(activeWorkspaceId, usageTimelineSkillId);
+    } catch (error) {
+      toast({
+        title: l("启动分析失败", "Failed to start analysis"),
+        description: error instanceof Error ? error.message : l("未知错误", "Unknown error"),
+        variant: "destructive",
+      });
+    }
+  }
+
   async function handleRefreshSkills() {
     if (!activeWorkspaceId) {
       toast({ title: projectBootingMessage, variant: "destructive" });
@@ -3261,6 +3373,7 @@ export function WorkbenchApp() {
       }
       await fetchSkills();
       await loadManagerState(activeWorkspaceId);
+      await refreshUsageStats(activeWorkspaceId);
     } catch (error) {
       toast({
         title: l("刷新失败", "Refresh failed"),
@@ -3270,20 +3383,20 @@ export function WorkbenchApp() {
     }
   }
 
-  const settleLinkConfirm = useCallback((confirmed: boolean) => {
+  const settleLinkConfirm = useCallback((decision: ManagerLinkConfirmDecision) => {
     const resolver = linkConfirmResolverRef.current;
     linkConfirmResolverRef.current = null;
     setLinkConfirmPreview(null);
     if (resolver) {
-      resolver(confirmed);
+      resolver(decision);
     }
   }, []);
 
   const requestLinkConfirm = useCallback(
-    async (preview: SkillsManagerLinkPreviewResult): Promise<boolean> =>
+    async (preview: SkillsManagerLinkPreviewResult): Promise<ManagerLinkConfirmDecision> =>
       new Promise((resolve) => {
         if (linkConfirmResolverRef.current) {
-          linkConfirmResolverRef.current(false);
+          linkConfirmResolverRef.current("cancel");
         }
         linkConfirmResolverRef.current = resolve;
         setLinkConfirmPreview(preview);
@@ -3294,7 +3407,7 @@ export function WorkbenchApp() {
   useEffect(() => {
     return () => {
       if (linkConfirmResolverRef.current) {
-        linkConfirmResolverRef.current(false);
+        linkConfirmResolverRef.current("cancel");
         linkConfirmResolverRef.current = null;
       }
     };
@@ -3310,9 +3423,9 @@ export function WorkbenchApp() {
   async function confirmManagerLinkWithDiff(
     skillId: string,
     tool: string,
-  ): Promise<{ proceed: boolean; force: boolean; cancelled?: boolean }> {
+  ): Promise<{ proceed: boolean; force: boolean; updateThenLink: boolean; cancelled?: boolean }> {
     if (!activeWorkspaceId || !tool) {
-      return { proceed: false, force: false };
+      return { proceed: false, force: false, updateThenLink: false };
     }
     const preview = await skillsManagerApi.linkPreview({
       workspaceId: activeWorkspaceId,
@@ -3326,16 +3439,19 @@ export function WorkbenchApp() {
         description: preview.message || l("当前目标不可链接", "Target cannot be linked"),
         variant: "destructive",
       });
-      return { proceed: false, force: false };
+      return { proceed: false, force: false, updateThenLink: false };
     }
     if (!preview.requiresConfirm) {
-      return { proceed: true, force: false };
+      return { proceed: true, force: false, updateThenLink: false };
     }
-    const confirmed = await requestLinkConfirm(preview);
-    if (!confirmed) {
-      return { proceed: false, force: false, cancelled: true };
+    const decision = await requestLinkConfirm(preview);
+    if (decision === "cancel") {
+      return { proceed: false, force: false, updateThenLink: false, cancelled: true };
     }
-    return { proceed: true, force: true };
+    if (decision === "update-then-link") {
+      return { proceed: true, force: false, updateThenLink: true };
+    }
+    return { proceed: true, force: true, updateThenLink: false };
   }
 
   async function handleManagerLinkSkill(skillId: string, tool: string) {
@@ -3348,9 +3464,23 @@ export function WorkbenchApp() {
         if (decision.cancelled) {
           toast({
             title: l("已取消链接", "Link canceled"),
-            description: l("你取消了差异覆盖链接。", "Diff overwrite link canceled."),
+            description: l("你取消了差异处理链接。", "Diff link handling canceled."),
           });
         }
+        return;
+      }
+      if (decision.updateThenLink) {
+        const result = await skillsManagerApi.updateThenLink({
+          workspaceId: activeWorkspaceId,
+          skillId,
+          tool,
+        });
+        await fetchSkills();
+        await loadManagerState(activeWorkspaceId);
+        toast({
+          title: l("更新后链接完成", "Update then link completed"),
+          description: result.message,
+        });
         return;
       }
       await managerBatchLink(activeWorkspaceId, [skillId], tool, decision.force);
@@ -3593,6 +3723,62 @@ export function WorkbenchApp() {
     }
   }
 
+  async function handleOperationsBulkLink(plans: Array<{ skillId: string; tools: string[] }>) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+
+    const normalizedPlans = plans
+      .map((plan) => ({
+        skillId: plan.skillId,
+        tools: Array.from(new Set(plan.tools.filter(Boolean))),
+      }))
+      .filter((plan) => plan.tools.length > 0);
+
+    if (normalizedPlans.length === 0) {
+      toast({
+        title: l("当前没有可补链目标", "No link candidates"),
+      });
+      return;
+    }
+
+    let linkedSkillCount = 0;
+    let linkedTargetCount = 0;
+
+    for (const plan of normalizedPlans) {
+      let skillLinked = false;
+      for (const tool of plan.tools) {
+        const decision = await confirmManagerLinkWithDiff(plan.skillId, tool);
+        if (!decision.proceed) {
+          continue;
+        }
+        await managerBatchLink(activeWorkspaceId, [plan.skillId], tool, decision.force);
+        skillLinked = true;
+        linkedTargetCount += 1;
+      }
+      if (skillLinked) {
+        linkedSkillCount += 1;
+      }
+    }
+
+    if (linkedTargetCount === 0) {
+      toast({
+        title: l("已取消全部 Link", "Link all canceled"),
+        description: l("没有任何目标执行链接。", "No target was linked."),
+      });
+      return;
+    }
+
+    toast({
+      title: l("全部 Link 完成", "Link all completed"),
+      description: l(
+        `已完成 ${linkedSkillCount} 个 Skill，${linkedTargetCount} 个目标目录`,
+        `${linkedSkillCount} skills linked across ${linkedTargetCount} targets`,
+      ),
+    });
+  }
+
   async function handleScanSkills() {
     if (!activeWorkspaceId) {
       toast({ title: projectBootingMessage, variant: "destructive" });
@@ -3668,12 +3854,20 @@ export function WorkbenchApp() {
       rows={operationsRows}
       matrixSummaries={operationsMatrixSummaries}
       matrixFilter={managerMatrixFilter}
+      usageAgentFilter={usageAgentFilter}
+      usageSourceFilter={usageSourceFilter}
+      usageStatsLoading={usageStatsLoading}
+      usageStatsError={usageStatsError}
+      usageSyncJob={usageListSyncJob}
       expandedSkillId={managerExpandedSkillId}
       runningDistribution={managerLoading || managerCalibrating}
+      onUsageFilterChange={handleUsageFilterChange}
+      onUsageRefresh={() => handleRefreshUsageAnalysis()}
       onMatrixFilterChange={(next) => setManagerMatrixFilter(next)}
       onToggleExpanded={(skillId) => setManagerExpandedSkillId(skillId)}
       onOpenSkillDetail={(skillId) => void handleOpenSkillDetail(skillId)}
       onRunDistribution={(skillId, tools) => handleOperationsDistribute(skillId, tools)}
+      onRunBulkLink={(plans) => handleOperationsBulkLink(plans)}
       onRunLink={(skillId, tool) => handleManagerLinkSkill(skillId, tool)}
       onRunUnlink={(skillId, tool) => handleManagerUnlinkSkill(skillId, tool)}
       onPurgeSkill={(skillId, skillName) => handleManagerPurgeSkill(skillId, skillName)}
@@ -3716,6 +3910,7 @@ export function WorkbenchApp() {
       skillOpenModeOptions={skillOpenModeOptions}
       onScanSkills={() => void handleScanSkills()}
       onRefreshSkills={() => void handleRefreshSkills()}
+      onOpenUsageTimeline={(skillId) => void handleOpenUsageTimeline(skillId)}
       onSkillOpen={(skillId, relativePath) => void handleSkillOpen(skillId, relativePath)}
       onBackToSkillList={handleLeaveSkillDetail}
       selectedSkill={selectedSkill}
@@ -4111,7 +4306,7 @@ export function WorkbenchApp() {
       open={linkConfirmPreview !== null}
       onOpenChange={(open) => {
         if (!open) {
-          settleLinkConfirm(false);
+          settleLinkConfirm("cancel");
         }
       }}
     >
@@ -4147,13 +4342,36 @@ export function WorkbenchApp() {
           </div>
         ) : null}
         <DialogFooter>
-          <Button variant="outline" onClick={() => settleLinkConfirm(false)}>
+          <Button variant="outline" onClick={() => settleLinkConfirm("cancel")}>
             {l("取消", "Cancel")}
           </Button>
-          <Button onClick={() => settleLinkConfirm(true)}>{l("确认链接", "Confirm Link")}</Button>
+          <Button variant="outline" onClick={() => settleLinkConfirm("force-link")}>
+            {l("直接覆盖链接", "Overwrite & Link")}
+          </Button>
+          <Button onClick={() => settleLinkConfirm("update-then-link")}>{l("更新后链接", "Update Then Link")}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+  const usageTimelineDialog = (
+    <SkillUsageTimelineDialog
+      open={usageTimelineOpen && usageTimelineSkill !== null}
+      onOpenChange={(open) => {
+        setUsageTimelineOpen(open);
+        if (!open) {
+          setUsageTimelineSkillId(null);
+          clearUsageDetail();
+        }
+      }}
+      skillName={usageTimelineSkill?.name ?? "-"}
+      total={usageDetailCallsTotal}
+      items={usageDetailCalls}
+      loading={usageDetailCallsLoading}
+      errorMessage={usageDetailCallsError}
+      syncJob={usageDetailSyncJob}
+      onRefresh={() => void handleRefreshUsageTimeline()}
+      l={l}
+    />
   );
 
   const center =
@@ -4233,6 +4451,9 @@ export function WorkbenchApp() {
           setPromptDetailView("list");
           selectPrompt(null);
           setSkillDetailView("list");
+          setUsageTimelineOpen(false);
+          setUsageTimelineSkillId(null);
+          clearUsageDetail();
           setMobileDetailOpen(false);
         }}
         promptCount={prompts.length}
@@ -4253,6 +4474,7 @@ export function WorkbenchApp() {
       />
 
       {linkConfirmDialog}
+      {usageTimelineDialog}
       {modelTestOutputSheetView}
     </>
   );

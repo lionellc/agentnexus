@@ -45,6 +45,7 @@ export type SkillsCenterProps = {
     name: string;
     localPath: string;
   } | null;
+  onOpenUsageTimeline: (skillId: string) => void;
   onSkillOpen: (skillId: string, relativePath?: string) => void;
   skillDetailTab: "overview" | "files";
   setSkillDetailTab: (value: "overview" | "files") => void;
@@ -90,6 +91,7 @@ export function SkillsCenter({
   onScanSkills,
   onRefreshSkills,
   onSkillOpen,
+  onOpenUsageTimeline,
   onBackToSkillList,
   selectedSkill,
   skillDetailTab,
@@ -188,9 +190,14 @@ export function SkillsCenter({
               </span>
             </div>
             {selectedSkill ? (
-              <Button variant="outline" onClick={() => void onSkillOpen(selectedSkill.id)}>
-                {l("打开", "Open")}
-              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" onClick={() => onOpenUsageTimeline(selectedSkill.id)}>
+                  {l("调用记录", "Call History")}
+                </Button>
+                <Button variant="outline" onClick={() => void onSkillOpen(selectedSkill.id)}>
+                  {l("打开", "Open")}
+                </Button>
+              </div>
             ) : null}
           </div>
 

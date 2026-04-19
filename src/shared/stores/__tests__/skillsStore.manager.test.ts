@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { skillsApi, skillsManagerApi } = vi.hoisted(() => ({
+const { skillsApi, skillsManagerApi, skillsUsageApi } = vi.hoisted(() => ({
   skillsApi: {
     list: vi.fn(),
     scan: vi.fn(),
@@ -18,11 +18,18 @@ const { skillsApi, skillsManagerApi } = vi.hoisted(() => ({
     restore: vi.fn(),
     updateRules: vi.fn(),
   },
+  skillsUsageApi: {
+    syncStart: vi.fn(),
+    syncProgress: vi.fn(),
+    queryStats: vi.fn(),
+    queryCalls: vi.fn(),
+  },
 }));
 
 vi.mock("../../services/api", () => ({
   skillsApi,
   skillsManagerApi,
+  skillsUsageApi,
 }));
 
 import { useSkillsStore } from "../skillsStore";
@@ -51,6 +58,18 @@ function resetStore() {
     managerSelectedTool: "",
     managerLastActionOutput: "",
     managerLastBatchResult: null,
+    usageAgentFilter: "",
+    usageSourceFilter: "",
+    usageStatsBySkillId: {},
+    usageStatsLoading: false,
+    usageStatsError: "",
+    usageListSyncJob: null,
+    usageDetailSyncJob: null,
+    usageDetailSkillId: null,
+    usageDetailCalls: [],
+    usageDetailCallsTotal: 0,
+    usageDetailCallsLoading: false,
+    usageDetailCallsError: "",
   });
 }
 

@@ -18,14 +18,13 @@ use control_plane::agent_rules_v2::{
 };
 use control_plane::commands::{
     agent_doc_hash, agent_doc_read, agent_doc_save, audit_query, distribution_detect_drift,
-    distribution_retry_failed, distribution_run, distribution_status, metrics_ingest_usage_event,
-    metrics_query_by_asset, metrics_query_overview, metrics_submit_rating, prompt_create,
-    prompt_delete, prompt_list, prompt_render, prompt_restore_version, prompt_search,
-    prompt_update, prompt_versions, release_create, release_list, release_rollback,
-    runtime_flags_get, runtime_flags_update, security_check_external_source, skills_asset_detail,
-    skills_distribute, skills_file_read, skills_files_tree, skills_list, skills_open, skills_scan,
-    skills_uninstall, target_delete, target_list, target_upsert, workspace_activate,
-    workspace_create, workspace_list, workspace_update,
+    distribution_retry_failed, distribution_run, distribution_status, prompt_create, prompt_delete,
+    prompt_list, prompt_render, prompt_restore_version, prompt_search, prompt_update,
+    prompt_versions, release_create, release_list, release_rollback, runtime_flags_get,
+    runtime_flags_update, security_check_external_source, skills_asset_detail, skills_distribute,
+    skills_file_read, skills_files_tree, skills_list, skills_open, skills_scan, skills_uninstall,
+    target_delete, target_list, target_upsert, workspace_activate, workspace_create,
+    workspace_list, workspace_update,
 };
 use control_plane::local_agent_translation::{
     local_agent_profile_delete, local_agent_profile_list, local_agent_profile_upsert,
@@ -37,6 +36,11 @@ use control_plane::skills_manager::{
     skills_manager_delete, skills_manager_diff_cancel, skills_manager_diff_progress,
     skills_manager_diff_start, skills_manager_link_preview, skills_manager_purge,
     skills_manager_restore, skills_manager_rules_update, skills_manager_state, skills_manager_sync,
+    skills_manager_update_then_link,
+};
+use control_plane::skills_usage::{
+    skills_usage_query_calls, skills_usage_query_stats, skills_usage_sync_progress,
+    skills_usage_sync_start,
 };
 use db::AppState;
 
@@ -114,6 +118,7 @@ pub fn run() {
             skills_manager_diff_progress,
             skills_manager_diff_cancel,
             skills_manager_link_preview,
+            skills_manager_update_then_link,
             prompt_create,
             prompt_update,
             prompt_delete,
@@ -131,10 +136,10 @@ pub fn run() {
             prompt_translation_list,
             prompt_translation_run,
             prompt_translation_retranslate,
-            metrics_ingest_usage_event,
-            metrics_query_overview,
-            metrics_query_by_asset,
-            metrics_submit_rating,
+            skills_usage_sync_start,
+            skills_usage_sync_progress,
+            skills_usage_query_stats,
+            skills_usage_query_calls,
             audit_query,
             security_check_external_source,
         ])

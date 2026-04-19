@@ -8,7 +8,7 @@ import type {
   Workspace,
 } from "./workspace";
 
-export type AppModule = "workspace" | "skills" | "prompts" | "agents" | "settings" | "metrics";
+export type AppModule = "workspace" | "skills" | "prompts" | "agents" | "settings";
 
 export type MobilePaneState = "list" | "detail" | "split";
 

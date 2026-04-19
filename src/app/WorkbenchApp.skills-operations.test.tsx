@@ -143,6 +143,18 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     managerSelectedTool: "codex",
     managerLastActionOutput: "",
     managerLastBatchResult: null,
+    usageAgentFilter: "",
+    usageSourceFilter: "",
+    usageStatsBySkillId: {},
+    usageStatsLoading: false,
+    usageStatsError: "",
+    usageListSyncJob: null,
+    usageDetailSyncJob: null,
+    usageDetailSkillId: null as string | null,
+    usageDetailCalls: [],
+    usageDetailCallsTotal: 0,
+    usageDetailCallsLoading: false,
+    usageDetailCallsError: "",
     fetchSkills: vi.fn(async () => undefined),
     scanSkills: vi.fn(async () => undefined),
     selectSkill: vi.fn(),
@@ -168,6 +180,12 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     clearManagerRowHint: vi.fn(),
     setManagerStatusFilter: vi.fn(),
     setManagerSelectedTool: vi.fn(),
+    setUsageFilters: vi.fn(),
+    refreshUsageStats: vi.fn(async () => undefined),
+    startListUsageSync: vi.fn(async () => undefined),
+    startDetailUsageSync: vi.fn(async () => undefined),
+    loadUsageCalls: vi.fn(async () => undefined),
+    clearUsageDetail: vi.fn(),
     getManagerOperationsRows: vi.fn(() => [
       {
         id: "s1",
@@ -182,6 +200,9 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
         statusCells: [{ tool: "codex", status: "missing" as const }],
         statusPreview: [{ tool: "codex", status: "missing" as const }],
         hiddenStatusCount: 0,
+        totalCalls: 0,
+        last7dCalls: 0,
+        lastCalledAt: null,
       },
       {
         id: "s2",
@@ -196,6 +217,9 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
         statusCells: [{ tool: "codex", status: "missing" as const }],
         statusPreview: [{ tool: "codex", status: "missing" as const }],
         hiddenStatusCount: 0,
+        totalCalls: 0,
+        last7dCalls: 0,
+        lastCalledAt: null,
       },
     ]),
     getManagerFilteredOperationsRows: vi.fn(() => []),
@@ -372,17 +396,14 @@ describe("WorkbenchApp skills operations", () => {
     expect(container.textContent).toContain("扫描");
   });
 
-  it("不再渲染来源筛选", async () => {
+  it("来源筛选使用通用 Select 组件", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     expect(container.textContent).toContain("当前筛选 2 项");
-    expect(container.textContent).not.toContain("全部来源");
-    const sourceSelect = Array.from(container.querySelectorAll("select")).find((item) =>
-      Array.from(item.options).some((option) => option.value === ".claude"),
-    );
-    expect(sourceSelect).toBeUndefined();
+    expect(container.textContent).toContain("来源");
+    expect(container.querySelectorAll("select").length).toBe(0);
   });
 
   it("从扫描进入中控时会自动刷新一次", async () => {
