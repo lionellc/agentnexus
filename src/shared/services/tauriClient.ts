@@ -33,10 +33,6 @@ import type {
   AgentRuleVersion,
   ApiErrorPayload,
   DistributionTarget,
-  MetricsByAsset,
-  MetricsByAssetInput,
-  MetricsIdResult,
-  MetricsOverview,
   LocalAgentProfileDeleteInput,
   LocalAgentProfileDto,
   LocalAgentProfileUpsertInput,
@@ -55,7 +51,6 @@ import type {
   PromptTranslationRetranslateInput,
   PromptTranslationRunInput,
   PromptUpdateInput,
-  RatingInput,
   RuntimeFlags,
   RuntimeFlagsInput,
   SkillAsset,
@@ -75,6 +70,8 @@ import type {
   SkillsManagerLinkPreviewResult,
   SkillsManagerPurgeInput,
   SkillsManagerPurgeResult,
+  SkillsManagerUpdateThenLinkInput,
+  SkillsManagerUpdateThenLinkResult,
   SkillsOpenInput,
   SkillsOpenResult,
   SkillsManagerRestoreInput,
@@ -86,12 +83,18 @@ import type {
   SkillsAssetDetail,
   SkillsBatchInput,
   SkillsBatchResult,
+  SkillsUsageCallsQueryInput,
+  SkillsUsageCallsResult,
+  SkillsUsageStatsQueryInput,
+  SkillsUsageStatsResult,
+  SkillsUsageSyncJobSnapshot,
+  SkillsUsageSyncProgressInput,
+  SkillsUsageSyncStartInput,
   SkillsScanInput,
   TargetDeleteInput,
   TranslationConfigDto,
   TranslationConfigUpdateInput,
   TargetUpsertInput,
-  UsageEventInput,
   Workspace,
   WorkspaceActivateInput,
   WorkspaceCreateInput,
@@ -161,6 +164,7 @@ type CommandMap = {
   skills_manager_diff_progress: { args: { input: SkillsManagerDiffJobInput }; result: SkillsManagerDiffProgress };
   skills_manager_diff_cancel: { args: { input: SkillsManagerDiffJobInput }; result: SkillsManagerDiffProgress };
   skills_manager_link_preview: { args: { input: SkillsManagerLinkPreviewInput }; result: SkillsManagerLinkPreviewResult };
+  skills_manager_update_then_link: { args: { input: SkillsManagerUpdateThenLinkInput }; result: SkillsManagerUpdateThenLinkResult };
   prompt_list: { args: { workspaceId: string }; result: PromptAsset[] };
   prompt_versions: {
     args: { promptId: string };
@@ -186,10 +190,13 @@ type CommandMap = {
   prompt_translation_list: { args: { input: PromptTranslationListInput }; result: PromptTranslationDto[] };
   prompt_translation_run: { args: { input: PromptTranslationRunInput }; result: PromptTranslationDto };
   prompt_translation_retranslate: { args: { input: PromptTranslationRetranslateInput }; result: PromptTranslationDto };
-  metrics_ingest_usage_event: { args: { input: UsageEventInput }; result: MetricsIdResult };
-  metrics_query_overview: { args: { workspaceId: string; days?: number }; result: MetricsOverview };
-  metrics_query_by_asset: { args: { input: MetricsByAssetInput }; result: MetricsByAsset };
-  metrics_submit_rating: { args: { input: RatingInput }; result: MetricsIdResult };
+  skills_usage_sync_start: { args: { input: SkillsUsageSyncStartInput }; result: SkillsUsageSyncJobSnapshot };
+  skills_usage_sync_progress: {
+    args: { input: SkillsUsageSyncProgressInput };
+    result: SkillsUsageSyncJobSnapshot;
+  };
+  skills_usage_query_stats: { args: { input: SkillsUsageStatsQueryInput }; result: SkillsUsageStatsResult };
+  skills_usage_query_calls: { args: { input: SkillsUsageCallsQueryInput }; result: SkillsUsageCallsResult };
 };
 
 export type TauriCommandName = keyof CommandMap;

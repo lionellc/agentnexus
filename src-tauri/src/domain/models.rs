@@ -475,6 +475,15 @@ pub struct SkillsManagerLinkPreviewInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SkillsManagerUpdateThenLinkInput {
+    pub workspace_id: String,
+    pub skill_id: String,
+    pub tool: String,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PromptCreateInput {
     pub workspace_id: String,
     pub name: String,
@@ -527,34 +536,34 @@ pub struct PromptRenderInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct UsageEventInput {
+pub struct SkillsUsageSyncStartInput {
     pub workspace_id: String,
-    pub asset_type: String,
-    pub asset_id: String,
-    pub version: String,
-    pub event_type: String,
-    pub success: bool,
-    pub context: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MetricsByAssetInput {
+pub struct SkillsUsageSyncProgressInput {
     pub workspace_id: String,
-    pub asset_type: String,
-    pub asset_id: String,
-    pub days: Option<i64>,
+    pub job_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct RatingInput {
+pub struct SkillsUsageStatsQueryInput {
     pub workspace_id: String,
-    pub asset_type: String,
-    pub asset_id: String,
-    pub version: String,
-    pub score: i64,
-    pub comment: Option<String>,
+    pub agent: Option<String>,
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillsUsageCallsQueryInput {
+    pub workspace_id: String,
+    pub skill_id: String,
+    pub agent: Option<String>,
+    pub source: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]

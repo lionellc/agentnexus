@@ -1,9 +1,12 @@
 import { create } from "zustand";
 
-import { skillsApi, skillsManagerApi } from "../services/api";
+import { skillsApi, skillsManagerApi, skillsUsageApi } from "../services/api";
 import type {
   SkillAsset,
   SkillManagerStatus,
+  SkillsUsageCallItem,
+  SkillsUsageStatsRow,
+  SkillsUsageSyncJobSnapshot,
   SkillsAssetDetail,
   SkillsBatchResult,
   SkillsManagerBatchResult,
@@ -26,8 +29,19 @@ const MANAGER_STATUS_LIST: SkillManagerStatus[] = [
   "directory",
   "manual",
 ];
+const USAGE_SYNC_TERMINAL_STATUS = new Set(["completed", "completed_with_errors", "failed"]);
+const USAGE_SYNC_POLL_INTERVAL_MS = 650;
 
 type OptimisticMap = Record<string, Record<string, SkillManagerStatus>>;
+
+function normalizeUsageFilter(value: string | undefined | null): string | undefined {
+  const normalized = value?.trim() ?? "";
+  return normalized ? normalized : undefined;
+}
+
+function isUsageSyncRunning(job: SkillsUsageSyncJobSnapshot | null): boolean {
+  return job?.status === "running";
+}
 
 function nextManagerStateWithPatch(
   managerState: SkillsManagerState | null,
@@ -106,6 +120,7 @@ function buildCalibrationHints(
 function toOperationsRows(
   managerState: SkillsManagerState | null,
   rowHints: Record<string, string>,
+  usageStatsBySkillId: Record<string, SkillsUsageStatsRow>,
 ): SkillsManagerOperationsRow[] {
   if (!managerState) {
     return [];
@@ -122,6 +137,7 @@ function toOperationsRows(
       const totalCount = statusCells.length;
       const sourceMissing = Boolean(skill.sourceMissing);
       const issueCount = totalCount - linkedCount + (sourceMissing ? 1 : 0);
+      const usageStats = usageStatsBySkillId[skill.id];
 
       return {
         id: skill.id,
@@ -137,6 +153,9 @@ function toOperationsRows(
         statusCells,
         statusPreview: statusCells.slice(0, 3),
         hiddenStatusCount: Math.max(0, statusCells.length - 3),
+        totalCalls: usageStats?.totalCalls ?? 0,
+        last7dCalls: usageStats?.last7dCalls ?? 0,
+        lastCalledAt: usageStats?.lastCalledAt ?? null,
         rowHint: rowHints[skill.id],
       };
     });
@@ -236,6 +255,18 @@ type SkillsState = {
   managerSelectedTool: string;
   managerLastActionOutput: string;
   managerLastBatchResult: SkillsManagerBatchResult | null;
+  usageAgentFilter: string;
+  usageSourceFilter: string;
+  usageStatsBySkillId: Record<string, SkillsUsageStatsRow>;
+  usageStatsLoading: boolean;
+  usageStatsError: string;
+  usageListSyncJob: SkillsUsageSyncJobSnapshot | null;
+  usageDetailSyncJob: SkillsUsageSyncJobSnapshot | null;
+  usageDetailSkillId: string | null;
+  usageDetailCalls: SkillsUsageCallItem[];
+  usageDetailCallsTotal: number;
+  usageDetailCallsLoading: boolean;
+  usageDetailCallsError: string;
   fetchSkills: () => Promise<void>;
   scanSkills: (workspaceId: string, directories?: string[]) => Promise<void>;
   setViewTab: (tab: "installed" | "discover" | "distribute") => void;
@@ -272,12 +303,71 @@ type SkillsState = {
   clearManagerRowHint: (skillId: string) => void;
   setManagerStatusFilter: (value: "all" | SkillManagerStatus) => void;
   setManagerSelectedTool: (value: string) => void;
+  setUsageFilters: (value: { agent?: string; source?: string }) => void;
+  refreshUsageStats: (workspaceId: string) => Promise<void>;
+  startListUsageSync: (workspaceId: string) => Promise<void>;
+  startDetailUsageSync: (workspaceId: string, skillId: string) => Promise<void>;
+  loadUsageCalls: (workspaceId: string, skillId: string) => Promise<void>;
+  clearUsageDetail: () => void;
   getManagerOperationsRows: () => SkillsManagerOperationsRow[];
   getManagerFilteredOperationsRows: () => SkillsManagerOperationsRow[];
   getManagerMatrixSummaries: () => SkillsManagerMatrixSummary[];
 };
 
-export const useSkillsStore = create<SkillsState>((set, get) => ({
+export const useSkillsStore = create<SkillsState>((set, get) => {
+  const pollUsageSyncJob = async (
+    scope: "list" | "detail",
+    workspaceId: string,
+    jobId: string,
+    skillId?: string,
+  ) => {
+    let keepPolling = true;
+    while (keepPolling) {
+      await new Promise((resolve) => window.setTimeout(resolve, USAGE_SYNC_POLL_INTERVAL_MS));
+      try {
+        const snapshot = await skillsUsageApi.syncProgress({ workspaceId, jobId });
+        if (scope === "list") {
+          set({ usageListSyncJob: snapshot });
+        } else {
+          set({ usageDetailSyncJob: snapshot });
+        }
+
+        if (USAGE_SYNC_TERMINAL_STATUS.has(snapshot.status)) {
+          await get().refreshUsageStats(workspaceId).catch(() => undefined);
+          if (scope === "detail" && skillId) {
+            await get().loadUsageCalls(workspaceId, skillId).catch(() => undefined);
+          }
+          keepPolling = false;
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "读取分析进度失败";
+        const failedSnapshot = {
+          jobId,
+          workspaceId,
+          status: "failed",
+          totalFiles: 0,
+          processedFiles: 0,
+          parsedEvents: 0,
+          insertedEvents: 0,
+          duplicateEvents: 0,
+          parseFailures: 0,
+          currentSource: "",
+          errorMessage: message,
+          startedAt: "",
+          updatedAt: "",
+        } satisfies SkillsUsageSyncJobSnapshot;
+
+        if (scope === "list") {
+          set({ usageListSyncJob: failedSnapshot, usageStatsError: message });
+        } else {
+          set({ usageDetailSyncJob: failedSnapshot, usageDetailCallsError: message });
+        }
+        keepPolling = false;
+      }
+    }
+  };
+
+  return {
   skills: [],
   viewTab: "installed",
   selectedSkillId: null,
@@ -300,6 +390,18 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   managerSelectedTool: "",
   managerLastActionOutput: "",
   managerLastBatchResult: null,
+  usageAgentFilter: "",
+  usageSourceFilter: "",
+  usageStatsBySkillId: {},
+  usageStatsLoading: false,
+  usageStatsError: "",
+  usageListSyncJob: null,
+  usageDetailSyncJob: null,
+  usageDetailSkillId: null,
+  usageDetailCalls: [],
+  usageDetailCallsTotal: 0,
+  usageDetailCallsLoading: false,
+  usageDetailCallsError: "",
   fetchSkills: async () => {
     set({ loading: true });
     try {
@@ -569,14 +671,107 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
     })),
   setManagerStatusFilter: (managerStatusFilter) => set({ managerStatusFilter }),
   setManagerSelectedTool: (managerSelectedTool) => set({ managerSelectedTool }),
+  setUsageFilters: ({ agent, source }) =>
+    set((state) => ({
+      usageAgentFilter: agent === undefined ? state.usageAgentFilter : agent,
+      usageSourceFilter: source === undefined ? state.usageSourceFilter : source,
+    })),
+  refreshUsageStats: async (workspaceId) => {
+    set({ usageStatsLoading: true, usageStatsError: "" });
+    try {
+      const { usageAgentFilter, usageSourceFilter } = get();
+      const result = await skillsUsageApi.queryStats({
+        workspaceId,
+        agent: normalizeUsageFilter(usageAgentFilter),
+        source: normalizeUsageFilter(usageSourceFilter),
+      });
+      const usageStatsBySkillId: Record<string, SkillsUsageStatsRow> = {};
+      for (const row of result.rows) {
+        usageStatsBySkillId[row.skillId] = row;
+      }
+      set({ usageStatsBySkillId });
+    } catch (error) {
+      set({
+        usageStatsError: error instanceof Error ? error.message : "读取调用统计失败",
+      });
+      throw error;
+    } finally {
+      set({ usageStatsLoading: false });
+    }
+  },
+  startListUsageSync: async (workspaceId) => {
+    const currentJob = get().usageListSyncJob;
+    if (isUsageSyncRunning(currentJob)) {
+      return;
+    }
+    const snapshot = await skillsUsageApi.syncStart({ workspaceId });
+    set({ usageListSyncJob: snapshot, usageStatsError: "" });
+    void pollUsageSyncJob("list", workspaceId, snapshot.jobId);
+  },
+  startDetailUsageSync: async (workspaceId, skillId) => {
+    const currentJob = get().usageDetailSyncJob;
+    if (isUsageSyncRunning(currentJob)) {
+      return;
+    }
+    const snapshot = await skillsUsageApi.syncStart({ workspaceId });
+    set({
+      usageDetailSyncJob: snapshot,
+      usageDetailSkillId: skillId,
+      usageDetailCallsError: "",
+    });
+    void pollUsageSyncJob("detail", workspaceId, snapshot.jobId, skillId);
+  },
+  loadUsageCalls: async (workspaceId, skillId) => {
+    set({
+      usageDetailSkillId: skillId,
+      usageDetailCallsLoading: true,
+      usageDetailCallsError: "",
+    });
+    try {
+      const { usageAgentFilter, usageSourceFilter } = get();
+      const result = await skillsUsageApi.queryCalls({
+        workspaceId,
+        skillId,
+        agent: normalizeUsageFilter(usageAgentFilter),
+        source: normalizeUsageFilter(usageSourceFilter),
+        limit: 120,
+        offset: 0,
+      });
+      set({
+        usageDetailCalls: result.items,
+        usageDetailCallsTotal: result.total,
+      });
+    } catch (error) {
+      set({
+        usageDetailCallsError: error instanceof Error ? error.message : "读取调用记录失败",
+      });
+      throw error;
+    } finally {
+      set({ usageDetailCallsLoading: false });
+    }
+  },
+  clearUsageDetail: () =>
+    set({
+      usageDetailSkillId: null,
+      usageDetailCalls: [],
+      usageDetailCallsTotal: 0,
+      usageDetailCallsLoading: false,
+      usageDetailCallsError: "",
+      usageDetailSyncJob: null,
+    }),
   getManagerOperationsRows: () =>
-    toOperationsRows(get().managerState, get().managerRowHints),
+    toOperationsRows(get().managerState, get().managerRowHints, get().usageStatsBySkillId),
   getManagerFilteredOperationsRows: () => {
-    const rows = toOperationsRows(get().managerState, get().managerRowHints);
+    const rows = toOperationsRows(
+      get().managerState,
+      get().managerRowHints,
+      get().usageStatsBySkillId,
+    );
     return applyOperationsFilters(rows, get().managerStatusFilter, get().managerMatrixFilter);
   },
   getManagerMatrixSummaries: () => toMatrixSummaries(get().managerState),
-}));
+  };
+});
 
 export function skillManagerStatusLabel(status: SkillManagerStatus): string {
   return status;

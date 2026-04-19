@@ -1776,8 +1776,8 @@ mod tests {
         format_running_duration, normalize_profile_key, parse_translation_protocol,
         prepend_executable_parent_to_path, resolve_executable_path,
     };
-    use std::{fs, path::PathBuf};
     use std::time::Duration;
+    use std::{fs, path::PathBuf};
 
     #[test]
     fn forbidden_patterns_are_detected() {

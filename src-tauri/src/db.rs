@@ -253,28 +253,59 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
         CREATE INDEX IF NOT EXISTS idx_prompt_translations_lookup
             ON prompt_translations(workspace_id, prompt_id, prompt_version, target_language, updated_at DESC);
 
-        CREATE TABLE IF NOT EXISTS usage_events (
+        CREATE TABLE IF NOT EXISTS skill_call_facts (
             id TEXT PRIMARY KEY,
-            workspace_id TEXT NOT NULL,
-            asset_type TEXT NOT NULL,
-            asset_id TEXT NOT NULL,
-            version TEXT NOT NULL,
-            event_type TEXT NOT NULL,
-            success INTEGER NOT NULL,
-            context TEXT NOT NULL,
-            ts TEXT NOT NULL
+            workspace_id TEXT,
+            agent TEXT NOT NULL,
+            source TEXT NOT NULL,
+            source_path TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            event_ref TEXT NOT NULL,
+            skill_id TEXT NOT NULL,
+            skill_identity TEXT NOT NULL,
+            skill_name TEXT NOT NULL,
+            called_at TEXT NOT NULL,
+            result_status TEXT NOT NULL,
+            confidence REAL NOT NULL DEFAULT 0,
+            raw_ref TEXT NOT NULL,
+            dedupe_key TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
         );
 
-        CREATE TABLE IF NOT EXISTS ratings (
+        CREATE INDEX IF NOT EXISTS idx_skill_call_facts_workspace_skill_called_at
+            ON skill_call_facts(workspace_id, skill_id, called_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_skill_call_facts_agent_source_called_at
+            ON skill_call_facts(agent, source, called_at DESC);
+
+        CREATE TABLE IF NOT EXISTS skill_call_sync_checkpoints (
             id TEXT PRIMARY KEY,
-            workspace_id TEXT NOT NULL,
-            asset_type TEXT NOT NULL,
-            asset_id TEXT NOT NULL,
-            version TEXT NOT NULL,
-            score INTEGER NOT NULL,
-            comment TEXT NOT NULL,
-            created_at TEXT NOT NULL
+            agent TEXT NOT NULL,
+            source_path TEXT NOT NULL,
+            byte_offset INTEGER NOT NULL DEFAULT 0,
+            file_size INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL,
+            UNIQUE(agent, source_path)
         );
+
+        CREATE TABLE IF NOT EXISTS skill_call_parse_failures (
+            id TEXT PRIMARY KEY,
+            workspace_id TEXT,
+            agent TEXT NOT NULL,
+            source_path TEXT NOT NULL,
+            session_id TEXT,
+            line_no INTEGER NOT NULL,
+            event_ref TEXT NOT NULL,
+            reason TEXT NOT NULL,
+            raw_excerpt TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_skill_call_parse_failures_created_at
+            ON skill_call_parse_failures(created_at DESC);
 
         CREATE TABLE IF NOT EXISTS audit_events (
             id TEXT PRIMARY KEY,
@@ -380,6 +411,7 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     run_agent_connection_rule_file_migration_once(conn)?;
     run_global_rules_migration_once(conn)?;
     run_local_agent_translation_migration_once(conn)?;
+    run_drop_legacy_metrics_tables_once(conn)?;
 
     Ok(())
 }
@@ -547,6 +579,31 @@ fn run_local_agent_translation_migration_once(conn: &Connection) -> Result<(), A
     conn.execute(
         "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
         params!["migrate_local_agent_translation_v1", "done", now_rfc3339(),],
+    )?;
+
+    Ok(())
+}
+
+fn run_drop_legacy_metrics_tables_once(conn: &Connection) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM migration_meta WHERE key = 'drop_legacy_metrics_tables_v1'",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(());
+    }
+
+    conn.execute_batch(
+        r#"
+        DROP TABLE IF EXISTS usage_events;
+        DROP TABLE IF EXISTS ratings;
+        "#,
+    )?;
+
+    conn.execute(
+        "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
+        params!["drop_legacy_metrics_tables_v1", "done", now_rfc3339()],
     )?;
 
     Ok(())

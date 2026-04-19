@@ -30,9 +30,6 @@ import type {
   AgentRuleSaveResult,
   AgentRuleVersion,
   DistributionTarget,
-  MetricsByAsset,
-  MetricsByAssetInput,
-  MetricsOverview,
   LocalAgentProfileDeleteInput,
   LocalAgentProfileDto,
   LocalAgentProfileUpsertInput,
@@ -69,6 +66,8 @@ import type {
   SkillsManagerLinkPreviewResult,
   SkillsManagerPurgeInput,
   SkillsManagerPurgeResult,
+  SkillsManagerUpdateThenLinkInput,
+  SkillsManagerUpdateThenLinkResult,
   SkillsOpenInput,
   SkillsOpenResult,
   SkillsManagerRestoreInput,
@@ -77,6 +76,13 @@ import type {
   SkillsManagerRulesUpdateResult,
   SkillsManagerState,
   SkillsManagerSyncResult,
+  SkillsUsageCallsQueryInput,
+  SkillsUsageCallsResult,
+  SkillsUsageStatsQueryInput,
+  SkillsUsageStatsResult,
+  SkillsUsageSyncJobSnapshot,
+  SkillsUsageSyncProgressInput,
+  SkillsUsageSyncStartInput,
   SkillsScanInput,
   TargetDeleteInput,
   TargetUpsertInput,
@@ -422,11 +428,19 @@ export const skillsManagerApi = {
     invokeCommand("skills_manager_diff_cancel", { input }),
   linkPreview: (input: SkillsManagerLinkPreviewInput): Promise<SkillsManagerLinkPreviewResult> =>
     invokeCommand("skills_manager_link_preview", { input }),
+  updateThenLink: (input: SkillsManagerUpdateThenLinkInput): Promise<SkillsManagerUpdateThenLinkResult> =>
+    invokeCommand("skills_manager_update_then_link", { input }),
 };
 
-export const observabilityApi = {
-  overview: (workspaceId: string, days?: number) => invokeCommand("metrics_query_overview", { workspaceId, days }),
-  byAsset: (input: MetricsByAssetInput) => invokeCommand("metrics_query_by_asset", { input }),
+export const skillsUsageApi = {
+  syncStart: (input: SkillsUsageSyncStartInput): Promise<SkillsUsageSyncJobSnapshot> =>
+    invokeCommand("skills_usage_sync_start", { input }),
+  syncProgress: (input: SkillsUsageSyncProgressInput): Promise<SkillsUsageSyncJobSnapshot> =>
+    invokeCommand("skills_usage_sync_progress", { input }),
+  queryStats: (input: SkillsUsageStatsQueryInput): Promise<SkillsUsageStatsResult> =>
+    invokeCommand("skills_usage_query_stats", { input }),
+  queryCalls: (input: SkillsUsageCallsQueryInput): Promise<SkillsUsageCallsResult> =>
+    invokeCommand("skills_usage_query_calls", { input }),
 };
 
 export const securityApi = {
@@ -494,8 +508,8 @@ export type AgentNexusSkillDetail = SkillsAssetDetail;
 export type AgentNexusRuntimeFlags = RuntimeFlags;
 export type AgentNexusTargets = DistributionTarget[];
 export type AgentNexusBatchResult = SkillsBatchResult;
-export type AgentNexusMetricsOverview = MetricsOverview;
-export type AgentNexusMetricsByAsset = MetricsByAsset;
+export type AgentNexusSkillsUsageStats = SkillsUsageStatsResult;
+export type AgentNexusSkillsUsageCalls = SkillsUsageCallsResult;
 export type AgentNexusAgentRuleDraft = AgentRuleDraft;
 export type AgentNexusAgentRuleRelease = AgentRuleRelease;
 export type AgentNexusAgentRuleDistributionJob = AgentRuleDistributionJob;

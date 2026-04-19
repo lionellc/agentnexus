@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
 import { cn } from "../../../shared/lib/cn";
-import { Button, Card, CardContent, Input, Tag, type TagProps, tagVariants } from "../../../shared/ui";
+import { Button, Card, CardContent, Input, Select, Tag, type TagProps, tagVariants } from "../../../shared/ui";
 import type {
   SkillManagerStatus,
   SkillsManagerMatrixFilter,
   SkillsManagerMatrixSummary,
   SkillsManagerOperationsRow,
+  SkillsUsageSyncJobSnapshot,
 } from "../../../shared/types";
 import { SkillDistributionDialog } from "./SkillDistributionDialog";
 import { SkillStatusPopover } from "./SkillStatusPopover";
@@ -24,13 +25,21 @@ export type SkillsOperationsPanelProps = {
   rows: SkillsManagerOperationsRow[];
   matrixSummaries: SkillsManagerMatrixSummary[];
   matrixFilter: SkillsManagerMatrixFilter;
+  usageAgentFilter: string;
+  usageSourceFilter: string;
+  usageStatsLoading: boolean;
+  usageStatsError: string;
+  usageSyncJob: SkillsUsageSyncJobSnapshot | null;
   expandedSkillId: string | null;
   runningDistribution: boolean;
   purgingSkillId: string | null;
   onMatrixFilterChange: (next: Partial<SkillsManagerMatrixFilter>) => void;
+  onUsageFilterChange: (next: { agent?: string; source?: string }) => void;
+  onUsageRefresh: () => Promise<void> | void;
   onToggleExpanded: (skillId: string | null) => void;
   onOpenSkillDetail: (skillId: string) => void;
   onRunDistribution: (skillId: string, tools: string[]) => Promise<void> | void;
+  onRunBulkLink?: (plans: Array<{ skillId: string; tools: string[] }>) => Promise<void> | void;
   onRunLink: (skillId: string, tool: string) => Promise<void> | void;
   onRunUnlink: (skillId: string, tool: string) => Promise<void> | void;
   onPurgeSkill: (skillId: string, skillName: string) => Promise<void> | void;
@@ -97,6 +106,24 @@ function statusToPreviewKind(status: SkillManagerStatus): SkillDistributionPrevi
     return "conflict";
   }
   return "error";
+}
+
+function usageProgressPercent(job: SkillsUsageSyncJobSnapshot | null): number {
+  if (!job || job.totalFiles <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, Math.round((job.processedFiles / job.totalFiles) * 100)));
+}
+
+function formatLastCalled(lastCalledAt: string | null): string {
+  if (!lastCalledAt) {
+    return "--";
+  }
+  const parsed = new Date(lastCalledAt);
+  if (Number.isNaN(parsed.getTime())) {
+    return lastCalledAt;
+  }
+  return parsed.toLocaleString();
 }
 
 function buildStatusSummaryLines(
@@ -176,13 +203,21 @@ export function SkillsOperationsPanel({
   rows,
   matrixSummaries,
   matrixFilter,
+  usageAgentFilter,
+  usageSourceFilter,
+  usageStatsLoading,
+  usageStatsError,
+  usageSyncJob,
   expandedSkillId,
   runningDistribution,
   purgingSkillId,
   onMatrixFilterChange,
+  onUsageFilterChange,
+  onUsageRefresh,
   onToggleExpanded,
   onOpenSkillDetail,
   onRunDistribution,
+  onRunBulkLink,
   onRunLink,
   onRunUnlink,
   onPurgeSkill,
@@ -196,26 +231,69 @@ export function SkillsOperationsPanel({
   const [distributionTargetIds, setDistributionTargetIds] = useState<string[]>([]);
   const [distributionPreviewLoading, setDistributionPreviewLoading] = useState(false);
   const [distributionSubmitLoading, setDistributionSubmitLoading] = useState(false);
+  const [bulkLinking, setBulkLinking] = useState(false);
+  const [sortByUsage, setSortByUsage] = useState(false);
   const [operationsPage, setOperationsPage] = useState(1);
   const [distributionPreviewItems, setDistributionPreviewItems] = useState<
     Array<{ id: string; label: string; kind: SkillDistributionPreviewKind; retryable?: boolean; message?: string }>
   >([]);
+  const usageAgentOptions = useMemo(
+    () => [
+      { value: "", label: l("全部", "All") },
+      { value: "codex", label: "Codex" },
+      { value: "claude", label: "Claude" },
+    ],
+    [l],
+  );
+  const usageSourceOptions = useMemo(
+    () => [
+      { value: "", label: l("全部", "All") },
+      { value: "codex_jsonl", label: "codex_jsonl" },
+      { value: "claude_transcript", label: "claude_transcript" },
+    ],
+    [l],
+  );
+  const sortedRows = useMemo(() => {
+    const list = [...rows];
+    if (!sortByUsage) {
+      return list;
+    }
+    list.sort(
+      (left, right) =>
+        right.totalCalls - left.totalCalls ||
+        right.last7dCalls - left.last7dCalls ||
+        left.name.localeCompare(right.name),
+    );
+    return list;
+  }, [rows, sortByUsage]);
+  const bulkLinkPlans = useMemo(
+    () =>
+      sortedRows
+        .map((row) => ({
+          skillId: row.id,
+          tools: row.statusCells
+            .filter((cell) => isLinkCandidateStatus(cell.status))
+            .map((cell) => cell.tool),
+        }))
+        .filter((item) => item.tools.length > 0),
+    [sortedRows],
+  );
   const totalOperationsPages = useMemo(
-    () => Math.max(1, Math.ceil(rows.length / OPERATIONS_PAGE_SIZE)),
-    [rows.length],
+    () => Math.max(1, Math.ceil(sortedRows.length / OPERATIONS_PAGE_SIZE)),
+    [sortedRows.length],
   );
   const pagedRows = useMemo(() => {
     const start = (operationsPage - 1) * OPERATIONS_PAGE_SIZE;
-    return rows.slice(start, start + OPERATIONS_PAGE_SIZE);
-  }, [rows, operationsPage]);
+    return sortedRows.slice(start, start + OPERATIONS_PAGE_SIZE);
+  }, [sortedRows, operationsPage]);
 
   useEffect(() => {
     setOperationsPage((previous) => Math.min(previous, totalOperationsPages));
   }, [totalOperationsPages]);
 
   const distributionRow = useMemo(
-    () => rows.find((row) => row.id === distributionSkillId) ?? null,
-    [rows, distributionSkillId],
+    () => sortedRows.find((row) => row.id === distributionSkillId) ?? null,
+    [sortedRows, distributionSkillId],
   );
 
   function openDistributionForRow(row: SkillsManagerOperationsRow) {
@@ -278,8 +356,105 @@ export function SkillsOperationsPanel({
     }
   }
 
+  async function handleBulkLink() {
+    if (!onRunBulkLink || bulkLinkPlans.length === 0 || bulkLinking || runningDistribution) {
+      return;
+    }
+    setBulkLinking(true);
+    try {
+      await onRunBulkLink(bulkLinkPlans);
+    } finally {
+      setBulkLinking(false);
+    }
+  }
+
+  const usageSyncRunning = usageSyncJob?.status === "running";
+  const usagePercent = usageProgressPercent(usageSyncJob);
+
   return (
     <div className="space-y-4">
+      <Card>
+        <CardContent className="space-y-3 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 text-xs text-slate-600">
+                <span>{l("Agent", "Agent")}</span>
+                <Select
+                  aria-label={l("Agent 筛选", "Agent filter")}
+                  className="w-32"
+                  buttonClassName="h-8 text-xs"
+                  value={usageAgentFilter}
+                  options={usageAgentOptions}
+                  onChange={(value) => onUsageFilterChange({ agent: value })}
+                />
+              </div>
+              <div className="flex items-center gap-1 text-xs text-slate-600">
+                <span>{l("来源", "Source")}</span>
+                <Select
+                  aria-label={l("来源筛选", "Source filter")}
+                  className="w-44"
+                  buttonClassName="h-8 text-xs"
+                  value={usageSourceFilter}
+                  options={usageSourceOptions}
+                  onChange={(value) => onUsageFilterChange({ source: value })}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setSortByUsage((prev) => !prev)}>
+                {sortByUsage ? l("恢复默认排序", "Reset Sort") : l("按调用次数排序", "Sort by Calls")}
+              </Button>
+              {onRunBulkLink ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={runningDistribution || bulkLinking || bulkLinkPlans.length === 0}
+                  onClick={() => void handleBulkLink()}
+                >
+                  {bulkLinking ? l("全部 Link 中...", "Linking All...") : l("全部 Link", "Link All")}
+                </Button>
+              ) : null}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={usageSyncRunning}
+                onClick={() => void onUsageRefresh()}
+              >
+                {usageSyncRunning ? l("分析中...", "Analyzing...") : l("刷新分析", "Refresh Analysis")}
+              </Button>
+            </div>
+          </div>
+          {usageSyncJob ? (
+            <div className="space-y-1 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+              <div className="flex items-center justify-between text-xs text-slate-600">
+                <span>
+                  {l("状态", "Status")}：{usageSyncJob.status}
+                </span>
+                <span>
+                  {usageSyncJob.processedFiles}/{usageSyncJob.totalFiles} ({usagePercent}%)
+                </span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded bg-slate-200">
+                <div className="h-full bg-blue-500 transition-all" style={{ width: `${usagePercent}%` }} />
+              </div>
+              {usageSyncJob.currentSource ? (
+                <div className="truncate text-[11px] text-slate-500" title={usageSyncJob.currentSource}>
+                  {usageSyncJob.currentSource}
+                </div>
+              ) : null}
+              {usageSyncJob.errorMessage ? (
+                <div className="text-[11px] text-rose-600">{usageSyncJob.errorMessage}</div>
+              ) : null}
+            </div>
+          ) : null}
+          {usageStatsError ? (
+            <div className="text-xs text-rose-600">{usageStatsError}</div>
+          ) : usageStatsLoading ? (
+            <div className="text-xs text-slate-500">{l("统计刷新中...", "Refreshing stats...")}</div>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
         {matrixSummaries.map((summary) => {
           const active = matrixFilter.tool === summary.tool;
@@ -359,7 +534,7 @@ export function SkillsOperationsPanel({
         })}
       </div>
 
-      {rows.length === 0 ? (
+      {sortedRows.length === 0 ? (
         matrixSummaries.some((summary) => summary.total > 0) ? (
           <EmptyState
             title={l("当前筛选无结果", "No results for current filters")}
@@ -420,7 +595,8 @@ export function SkillsOperationsPanel({
                       </div>
                       <div className="text-xs text-slate-500">
                         {row.group || "-"} · {row.linkedCount}/{row.totalCount} {l("已链接", "linked")} · {row.issueCount}{" "}
-                        {l("异常", "issues")}
+                        {l("异常", "issues")} · {l("调用", "Calls")} {row.totalCalls} · 7d {row.last7dCalls} ·{" "}
+                        {l("最近", "Last")} {formatLastCalled(row.lastCalledAt)}
                       </div>
                     </div>
 
@@ -539,12 +715,12 @@ export function SkillsOperationsPanel({
                 </div>
               );
             })}
-            {rows.length > OPERATIONS_PAGE_SIZE ? (
+            {sortedRows.length > OPERATIONS_PAGE_SIZE ? (
               <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-3">
                 <span className="text-xs text-slate-500">
                   {l(
-                    `共 ${rows.length} 项 · 每页 ${OPERATIONS_PAGE_SIZE} 条`,
-                    `${rows.length} items · ${OPERATIONS_PAGE_SIZE} / page`,
+                    `共 ${sortedRows.length} 项 · 每页 ${OPERATIONS_PAGE_SIZE} 条`,
+                    `${sortedRows.length} items · ${OPERATIONS_PAGE_SIZE} / page`,
                   )}
                 </span>
                 <div className="flex items-center gap-2">

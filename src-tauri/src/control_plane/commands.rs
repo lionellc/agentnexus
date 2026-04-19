@@ -4,7 +4,6 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use chrono::{Duration, Utc};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::{json, Value};
 use tauri::State;
@@ -16,12 +15,12 @@ use crate::{
     domain::models::{
         AgentDocRelease, AuditQueryInput, DistributionJobResult, DistributionRecordResult,
         DistributionRetryInput, DistributionRunInput, DistributionTarget, DriftDetectInput,
-        ExternalSourceCheckInput, MetricsByAssetInput, PromptCreateInput, PromptDeleteInput,
-        PromptRenderInput, PromptRestoreInput, PromptSearchInput, PromptUpdateInput, RatingInput,
-        ReleaseCreateInput, ReleaseRollbackInput, RuntimeFlags, RuntimeFlagsInput, SkillAsset,
-        SkillsBatchInput, SkillsFileReadInput, SkillsFileTreeInput, SkillsOpenInput,
-        SkillsScanInput, TargetDeleteInput, TargetUpsertInput, UsageEventInput, Workspace,
-        WorkspaceActivateInput, WorkspaceCreateInput, WorkspaceUpdateInput,
+        ExternalSourceCheckInput, PromptCreateInput, PromptDeleteInput, PromptRenderInput,
+        PromptRestoreInput, PromptSearchInput, PromptUpdateInput, ReleaseCreateInput,
+        ReleaseRollbackInput, RuntimeFlags, RuntimeFlagsInput, SkillAsset, SkillsBatchInput,
+        SkillsFileReadInput, SkillsFileTreeInput, SkillsOpenInput, SkillsScanInput,
+        TargetDeleteInput, TargetUpsertInput, Workspace, WorkspaceActivateInput,
+        WorkspaceCreateInput, WorkspaceUpdateInput,
     },
     error::AppError,
     execution_plane::{
@@ -1508,13 +1507,7 @@ pub fn skills_distribute(
                 Ok(root) => {
                     let destination = root.join(&skill.name);
                     match distribute_skill(&source_dir, &destination, &target.install_mode) {
-                        Ok(mode) => {
-                            conn.execute(
-                                "UPDATE skills_assets SET last_used_at = ?2, updated_at = ?2 WHERE id = ?1",
-                                params![skill.id, now_rfc3339()],
-                            )?;
-                            ("success".to_string(), "ok".to_string(), mode)
-                        }
+                        Ok(mode) => ("success".to_string(), "ok".to_string(), mode),
                         Err(err) => (
                             "failed".to_string(),
                             err.message,
@@ -1975,207 +1968,6 @@ pub fn prompt_render(
 
     let rendered = render_template(&content, &input.variables);
     Ok(json!({ "rendered": rendered }))
-}
-
-#[tauri::command]
-pub fn metrics_ingest_usage_event(
-    state: State<'_, AppState>,
-    input: UsageEventInput,
-) -> Result<Value, AppError> {
-    let conn = state.open()?;
-    get_workspace(&conn, &input.workspace_id)?;
-
-    let event_id = Uuid::new_v4().to_string();
-    let ts = now_rfc3339();
-    let context = serde_json::to_string(&input.context.unwrap_or_default())
-        .map_err(|err| AppError::internal(err.to_string()))?;
-
-    conn.execute(
-        "INSERT INTO usage_events(id, workspace_id, asset_type, asset_id, version, event_type, success, context, ts)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-        params![
-            event_id,
-            input.workspace_id,
-            input.asset_type,
-            input.asset_id,
-            input.version,
-            input.event_type,
-            bool_to_int(input.success),
-            context,
-            ts,
-        ],
-    )?;
-
-    if input.asset_type == "skill" {
-        conn.execute(
-            "UPDATE skills_assets SET last_used_at = ?2, updated_at = ?2 WHERE id = ?1 OR identity = ?1",
-            params![input.asset_id, now_rfc3339()],
-        )?;
-    }
-
-    Ok(json!({ "eventId": event_id }))
-}
-
-#[tauri::command]
-pub fn metrics_query_overview(
-    state: State<'_, AppState>,
-    workspace_id: String,
-    days: Option<i64>,
-) -> Result<Value, AppError> {
-    let conn = state.open()?;
-    get_workspace(&conn, &workspace_id)?;
-
-    let range_days = days.unwrap_or(30).clamp(1, 365);
-    let from_ts = (Utc::now() - Duration::days(range_days)).to_rfc3339();
-
-    let mut metrics_stmt = conn.prepare(
-        "SELECT asset_type, COUNT(1), SUM(success), MAX(ts)
-         FROM usage_events
-         WHERE workspace_id = ?1 AND ts >= ?2
-         GROUP BY asset_type",
-    )?;
-
-    let metric_rows = metrics_stmt.query_map(params![workspace_id, from_ts], |row| {
-        let trigger_count: i64 = row.get(1)?;
-        let success_count: i64 = row.get::<_, Option<i64>>(2)?.unwrap_or(0);
-        let success_rate = if trigger_count == 0 {
-            0.0
-        } else {
-            success_count as f64 / trigger_count as f64
-        };
-
-        Ok(json!({
-            "assetType": row.get::<_, String>(0)?,
-            "triggerCount": trigger_count,
-            "successCount": success_count,
-            "successRate": success_rate,
-            "recentTs": row.get::<_, Option<String>>(3)?,
-        }))
-    })?;
-
-    let mut metrics = Vec::new();
-    for row in metric_rows {
-        metrics.push(row?);
-    }
-
-    let mut ratings_stmt = conn.prepare(
-        "SELECT asset_type, AVG(score), COUNT(1)
-         FROM ratings
-         WHERE workspace_id = ?1
-         GROUP BY asset_type",
-    )?;
-
-    let rating_rows = ratings_stmt.query_map(params![workspace_id], |row| {
-        Ok(json!({
-            "assetType": row.get::<_, String>(0)?,
-            "avgScore": row.get::<_, Option<f64>>(1)?.unwrap_or(0.0),
-            "ratingCount": row.get::<_, i64>(2)?,
-        }))
-    })?;
-
-    let mut ratings = Vec::new();
-    for row in rating_rows {
-        ratings.push(row?);
-    }
-
-    Ok(json!({
-        "windowDays": range_days,
-        "metrics": metrics,
-        "ratings": ratings,
-    }))
-}
-
-#[tauri::command]
-pub fn metrics_query_by_asset(
-    state: State<'_, AppState>,
-    input: MetricsByAssetInput,
-) -> Result<Value, AppError> {
-    let conn = state.open()?;
-    get_workspace(&conn, &input.workspace_id)?;
-
-    let range_days = input.days.unwrap_or(30).clamp(1, 365);
-    let from_ts = (Utc::now() - Duration::days(range_days)).to_rfc3339();
-
-    let row = conn.query_row(
-        "SELECT COUNT(1), SUM(success), MAX(ts)
-             FROM usage_events
-             WHERE workspace_id = ?1
-               AND asset_type = ?2
-               AND asset_id = ?3
-               AND ts >= ?4",
-        params![
-            input.workspace_id,
-            input.asset_type,
-            input.asset_id,
-            from_ts
-        ],
-        |row| {
-            Ok((
-                row.get::<_, i64>(0)?,
-                row.get::<_, Option<i64>>(1)?.unwrap_or(0),
-                row.get::<_, Option<String>>(2)?,
-            ))
-        },
-    )?;
-
-    let success_rate = if row.0 == 0 {
-        0.0
-    } else {
-        row.1 as f64 / row.0 as f64
-    };
-
-    let rating = conn.query_row(
-        "SELECT AVG(score), COUNT(1)
-             FROM ratings
-             WHERE workspace_id = ?1 AND asset_type = ?2 AND asset_id = ?3",
-        params![input.workspace_id, input.asset_type, input.asset_id],
-        |row| {
-            Ok((
-                row.get::<_, Option<f64>>(0)?.unwrap_or(0.0),
-                row.get::<_, i64>(1)?,
-            ))
-        },
-    )?;
-
-    Ok(json!({
-        "triggerCount": row.0,
-        "successCount": row.1,
-        "successRate": success_rate,
-        "recentTs": row.2,
-        "avgScore": rating.0,
-        "ratingCount": rating.1,
-    }))
-}
-
-#[tauri::command]
-pub fn metrics_submit_rating(
-    state: State<'_, AppState>,
-    input: RatingInput,
-) -> Result<Value, AppError> {
-    if input.score < 1 || input.score > 5 {
-        return Err(AppError::invalid_argument("评分范围必须在 1-5"));
-    }
-
-    let conn = state.open()?;
-    get_workspace(&conn, &input.workspace_id)?;
-
-    let id = Uuid::new_v4().to_string();
-    conn.execute(
-        "INSERT INTO ratings(id, workspace_id, asset_type, asset_id, version, score, comment, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        params![
-            id,
-            input.workspace_id,
-            input.asset_type,
-            input.asset_id,
-            input.version,
-            input.score,
-            input.comment.unwrap_or_default(),
-            now_rfc3339(),
-        ],
-    )?;
-
-    Ok(json!({ "ratingId": id }))
 }
 
 #[tauri::command]

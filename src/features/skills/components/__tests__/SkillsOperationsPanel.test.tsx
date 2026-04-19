@@ -30,6 +30,9 @@ const baseRows = [
       { tool: "cursor", status: "blocked" as const },
     ],
     hiddenStatusCount: 1,
+    totalCalls: 4,
+    last7dCalls: 2,
+    lastCalledAt: "2026-04-18T12:00:00Z",
   },
 ];
 
@@ -46,6 +49,16 @@ const baseSummaries = [
     issueCount: 0,
   },
 ];
+
+const baseUsageProps = {
+  usageAgentFilter: "",
+  usageSourceFilter: "",
+  usageStatsLoading: false,
+  usageStatsError: "",
+  usageSyncJob: null,
+  onUsageFilterChange: vi.fn(),
+  onUsageRefresh: vi.fn(),
+};
 
 function findButton(container: HTMLElement, text: string): HTMLButtonElement | undefined {
   return Array.from(container.querySelectorAll("button")).find(
@@ -79,6 +92,7 @@ describe("SkillsOperationsPanel", () => {
           rows={baseRows}
           matrixSummaries={baseSummaries}
           matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -114,6 +128,7 @@ describe("SkillsOperationsPanel", () => {
           rows={baseRows}
           matrixSummaries={baseSummaries}
           matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -150,6 +165,7 @@ describe("SkillsOperationsPanel", () => {
           rows={[]}
           matrixSummaries={[]}
           matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -185,6 +201,7 @@ describe("SkillsOperationsPanel", () => {
           rows={[]}
           matrixSummaries={baseSummaries}
           matrixFilter={{ tool: "codex", status: "wrong" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -228,6 +245,7 @@ describe("SkillsOperationsPanel", () => {
           rows={rows}
           matrixSummaries={baseSummaries}
           matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -278,6 +296,7 @@ describe("SkillsOperationsPanel", () => {
           rows={baseRows}
           matrixSummaries={summaries}
           matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -306,6 +325,7 @@ describe("SkillsOperationsPanel", () => {
           rows={baseRows}
           matrixSummaries={baseSummaries}
           matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -341,6 +361,7 @@ describe("SkillsOperationsPanel", () => {
           rows={rows}
           matrixSummaries={baseSummaries}
           matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
           expandedSkillId={null}
           runningDistribution={false}
           purgingSkillId={null}
@@ -365,5 +386,179 @@ describe("SkillsOperationsPanel", () => {
       clearButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
     expect(onPurgeSkill).toHaveBeenCalledWith("s1", "skill-one");
+  });
+
+  it("刷新分析按钮会触发回调并展示进度", () => {
+    const onUsageRefresh = vi.fn();
+
+    act(() => {
+      root.render(
+        <SkillsOperationsPanel
+          rows={baseRows}
+          matrixSummaries={baseSummaries}
+          matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
+          usageSyncJob={{
+            jobId: "job-1",
+            workspaceId: "w1",
+            status: "completed",
+            totalFiles: 10,
+            processedFiles: 4,
+            parsedEvents: 20,
+            insertedEvents: 18,
+            duplicateEvents: 2,
+            parseFailures: 0,
+            currentSource: "/tmp/demo.jsonl",
+            errorMessage: "",
+            startedAt: "2026-04-18T12:00:00Z",
+            updatedAt: "2026-04-18T12:01:00Z",
+          }}
+          onUsageRefresh={onUsageRefresh}
+          expandedSkillId={null}
+          runningDistribution={false}
+          purgingSkillId={null}
+          onMatrixFilterChange={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          onOpenSkillDetail={vi.fn()}
+          onRunDistribution={vi.fn()}
+          onRunLink={vi.fn()}
+          onRunUnlink={vi.fn()}
+          onPurgeSkill={vi.fn()}
+          onDismissRowHint={vi.fn()}
+          onJumpToConfig={vi.fn()}
+          l={l}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("4/10");
+    expect(container.textContent).toContain("刷新分析");
+    act(() => {
+      findButton(container, "刷新分析")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    expect(onUsageRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("支持按调用次数排序", () => {
+    const rows = [
+      {
+        ...baseRows[0],
+        id: "s-low",
+        name: "skill-low",
+        totalCalls: 1,
+        last7dCalls: 1,
+        localPath: "/tmp/skill-low",
+      },
+      {
+        ...baseRows[0],
+        id: "s-high",
+        name: "skill-high",
+        totalCalls: 99,
+        last7dCalls: 20,
+        localPath: "/tmp/skill-high",
+      },
+    ];
+
+    act(() => {
+      root.render(
+        <SkillsOperationsPanel
+          rows={rows}
+          matrixSummaries={baseSummaries}
+          matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
+          expandedSkillId={null}
+          runningDistribution={false}
+          purgingSkillId={null}
+          onMatrixFilterChange={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          onOpenSkillDetail={vi.fn()}
+          onRunDistribution={vi.fn()}
+          onRunLink={vi.fn()}
+          onRunUnlink={vi.fn()}
+          onPurgeSkill={vi.fn()}
+          onDismissRowHint={vi.fn()}
+          onJumpToConfig={vi.fn()}
+          l={l}
+        />,
+      );
+    });
+
+    const before = container.textContent ?? "";
+    expect(before.indexOf("skill-low")).toBeLessThan(before.indexOf("skill-high"));
+
+    act(() => {
+      findButton(container, "按调用次数排序")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    const after = container.textContent ?? "";
+    expect(after.indexOf("skill-high")).toBeLessThan(after.indexOf("skill-low"));
+  });
+
+  it("支持全部 Link 操作", async () => {
+    const onRunBulkLink = vi.fn().mockResolvedValue(undefined);
+
+    await act(async () => {
+      root.render(
+        <SkillsOperationsPanel
+          rows={baseRows}
+          matrixSummaries={baseSummaries}
+          matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
+          expandedSkillId={null}
+          runningDistribution={false}
+          purgingSkillId={null}
+          onMatrixFilterChange={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          onOpenSkillDetail={vi.fn()}
+          onRunDistribution={vi.fn()}
+          onRunBulkLink={onRunBulkLink}
+          onRunLink={vi.fn()}
+          onRunUnlink={vi.fn()}
+          onPurgeSkill={vi.fn()}
+          onDismissRowHint={vi.fn()}
+          onJumpToConfig={vi.fn()}
+          l={l}
+        />,
+      );
+    });
+
+    await act(async () => {
+      findButton(container, "全部 Link")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onRunBulkLink).toHaveBeenCalledWith([
+      {
+        skillId: "s1",
+        tools: ["claude", "zed"],
+      },
+    ]);
+  });
+
+  it("刷新分析筛选不再使用原生 select", () => {
+    act(() => {
+      root.render(
+        <SkillsOperationsPanel
+          rows={baseRows}
+          matrixSummaries={baseSummaries}
+          matrixFilter={{ tool: null, status: "all" }}
+          {...baseUsageProps}
+          expandedSkillId={null}
+          runningDistribution={false}
+          purgingSkillId={null}
+          onMatrixFilterChange={vi.fn()}
+          onToggleExpanded={vi.fn()}
+          onOpenSkillDetail={vi.fn()}
+          onRunDistribution={vi.fn()}
+          onRunLink={vi.fn()}
+          onRunUnlink={vi.fn()}
+          onPurgeSkill={vi.fn()}
+          onDismissRowHint={vi.fn()}
+          onJumpToConfig={vi.fn()}
+          l={l}
+        />,
+      );
+    });
+
+    expect(container.querySelectorAll("select").length).toBe(0);
   });
 });

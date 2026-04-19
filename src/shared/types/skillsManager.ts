@@ -83,6 +83,9 @@ export interface SkillsManagerOperationsRow {
   statusCells: SkillsManagerToolStatusCell[];
   statusPreview: SkillsManagerToolStatusCell[];
   hiddenStatusCount: number;
+  totalCalls: number;
+  last7dCalls: number;
+  lastCalledAt: string | null;
   rowHint?: string;
 }
 
@@ -213,6 +216,11 @@ export interface SkillsManagerLinkPreviewInput extends SkillsManagerActionInput 
   maxEntries?: number;
 }
 
+export interface SkillsManagerUpdateThenLinkInput extends SkillsManagerActionInput {
+  skillId: string;
+  tool: string;
+}
+
 export interface SkillsManagerDiffEntry {
   relativePath: string;
   status: "added" | "removed" | "changed" | string;
@@ -253,5 +261,12 @@ export interface SkillsManagerLinkPreviewResult {
   diffFiles: number;
   entries: SkillsManagerDiffEntry[];
   entriesTruncated: boolean;
+  message: string;
+}
+
+export interface SkillsManagerUpdateThenLinkResult {
+  ok: boolean;
+  updated: boolean;
+  linked: boolean;
   message: string;
 }
