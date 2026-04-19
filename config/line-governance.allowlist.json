@@ -1,0 +1,77 @@
+{
+  "version": 1,
+  "updatedAt": "2026-04-19",
+  "description": "Allowlist for business source files that are temporarily allowed above 500 lines. maxLines must be <= 1000.",
+  "entries": [
+    {
+      "path": "src-tauri/src/db.rs",
+      "maxLines": 900,
+      "owner": "@tauri-core",
+      "reason": "DB bootstrap and migration helpers are still co-located before Unit 7 split.",
+      "reviewBy": "2026-05-31"
+    },
+    {
+      "path": "src-tauri/src/domain/models.rs",
+      "maxLines": 700,
+      "owner": "@tauri-core",
+      "reason": "Domain model files are being split in Unit 7.",
+      "reviewBy": "2026-05-31"
+    },
+    {
+      "path": "src-tauri/src/control_plane/commands/distribution_commands.rs",
+      "maxLines": 900,
+      "owner": "@tauri-control-plane",
+      "reason": "Distribution command flow was extracted from commands.rs; deeper helper split is deferred after atomic cutover.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src-tauri/src/control_plane/commands/skills_support.rs",
+      "maxLines": 1000,
+      "owner": "@tauri-control-plane",
+      "reason": "Skill support helpers were centralized during commands modularization; follow-up split can proceed after parity stabilization.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src-tauri/src/control_plane/skills_manager/api.rs",
+      "maxLines": 900,
+      "owner": "@tauri-control-plane",
+      "reason": "skills_manager API entry was separated from monolith and kept stable for command compatibility in Unit 6.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src-tauri/src/control_plane/skills_usage/parser.rs",
+      "maxLines": 800,
+      "owner": "@tauri-control-plane",
+      "reason": "skills_usage parser remains dense after first modular extraction; staged split planned post-cutover.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src-tauri/src/control_plane/local_agent_translation/executor.rs",
+      "maxLines": 800,
+      "owner": "@tauri-control-plane",
+      "reason": "local agent executor logic was isolated from monolith; fine-grained split is deferred to avoid behavior drift.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src-tauri/src/control_plane/local_agent_translation/prompt_translation.rs",
+      "maxLines": 700,
+      "owner": "@tauri-control-plane",
+      "reason": "prompt translation pipeline extracted from monolith; keep temporary allowance during stabilization.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src-tauri/src/control_plane/agent_rules_v2/apply.rs",
+      "maxLines": 600,
+      "owner": "@tauri-control-plane",
+      "reason": "agent rules apply/retry/refresh command flow was split from monolith; helper-level extraction is deferred to a follow-up pass.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src/app/workbench/hooks/WorkbenchAppContent.tsx",
+      "maxLines": 1000,
+      "owner": "@frontend-workbench",
+      "reason": "Workbench module orchestration was decomposed from monolith; additional split is planned in follow-up.",
+      "reviewBy": "2026-06-30"
+    }
+  ]
+}

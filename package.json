@@ -10,7 +10,10 @@
     "tauri": "tauri",
     "test": "vitest",
     "test:run": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "check:line-governance": "node .github/scripts/check_line_limits.mjs --scope all",
+    "check:line-governance:changed": "node .github/scripts/check_line_limits.mjs --scope changed --base-ref origin/main",
+    "test:line-governance": "bash .github/scripts/tests/check_line_limits_contract_test.sh"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.10",

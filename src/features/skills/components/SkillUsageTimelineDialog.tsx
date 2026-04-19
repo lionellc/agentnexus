@@ -61,6 +61,7 @@ export function SkillUsageTimelineDialog({
   onRefresh,
   l,
 }: SkillUsageTimelineDialogProps) {
+  const safeItems = items ?? [];
   const syncRunning = syncJob?.status === "running";
   const percent = progressPercent(syncJob);
 
@@ -115,13 +116,13 @@ export function SkillUsageTimelineDialog({
             <div className="rounded-md border border-slate-200 bg-white px-3 py-4 text-sm text-slate-500">
               {l("读取调用记录中...", "Loading call history...")}
             </div>
-          ) : items.length === 0 ? (
+          ) : safeItems.length === 0 ? (
             <div className="rounded-md border border-slate-200 bg-white px-3 py-4 text-sm text-slate-500">
               {l("暂无调用记录", "No call history")}
             </div>
           ) : (
             <ol className="max-h-[420px] space-y-3 overflow-auto pr-1">
-              {items.map((item) => (
+              {safeItems.map((item) => (
                 <li
                   key={`${item.sessionId}:${item.eventRef}`}
                   className="rounded-md border border-slate-200 bg-white px-3 py-2"
@@ -153,4 +154,3 @@ export function SkillUsageTimelineDialog({
     </Dialog>
   );
 }
-

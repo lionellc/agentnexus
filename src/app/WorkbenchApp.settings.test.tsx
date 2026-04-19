@@ -60,6 +60,7 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
 
   const skillsState = {
     skills: [],
+    viewTab: "installed" as const,
     loading: false,
     selectedSkillId: null,
     selectedIds: [] as string[],
@@ -77,6 +78,27 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
     managerSelectedTool: "",
     managerLastActionOutput: "",
     managerLastBatchResult: null,
+    usageAgentFilter: "",
+    usageSourceFilter: "",
+    usageStatsLoading: false,
+    usageStatsError: "",
+    usageListSyncJob: null,
+    usageDetailSyncJob: null,
+    usageDetailSkillId: null,
+    usageDetailCalls: [] as Array<{
+      calledAt: string;
+      agent: string;
+      source: string;
+      resultStatus: "success" | "failed" | "unknown";
+      confidence: number;
+      sessionId: string;
+      eventRef: string;
+      rawRef: string;
+    }>,
+    usageDetailCallsTotal: 0,
+    usageDetailCallsLoading: false,
+    usageDetailCallsError: "",
+    setViewTab: vi.fn(),
     fetchSkills: vi.fn(async () => undefined),
     scanSkills: vi.fn(async () => undefined),
     selectSkill: vi.fn(),
@@ -100,6 +122,12 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
     clearManagerRowHint: vi.fn(),
     setManagerStatusFilter: vi.fn(),
     setManagerSelectedTool: vi.fn(),
+    setUsageFilters: vi.fn(),
+    refreshUsageStats: vi.fn(async () => undefined),
+    startListUsageSync: vi.fn(async () => undefined),
+    startDetailUsageSync: vi.fn(async () => undefined),
+    loadUsageCalls: vi.fn(async () => undefined),
+    clearUsageDetail: vi.fn(),
     getManagerOperationsRows: vi.fn(() => []),
     getManagerFilteredOperationsRows: vi.fn(() => []),
     getManagerMatrixSummaries: vi.fn(() => []),
