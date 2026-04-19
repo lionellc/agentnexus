@@ -1,0 +1,58 @@
+name: Line Governance
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "src-tauri/src/**"
+      - "config/line-governance.allowlist.json"
+      - ".github/scripts/check_line_limits.mjs"
+      - ".github/scripts/tests/check_line_limits_contract_test.sh"
+      - ".github/workflows/line-governance.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "src-tauri/src/**"
+      - "config/line-governance.allowlist.json"
+      - ".github/scripts/check_line_limits.mjs"
+      - ".github/scripts/tests/check_line_limits_contract_test.sh"
+      - ".github/workflows/line-governance.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: line-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  line-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Run contract tests
+        run: |
+          set -euo pipefail
+          chmod +x .github/scripts/tests/check_line_limits_contract_test.sh
+          .github/scripts/tests/check_line_limits_contract_test.sh
+
+      - name: Run line governance check
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ -n "${BASE_REF:-}" ]; then
+            node .github/scripts/check_line_limits.mjs --scope changed --base-ref "origin/${BASE_REF}"
+          else
+            node .github/scripts/check_line_limits.mjs --scope all --base-ref origin/main
+          fi

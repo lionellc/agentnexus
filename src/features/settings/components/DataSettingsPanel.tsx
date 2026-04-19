@@ -6,13 +6,12 @@ import {
   CardContent,
   CardHeader,
   CardTitle,
-  DeleteIconButton,
-  DirectoryPathField,
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DirectoryPathField,
   FormField,
   FormFieldset,
   FormLabel,
@@ -20,30 +19,25 @@ import {
   Select,
 } from "../../../shared/ui";
 
+import { AgentConnectionsSection } from "./data-settings/AgentConnectionsSection";
+import { CreateAgentDialog } from "./data-settings/CreateAgentDialog";
+import { CreateTargetDialog } from "./data-settings/CreateTargetDialog";
+import { TargetsSection } from "./data-settings/TargetsSection";
+import type {
+  AgentConnectionDraft,
+  AgentConnectionRow,
+  DistributionTarget,
+  DistributionTargetDraft,
+  Translator,
+} from "./data-settings/types";
+
 export type DataSettingsPanelProps = {
-  l: (zh: string, en: string) => string;
+  l: Translator;
   storageDirDraft: string;
-  distributionTargets: Array<{
-    id: string;
-    platform: string;
-    targetPath: string;
-    skillsPath: string;
-    installMode: string;
-  }>;
-  distributionTargetDrafts: Record<
-    string,
-    {
-      platform: string;
-      targetPath: string;
-      installMode: string;
-    }
-  >;
+  distributionTargets: DistributionTarget[];
+  distributionTargetDrafts: Record<string, DistributionTargetDraft>;
   distributionTargetEditingIds: string[];
-  newDistributionTargetDraft: {
-    platform: string;
-    targetPath: string;
-    installMode: string;
-  };
+  newDistributionTargetDraft: DistributionTargetDraft;
   distributionTargetSavingId: string | null;
   onStorageDirDraftChange: (value: string) => void;
   onSaveStorageDirectory: () => void;
@@ -66,17 +60,9 @@ export type DataSettingsPanelProps = {
     value: string,
   ) => void;
   onCreateDistributionTarget: () => void;
-  agentConnectionRows: Array<{
-    platform: string;
-    rootDir: string;
-    ruleFile: string;
-  }>;
+  agentConnectionRows: AgentConnectionRow[];
   agentConnectionEditingPlatforms: string[];
-  newAgentConnectionDraft: {
-    platform: string;
-    rootDir: string;
-    ruleFile: string;
-  };
+  newAgentConnectionDraft: AgentConnectionDraft;
   agentConnectionSavingId: string | null;
   onPickNewAgentConnectionRootDir: () => void;
   onPickAgentConnectionRootDir: (platform: string) => void;
@@ -251,6 +237,22 @@ export function DataSettingsPanel({
     newAgentConnectionDraft.ruleFile,
   ]);
 
+  function handleCreateTargetOpenChange(open: boolean) {
+    setCreateDialogOpen(open);
+    if (!open) {
+      setCreateSubmitted(false);
+      createSavingObservedRef.current = false;
+    }
+  }
+
+  function handleCreateAgentOpenChange(open: boolean) {
+    setCreateAgentDialogOpen(open);
+    if (!open) {
+      setCreateAgentSubmitted(false);
+      createAgentSavingObservedRef.current = false;
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Card>
@@ -284,216 +286,51 @@ export function DataSettingsPanel({
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>{l("Skills 目录配置", "Skills Directory Settings")}</CardTitle>
-          <Button
-            size="sm"
-            onClick={() => {
-              setCreateDialogOpen(true);
-              setCreateSubmitted(false);
-              createSavingObservedRef.current = false;
-            }}
-          >
-            {l("新增目录", "Add Directory")}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {distributionTargets.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500">
-              {l("暂无分发目录，请先新增一条。", "No distribution directories yet. Add one.")}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {distributionTargets.map((target) => {
-                const isDeleting = distributionTargetSavingId === `delete:${target.id}`;
-                return (
-                  <div
-                    key={target.id}
-                    className="rounded-md border border-slate-200 px-3 py-3"
-                  >
-                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                      <div className="grid gap-2 md:grid-cols-3">
-                        <div className="text-xs text-slate-500">
-                          <div>{l("名称", "Name")}</div>
-                          <div className="font-medium text-slate-800">{target.platform}</div>
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          <div>{l("安装模式", "Install Mode")}</div>
-                          <div className="font-medium text-slate-800">{target.installMode}</div>
-                        </div>
-                        <div className="min-w-0 text-xs text-slate-500">
-                          <div>{l("目标目录", "Target Directory")}</div>
-                          <div className="truncate font-mono text-slate-700">{target.targetPath}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            onStartDistributionTargetEdit(target.id);
-                            setEditingTargetId(target.id);
-                          }}
-                          disabled={isDeleting}
-                        >
-                          {l("编辑", "Edit")}
-                        </Button>
-                        <DeleteIconButton
-                          size="sm"
-                          variant="outline"
-                          label={l("删除目录", "Delete directory")}
-                          onClick={() => onDeleteDistributionTarget(target.id)}
-                          disabled={isDeleting}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>{l("Agents 配置", "Agents Settings")}</CardTitle>
-          <Button
-            size="sm"
-            onClick={() => {
-              setCreateAgentDialogOpen(true);
-              setCreateAgentSubmitted(false);
-              createAgentSavingObservedRef.current = false;
-            }}
-          >
-            {l("新增 Agent", "Add Agent")}
-          </Button>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          {agentConnectionRows.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500">
-              {l("暂无 Agent 配置，请先新增一条。", "No agent settings yet. Add one.")}
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {agentConnectionRows.map((row) => {
-                const isDeleting = agentConnectionSavingId === `delete:${row.platform}`;
-                return (
-                  <div key={row.platform} className="rounded-md border border-slate-200 px-3 py-3">
-                    <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                      <div className="grid gap-2 md:grid-cols-3">
-                        <div className="text-xs text-slate-500">
-                          <div>{l("名称", "Name")}</div>
-                          <div className="font-medium text-slate-800">{row.platform}</div>
-                        </div>
-                        <div className="min-w-0 text-xs text-slate-500">
-                          <div>{l("Global Config 目录", "Global Config Directory")}</div>
-                          <div className="truncate font-mono text-slate-700">{row.rootDir || "-"}</div>
-                        </div>
-                        <div className="min-w-0 text-xs text-slate-500">
-                          <div>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</div>
-                          <div className="truncate font-mono text-slate-700">{row.ruleFile || "-"}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            onStartAgentConnectionEdit(row.platform);
-                            setEditingAgentPlatform(row.platform);
-                          }}
-                          disabled={isDeleting}
-                        >
-                          {l("编辑", "Edit")}
-                        </Button>
-                        <DeleteIconButton
-                          size="sm"
-                          variant="outline"
-                          label={l("删除 Agent 配置", "Delete agent settings")}
-                          onClick={() => onDeleteAgentConnection(row.platform)}
-                          disabled={isDeleting}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Dialog
-        open={createDialogOpen}
-        onOpenChange={(open) => {
-          setCreateDialogOpen(open);
-          if (!open) {
-            setCreateSubmitted(false);
-            createSavingObservedRef.current = false;
-          }
+      <TargetsSection
+        l={l}
+        distributionTargets={distributionTargets}
+        distributionTargetSavingId={distributionTargetSavingId}
+        onOpenCreate={() => {
+          setCreateDialogOpen(true);
+          setCreateSubmitted(false);
+          createSavingObservedRef.current = false;
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{l("新增目录", "Add Directory")}</DialogTitle>
-          </DialogHeader>
-          <FormFieldset className="space-y-3 text-sm">
-            <FormField>
-              <FormLabel>{l("名称", "Name")}</FormLabel>
-              <Input
-                value={newDistributionTargetDraft.platform}
-                onChange={(event) =>
-                  onNewDistributionTargetFieldChange("platform", event.currentTarget.value)
-                }
-                placeholder=".codex"
-              />
-            </FormField>
-            <FormField>
-              <FormLabel>{l("安装模式", "Install Mode")}</FormLabel>
-              <Select
-                value={newDistributionTargetDraft.installMode}
-                onChange={(value) => onNewDistributionTargetFieldChange("installMode", value)}
-                options={[
-                  { value: "copy", label: "copy" },
-                  { value: "symlink", label: "symlink" },
-                ]}
-              />
-            </FormField>
-            <DirectoryPathField
-              label={l("目标目录", "Target Directory")}
-              value={newDistributionTargetDraft.targetPath}
-              onChange={(value) => onNewDistributionTargetFieldChange("targetPath", value)}
-              placeholder="/Users/you/.codex"
-              onPickDirectory={onPickNewDistributionTargetDirectory}
-              pickButtonLabel={l("从 Finder 选择文件夹", "Choose Folder in Finder")}
-              disabled={distributionTargetSavingId === "__new__"}
-            />
-          </FormFieldset>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCreateDialogOpen(false);
-                setCreateSubmitted(false);
-                createSavingObservedRef.current = false;
-              }}
-            >
-              {l("取消", "Cancel")}
-            </Button>
-            <Button
-              onClick={() => {
-                setCreateSubmitted(true);
-                onCreateDistributionTarget();
-              }}
-              disabled={distributionTargetSavingId === "__new__"}
-            >
-              {distributionTargetSavingId === "__new__" ? l("保存中...", "Saving...") : l("保存", "Save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onStartEdit={(targetId) => {
+          onStartDistributionTargetEdit(targetId);
+          setEditingTargetId(targetId);
+        }}
+        onDeleteDistributionTarget={onDeleteDistributionTarget}
+      />
+
+      <AgentConnectionsSection
+        l={l}
+        agentConnectionRows={agentConnectionRows}
+        agentConnectionSavingId={agentConnectionSavingId}
+        onOpenCreate={() => {
+          setCreateAgentDialogOpen(true);
+          setCreateAgentSubmitted(false);
+          createAgentSavingObservedRef.current = false;
+        }}
+        onStartEdit={(platform) => {
+          onStartAgentConnectionEdit(platform);
+          setEditingAgentPlatform(platform);
+        }}
+        onDeleteAgentConnection={onDeleteAgentConnection}
+      />
+
+      <CreateTargetDialog
+        l={l}
+        open={createDialogOpen}
+        draft={newDistributionTargetDraft}
+        saving={distributionTargetSavingId === "__new__"}
+        onOpenChange={handleCreateTargetOpenChange}
+        onDraftChange={onNewDistributionTargetFieldChange}
+        onPickDirectory={onPickNewDistributionTargetDirectory}
+        onSubmit={() => {
+          setCreateSubmitted(true);
+          onCreateDistributionTarget();
+        }}
+      />
 
       <Dialog
         open={Boolean(editingTargetId && editDraft)}
@@ -516,11 +353,7 @@ export function DataSettingsPanel({
                 <Input
                   value={editDraft.platform}
                   onChange={(event) =>
-                    onDistributionTargetFieldChange(
-                      editingTargetId,
-                      "platform",
-                      event.currentTarget.value,
-                    )
+                    onDistributionTargetFieldChange(editingTargetId, "platform", event.currentTarget.value)
                   }
                   placeholder=".codex"
                 />
@@ -529,13 +362,7 @@ export function DataSettingsPanel({
                 <FormLabel>{l("安装模式", "Install Mode")}</FormLabel>
                 <Select
                   value={editDraft.installMode}
-                  onChange={(value) =>
-                    onDistributionTargetFieldChange(
-                      editingTargetId,
-                      "installMode",
-                      value,
-                    )
-                  }
+                  onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "installMode", value)}
                   options={[
                     { value: "copy", label: "copy" },
                     { value: "symlink", label: "symlink" },
@@ -545,13 +372,7 @@ export function DataSettingsPanel({
               <DirectoryPathField
                 label={l("目标目录", "Target Directory")}
                 value={editDraft.targetPath}
-                onChange={(value) =>
-                  onDistributionTargetFieldChange(
-                    editingTargetId,
-                    "targetPath",
-                    value,
-                  )
-                }
+                onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "targetPath", value)}
                 placeholder="/Users/you/.codex"
                 onPickDirectory={() => onPickDistributionTargetDirectory(editingTargetId)}
                 pickButtonLabel={l("从 Finder 选择文件夹", "Choose Folder in Finder")}
@@ -582,82 +403,25 @@ export function DataSettingsPanel({
               }}
               disabled={distributionTargetSavingId === editingTargetId}
             >
-              {distributionTargetSavingId === editingTargetId
-                ? l("保存中...", "Saving...")
-                : l("保存", "Save")}
+              {distributionTargetSavingId === editingTargetId ? l("保存中...", "Saving...") : l("保存", "Save")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog
+      <CreateAgentDialog
+        l={l}
         open={createAgentDialogOpen}
-        onOpenChange={(open) => {
-          setCreateAgentDialogOpen(open);
-          if (!open) {
-            setCreateAgentSubmitted(false);
-            createAgentSavingObservedRef.current = false;
-          }
+        draft={newAgentConnectionDraft}
+        saving={agentConnectionSavingId === "__new_agent__"}
+        onOpenChange={handleCreateAgentOpenChange}
+        onDraftChange={onNewAgentConnectionFieldChange}
+        onPickRootDir={onPickNewAgentConnectionRootDir}
+        onSubmit={() => {
+          setCreateAgentSubmitted(true);
+          onCreateAgentConnection();
         }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{l("新增 Agent", "Add Agent")}</DialogTitle>
-          </DialogHeader>
-          <FormFieldset className="space-y-3 text-sm">
-            <FormField>
-              <FormLabel>{l("名称", "Name")}</FormLabel>
-              <Input
-                value={newAgentConnectionDraft.platform}
-                onChange={(event) =>
-                  onNewAgentConnectionFieldChange("platform", event.currentTarget.value)
-                }
-                placeholder="cursor"
-              />
-            </FormField>
-            <DirectoryPathField
-              label={l("Global Config 目录（绝对路径）", "Global Config Directory (Absolute Path)")}
-              value={newAgentConnectionDraft.rootDir}
-              onChange={(value) => onNewAgentConnectionFieldChange("rootDir", value)}
-              placeholder="/Users/you/.cursor"
-              onPickDirectory={onPickNewAgentConnectionRootDir}
-              pickButtonLabel={l("从 Finder 选择文件夹", "Choose Folder in Finder")}
-              disabled={agentConnectionSavingId === "__new_agent__"}
-            />
-            <FormField>
-              <FormLabel>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</FormLabel>
-              <Input
-                value={newAgentConnectionDraft.ruleFile}
-                onChange={(event) =>
-                  onNewAgentConnectionFieldChange("ruleFile", event.currentTarget.value)
-                }
-                placeholder="AGENTS.md"
-              />
-            </FormField>
-          </FormFieldset>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCreateAgentDialogOpen(false);
-                setCreateAgentSubmitted(false);
-                createAgentSavingObservedRef.current = false;
-              }}
-            >
-              {l("取消", "Cancel")}
-            </Button>
-            <Button
-              onClick={() => {
-                setCreateAgentSubmitted(true);
-                onCreateAgentConnection();
-              }}
-              disabled={agentConnectionSavingId === "__new_agent__"}
-            >
-              {agentConnectionSavingId === "__new_agent__" ? l("保存中...", "Saving...") : l("保存", "Save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
 
       <Dialog
         open={Boolean(editingAgentPlatform && editingAgent)}
@@ -682,13 +446,7 @@ export function DataSettingsPanel({
               <DirectoryPathField
                 label={l("Global Config 目录（绝对路径）", "Global Config Directory (Absolute Path)")}
                 value={editingAgent.rootDir}
-                onChange={(value) =>
-                  onAgentConnectionFieldChange(
-                    editingAgentPlatform,
-                    "rootDir",
-                    value,
-                  )
-                }
+                onChange={(value) => onAgentConnectionFieldChange(editingAgentPlatform, "rootDir", value)}
                 placeholder="/Users/you/.codex"
                 onPickDirectory={() => onPickAgentConnectionRootDir(editingAgentPlatform)}
                 pickButtonLabel={l("选择", "Choose")}
@@ -699,11 +457,7 @@ export function DataSettingsPanel({
                 <Input
                   value={editingAgent.ruleFile}
                   onChange={(event) =>
-                    onAgentConnectionFieldChange(
-                      editingAgentPlatform,
-                      "ruleFile",
-                      event.currentTarget.value,
-                    )
+                    onAgentConnectionFieldChange(editingAgentPlatform, "ruleFile", event.currentTarget.value)
                   }
                   placeholder="AGENTS.md"
                   disabled={agentConnectionSavingId === editingAgentPlatform}
@@ -734,9 +488,7 @@ export function DataSettingsPanel({
               }}
               disabled={agentConnectionSavingId === editingAgentPlatform}
             >
-              {agentConnectionSavingId === editingAgentPlatform
-                ? l("保存中...", "Saving...")
-                : l("保存", "Save")}
+              {agentConnectionSavingId === editingAgentPlatform ? l("保存中...", "Saving...") : l("保存", "Save")}
             </Button>
           </DialogFooter>
         </DialogContent>
