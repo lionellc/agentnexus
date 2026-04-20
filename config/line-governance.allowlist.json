@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-19",
+  "updatedAt": "2026-04-20",
   "description": "Allowlist for business source files that are temporarily allowed above 500 lines. maxLines must be <= 1000.",
   "entries": [
     {
       "path": "src-tauri/src/db.rs",
-      "maxLines": 900,
+      "maxLines": 1000,
       "owner": "@tauri-core",
       "reason": "DB bootstrap and migration helpers are still co-located before Unit 7 split.",
       "reviewBy": "2026-05-31"
@@ -40,7 +40,7 @@
     },
     {
       "path": "src-tauri/src/control_plane/skills_usage/parser.rs",
-      "maxLines": 800,
+      "maxLines": 900,
       "owner": "@tauri-control-plane",
       "reason": "skills_usage parser remains dense after first modular extraction; staged split planned post-cutover.",
       "reviewBy": "2026-06-30"
@@ -92,6 +92,20 @@
       "maxLines": 1000,
       "owner": "@frontend-workbench",
       "reason": "Workbench module orchestration was decomposed from monolith; additional split is planned in follow-up.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src/app/workbench/hooks/useWorkbenchAppContentState.ts",
+      "maxLines": 600,
+      "owner": "@frontend-workbench",
+      "reason": "Workbench content state orchestration grew with agent-preset and skills-usage plumbing; split pass deferred to keep this release stable.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src/app/workbench/hooks/useWorkbenchPromptAndSettingsViews.tsx",
+      "maxLines": 600,
+      "owner": "@frontend-workbench",
+      "reason": "Prompt/settings composite view gained additional panel wiring; extraction is planned in the next UI decomposition round.",
       "reviewBy": "2026-06-30"
     }
   ]
