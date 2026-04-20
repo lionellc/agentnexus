@@ -9,10 +9,11 @@ pub(super) fn run_sync_job(
     let workspace_scope = get_workspace_scope(&conn, workspace_id)?;
     let workspace_scopes = list_workspace_scopes(&conn)?;
     let skill_aliases = list_skill_aliases(&conn)?;
+    let agent_search_dirs = list_enabled_agent_search_dirs(&conn, &workspace_scope.id)?;
     let force_full_scan = should_force_full_scan(&conn, &workspace_scope.id)?;
     let mut failure_reason_counts: HashMap<String, u64> = HashMap::new();
 
-    let mut files = discover_session_files();
+    let (mut files, discover_issues) = discover_session_files(&agent_search_dirs);
     files.sort_by(|left, right| left.path.cmp(&right.path));
     {
         let mut job = job_state
@@ -20,6 +21,32 @@ pub(super) fn run_sync_job(
             .map_err(|_| AppError::internal("usage job 状态锁异常"))?;
         job.total_files = files.len() as u64;
         job.updated_at = now_rfc3339();
+    }
+
+    if !discover_issues.is_empty() {
+        let failures = discover_issues
+            .iter()
+            .map(|issue| ParseFailureEvent {
+                workspace_id: Some(workspace_scope.id.clone()),
+                agent: issue.agent.clone(),
+                source_path: issue.source_path.clone(),
+                session_id: None,
+                line_no: 0,
+                event_ref: "discover".to_string(),
+                reason: issue.reason.clone(),
+                raw_excerpt: String::new(),
+            })
+            .collect::<Vec<_>>();
+        for failure in &failures {
+            *failure_reason_counts
+                .entry(failure.reason.clone())
+                .or_insert(0) += 1;
+        }
+        persist_events(&mut conn, Vec::new(), failures)?;
+        if let Ok(mut job) = job_state.lock() {
+            job.parse_failures += discover_issues.len() as u64;
+            job.updated_at = now_rfc3339();
+        }
     }
 
     for (index, file) in files.iter().enumerate() {
@@ -39,6 +66,7 @@ pub(super) fn run_sync_job(
             &workspace_scope,
             &workspace_scopes,
             &skill_aliases,
+            &agent_search_dirs,
             force_full_scan,
             &conn,
         )?;

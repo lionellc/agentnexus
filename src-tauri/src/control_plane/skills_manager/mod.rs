@@ -19,10 +19,10 @@ use crate::{
     db::AppState,
     domain::models::{
         SkillsManagerActionInput, SkillsManagerBatchInput, SkillsManagerBatchItemInput,
-        SkillsManagerDeleteInput, SkillsManagerDiffJobInput, SkillsManagerDiffStartInput,
-        SkillsManagerLinkPreviewInput, SkillsManagerRestoreInput, SkillsManagerRuleValue,
-        SkillsManagerRulesUpdateInput, SkillsManagerStateInput, SkillsManagerToolRuleValue,
-        SkillsManagerUpdateThenLinkInput,
+        SkillsManagerCheckExternalUpdatesInput, SkillsManagerDeleteInput,
+        SkillsManagerDiffJobInput, SkillsManagerDiffStartInput, SkillsManagerLinkPreviewInput,
+        SkillsManagerRestoreInput, SkillsManagerRuleValue, SkillsManagerRulesUpdateInput,
+        SkillsManagerStateInput, SkillsManagerToolRuleValue, SkillsManagerUpdateThenLinkInput,
     },
     error::AppError,
     security::resolve_distribution_target_path,
@@ -57,6 +57,7 @@ struct SkillRow {
     name: String,
     source: String,
     local_path: String,
+    created_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -133,10 +134,26 @@ struct SkillsManagerLinkPreview {
     message: String,
 }
 
+#[derive(Debug, Clone)]
+struct SkillSourceBindingRow {
+    asset_id: String,
+    identity: String,
+    name: String,
+    local_path: String,
+    source_local_path: String,
+    source_type: String,
+    source: String,
+    source_url: String,
+    skill_path: String,
+    repo_owner: String,
+    repo_name: String,
+    repo_ref: String,
+}
 
 mod api;
 mod batch_ops;
 mod diff_worker;
+mod external_sources;
 mod fs_helper;
 mod rules;
 mod store;
@@ -154,6 +171,7 @@ pub use api::{
     skills_manager_restore, skills_manager_rules_update, skills_manager_state, skills_manager_sync,
     skills_manager_update_then_link,
 };
+pub use external_sources::skills_manager_check_external_updates;
 
 #[cfg(test)]
 mod tests;

@@ -2,27 +2,39 @@ import { useEffect, useMemo, useState } from "react";
 
 import { open as pickDialog } from "@tauri-apps/plugin-dialog";
 
-import { defaultAgentConfigDir, defaultAgentRuleFile, isAbsolutePathInput, isValidRuleFileInput, normalizeAgentTypeInput, normalizeDirectoryInput, toAgentSortWeight } from "../utils";
+import {
+  defaultAgentConfigDir,
+  defaultAgentRuleFile,
+  isAbsolutePathInput,
+  isValidRuleFileInput,
+  normalizeAgentTypeInput,
+  normalizeDirectoryInput,
+} from "../utils";
+import {
+  AGENT_PRESETS,
+  getAgentPresetById,
+  isBuiltInAgentPreset,
+  resolveAgentPresetRootDir,
+  resolveAgentPresetRuleFile,
+  toAgentPresetSortWeight,
+} from "../../../features/settings/components/data-settings/agentPresets";
+import type {
+  AgentConnectionRow,
+  AgentPresetRow,
+  AgentSkillSearchDirRow,
+} from "../../../features/settings/components/data-settings/types";
 import type { ToastOptions } from "../../../shared/ui";
-
-type AgentConnectionDraftField = "platform" | "rootDir" | "ruleFile";
-
-type AgentConnectionDraft = {
-  platform: string;
-  rootDir: string;
-  ruleFile: string;
-};
-
-const DEFAULT_NEW_AGENT_CONNECTION_DRAFT: AgentConnectionDraft = {
-  platform: "",
-  rootDir: "",
-  ruleFile: "",
-};
 
 type SettingsConnection = {
   platform: string;
   rootDir: string;
   ruleFile: string;
+  rootDirSource: string;
+  ruleFileSource: string;
+  detectionStatus: string;
+  detectedAt: string | null;
+  skillSearchDirs: AgentSkillSearchDirRow[];
+  enabled: boolean;
 };
 
 type UseWorkbenchAgentConnectionsInput = {
@@ -34,17 +46,44 @@ type UseWorkbenchAgentConnectionsInput = {
   homePath: string;
   projectBootingMessage: string;
   settingsConnections: SettingsConnection[];
+  savedAgentPlatformOrder: string[];
+  saveAgentPlatformOrder: (orderedPlatforms: string[]) => void;
   loadSettingsConnections: (workspaceId: string) => Promise<void>;
   loadAgentConnections: (workspaceId: string) => Promise<void>;
+  loadManagerState?: (workspaceId: string) => Promise<void>;
+  loadAgentModuleData?: (workspaceId: string) => Promise<void>;
   upsertConnection: (input: {
     workspaceId: string;
     platform: string;
     rootDir: string;
     ruleFile: string;
+    rootDirSource?: string;
+    ruleFileSource?: string;
+    detectionStatus?: string;
+    skillSearchDirs?: AgentSkillSearchDirRow[];
     enabled: boolean;
   }) => Promise<{ ok: boolean; message: string }>;
-  deleteConnection: (input: { workspaceId: string; platform: string }) => Promise<{ ok: boolean; message: string }>;
+  toggleConnection: (input: {
+    workspaceId: string;
+    platform: string;
+    enabled: boolean;
+  }) => Promise<{ ok: boolean; message: string }>;
+  redetectConnection: (input: {
+    workspaceId: string;
+    platform: string;
+  }) => Promise<{ ok: boolean; message: string }>;
+  restoreConnectionDefaults: (input: {
+    workspaceId: string;
+    platform: string;
+  }) => Promise<{ ok: boolean; message: string }>;
   setDirty: (category: "data" | "model" | "general" | "about", value: boolean) => void;
+};
+
+type AgentConnectionDraft = {
+  platform: string;
+  rootDir: string;
+  ruleFile: string;
+  enabled: boolean;
 };
 
 export function useWorkbenchAgentConnections({
@@ -56,63 +95,175 @@ export function useWorkbenchAgentConnections({
   homePath,
   projectBootingMessage,
   settingsConnections,
+  savedAgentPlatformOrder,
+  saveAgentPlatformOrder,
   loadSettingsConnections,
   loadAgentConnections,
+  loadManagerState,
+  loadAgentModuleData,
   upsertConnection,
-  deleteConnection,
+  toggleConnection,
+  redetectConnection,
+  restoreConnectionDefaults,
   setDirty,
 }: UseWorkbenchAgentConnectionsInput) {
-  const [newAgentConnectionDraft, setNewAgentConnectionDraft] = useState<AgentConnectionDraft>(
-    () => DEFAULT_NEW_AGENT_CONNECTION_DRAFT,
-  );
   const [agentConnectionEditingPlatforms, setAgentConnectionEditingPlatforms] = useState<string[]>([]);
   const [agentConnectionSavingId, setAgentConnectionSavingId] = useState<string | null>(null);
   const [connectionDrafts, setConnectionDrafts] = useState<Record<string, string>>({});
   const [connectionRuleFileDrafts, setConnectionRuleFileDrafts] = useState<Record<string, string>>({});
 
-  const settingsAgentTypes = useMemo(() => {
-    const keys = Object.keys(connectionDrafts);
-    keys.sort((left, right) => {
-      const weightDiff = toAgentSortWeight(left) - toAgentSortWeight(right);
-      if (weightDiff !== 0) {
-        return weightDiff;
-      }
-      return left.localeCompare(right);
+  const settingsConnectionMap = useMemo(() => {
+    const map = new Map<string, SettingsConnection>();
+    settingsConnections.forEach((connection) => {
+      map.set(normalizeAgentTypeInput(connection.platform), connection);
     });
-    return keys;
-  }, [connectionDrafts]);
+    return map;
+  }, [settingsConnections]);
 
-  const settingsAgentRows = useMemo(
+  const builtInRows = useMemo<AgentConnectionRow[]>(
     () =>
-      settingsAgentTypes.map((agentType) => {
-        const rootDir = (connectionDrafts[agentType] ?? "").trim();
-        const ruleFile = (connectionRuleFileDrafts[agentType] ?? defaultAgentRuleFile(agentType)).trim();
+      AGENT_PRESETS.map((preset) => {
+        const key = normalizeAgentTypeInput(preset.id);
+        const persisted = settingsConnectionMap.get(key);
+        const defaultRootDir = resolveAgentPresetRootDir(homePath, key) || defaultAgentConfigDir(homePath, key);
+        const defaultRuleFile = resolveAgentPresetRuleFile(key) || defaultAgentRuleFile(key);
+        const rootDir = (connectionDrafts[key] ?? persisted?.rootDir ?? defaultRootDir).trim();
+        const ruleFile = (connectionRuleFileDrafts[key] ?? persisted?.ruleFile ?? defaultRuleFile).trim();
         return {
-          platform: agentType,
+          platform: key,
+          displayName: preset.name,
           rootDir,
           ruleFile,
+          rootDirSource: persisted?.rootDirSource ?? "inferred",
+          ruleFileSource: persisted?.ruleFileSource ?? "inferred",
+          detectionStatus: persisted?.detectionStatus ?? "undetected",
+          detectedAt: persisted?.detectedAt ?? null,
+          skillSearchDirs: persisted?.skillSearchDirs ?? [],
+          enabled: Boolean(persisted?.enabled),
         };
       }),
-    [connectionDrafts, connectionRuleFileDrafts, settingsAgentTypes],
+    [
+      connectionDrafts,
+      connectionRuleFileDrafts,
+      homePath,
+      settingsConnectionMap,
+    ],
+  );
+
+  const customRows = useMemo<AgentConnectionRow[]>(
+    () =>
+      settingsConnections
+        .filter((connection) => !isBuiltInAgentPreset(connection.platform))
+        .map((connection) => {
+          const key = normalizeAgentTypeInput(connection.platform);
+          const rootDir = (connectionDrafts[key] ?? connection.rootDir ?? "").trim();
+          const ruleFile = (
+            connectionRuleFileDrafts[key] ??
+            connection.ruleFile ??
+            defaultAgentRuleFile(key)
+          ).trim();
+          return {
+            platform: key,
+            displayName: connection.platform,
+            rootDir,
+            ruleFile,
+            rootDirSource: connection.rootDirSource ?? "manual",
+            ruleFileSource: connection.ruleFileSource ?? "manual",
+            detectionStatus: connection.detectionStatus ?? "undetected",
+            detectedAt: connection.detectedAt ?? null,
+            skillSearchDirs: connection.skillSearchDirs ?? [],
+            enabled: Boolean(connection.enabled),
+          };
+        }),
+    [connectionDrafts, connectionRuleFileDrafts, settingsConnections],
+  );
+
+  const enabledAgentRowsUnordered = useMemo(
+    () =>
+      [...builtInRows, ...customRows]
+        .filter((row) => row.enabled)
+        .sort((left, right) => {
+          const weightDiff = toAgentPresetSortWeight(left.platform) - toAgentPresetSortWeight(right.platform);
+          if (weightDiff !== 0) {
+            return weightDiff;
+          }
+          return left.platform.localeCompare(right.platform);
+        }),
+    [builtInRows, customRows],
+  );
+
+  const resolvedEnabledPlatformOrder = useMemo(() => {
+    const enabledPlatforms = enabledAgentRowsUnordered.map((row) => row.platform);
+    const enabledSet = new Set(enabledPlatforms);
+    const fromSaved = savedAgentPlatformOrder
+      .map((item) => normalizeAgentTypeInput(item))
+      .filter((item) => enabledSet.has(item))
+      .filter((item, index, list) => list.indexOf(item) === index);
+    const missing = enabledPlatforms.filter((item) => !fromSaved.includes(item));
+    return [...fromSaved, ...missing];
+  }, [enabledAgentRowsUnordered, savedAgentPlatformOrder]);
+
+  const enabledAgentRows = useMemo(() => {
+    const rowByPlatform = new Map(enabledAgentRowsUnordered.map((row) => [row.platform, row]));
+    return resolvedEnabledPlatformOrder
+      .map((platform) => rowByPlatform.get(platform))
+      .filter((row): row is AgentConnectionRow => Boolean(row));
+  }, [enabledAgentRowsUnordered, resolvedEnabledPlatformOrder]);
+
+  const availableAgentPresetRows = useMemo<AgentPresetRow[]>(
+    () =>
+      builtInRows
+        .filter((row) => !row.enabled)
+        .map((row) => ({
+          platform: row.platform,
+          displayName: row.displayName,
+          enabled: false,
+        })),
+    [builtInRows],
   );
 
   useEffect(() => {
     const nextRoots: Record<string, string> = {};
     const nextRules: Record<string, string> = {};
-    settingsConnections.forEach((connection) => {
-      const key = normalizeAgentTypeInput(connection.platform);
-      nextRoots[key] = connection.rootDir || defaultAgentConfigDir(homePath, key);
-      nextRules[key] = connection.ruleFile || defaultAgentRuleFile(key);
+
+    AGENT_PRESETS.forEach((preset) => {
+      const key = normalizeAgentTypeInput(preset.id);
+      const persisted = settingsConnectionMap.get(key);
+      const fallbackRoot = resolveAgentPresetRootDir(homePath, key) || defaultAgentConfigDir(homePath, key);
+      const fallbackRule = resolveAgentPresetRuleFile(key) || defaultAgentRuleFile(key);
+      const rootDir = persisted?.rootDir || fallbackRoot;
+      nextRoots[key] = rootDir;
+      nextRules[key] = persisted?.ruleFile || fallbackRule;
     });
+
+    settingsConnections
+      .filter((connection) => !isBuiltInAgentPreset(connection.platform))
+      .forEach((connection) => {
+        const key = normalizeAgentTypeInput(connection.platform);
+        nextRoots[key] = connection.rootDir || "";
+        nextRules[key] = connection.ruleFile || defaultAgentRuleFile(key);
+      });
+
     setConnectionDrafts(nextRoots);
     setConnectionRuleFileDrafts(nextRules);
-  }, [settingsConnections, homePath]);
+  }, [homePath, settingsConnectionMap, settingsConnections]);
 
   useEffect(() => {
-    setAgentConnectionEditingPlatforms((prev) =>
-      prev.filter((platform) => settingsAgentTypes.includes(platform)),
-    );
-  }, [settingsAgentTypes]);
+    const enabledSet = new Set(enabledAgentRows.map((row) => row.platform));
+    setAgentConnectionEditingPlatforms((prev) => prev.filter((platform) => enabledSet.has(platform)));
+  }, [enabledAgentRows]);
+
+  useEffect(() => {
+    const normalizedSaved = savedAgentPlatformOrder
+      .map((item) => normalizeAgentTypeInput(item))
+      .filter(Boolean);
+    const same =
+      normalizedSaved.length === resolvedEnabledPlatformOrder.length &&
+      normalizedSaved.every((item, index) => item === resolvedEnabledPlatformOrder[index]);
+    if (!same) {
+      saveAgentPlatformOrder(resolvedEnabledPlatformOrder);
+    }
+  }, [resolvedEnabledPlatformOrder, saveAgentPlatformOrder, savedAgentPlatformOrder]);
 
   function normalizeAgentConnectionDraft(draft: AgentConnectionDraft): AgentConnectionDraft {
     const platform = normalizeAgentTypeInput(draft.platform);
@@ -122,20 +273,24 @@ export function useWorkbenchAgentConnections({
       platform,
       rootDir,
       ruleFile: normalizedRule || defaultAgentRuleFile(platform || "codex"),
+      enabled: draft.enabled,
     };
   }
 
-  function validateAgentConnectionDraft(draft: AgentConnectionDraft, mode: "create" | "edit"): string | null {
+  function validateAgentConnectionDraft(draft: AgentConnectionDraft): string | null {
     if (!draft.platform) {
       return l("Agent 名称不能为空", "Agent name cannot be empty");
     }
     if (!/^[a-z0-9_-]+$/.test(draft.platform)) {
       return l("Agent 名称仅允许字母/数字/-/_", "Agent name only allows letters/numbers/-/_");
     }
-    if (mode === "create" && settingsAgentTypes.includes(draft.platform)) {
-      return l("Agent 已存在", "Agent already exists");
+    if (draft.enabled && !isAbsolutePathInput(draft.rootDir)) {
+      return l(
+        `${draft.platform} Global Config file 必须是绝对路径`,
+        `${draft.platform} Global Config file must be an absolute path`,
+      );
     }
-    if (!isAbsolutePathInput(draft.rootDir)) {
+    if (!draft.enabled && draft.rootDir && !isAbsolutePathInput(draft.rootDir)) {
       return l(
         `${draft.platform} Global Config file 必须是绝对路径`,
         `${draft.platform} Global Config file must be an absolute path`,
@@ -152,13 +307,15 @@ export function useWorkbenchAgentConnections({
 
   function getAgentConnectionDefaults(agentType: string): { rootDir: string; ruleFile: string } {
     const normalizedType = normalizeAgentTypeInput(agentType);
-    const persisted = settingsConnections.find(
-      (item) => normalizeAgentTypeInput(item.platform) === normalizedType,
-    );
-    return {
-      rootDir: persisted?.rootDir || defaultAgentConfigDir(homePath, normalizedType),
-      ruleFile: persisted?.ruleFile || defaultAgentRuleFile(normalizedType),
-    };
+    const persisted = settingsConnectionMap.get(normalizedType);
+    const preset = getAgentPresetById(normalizedType);
+    const rootDir =
+      persisted?.rootDir ||
+      (preset ? resolveAgentPresetRootDir(homePath, normalizedType) : defaultAgentConfigDir(homePath, normalizedType));
+    const ruleFile =
+      persisted?.ruleFile ||
+      (preset ? resolveAgentPresetRuleFile(normalizedType) : defaultAgentRuleFile(normalizedType));
+    return { rootDir, ruleFile };
   }
 
   async function pickDirectoryInFinder(
@@ -187,7 +344,20 @@ export function useWorkbenchAgentConnections({
     }
   }
 
-  function handleAgentConnectionFieldChange(platform: string, field: "rootDir" | "ruleFile", value: string) {
+  async function reloadLinkedStates(workspaceId: string): Promise<void> {
+    await Promise.all([
+      loadSettingsConnections(workspaceId),
+      loadAgentConnections(workspaceId),
+      loadManagerState ? loadManagerState(workspaceId) : Promise.resolve(),
+      loadAgentModuleData ? loadAgentModuleData(workspaceId) : Promise.resolve(),
+    ]);
+  }
+
+  function handleAgentConnectionFieldChange(
+    platform: string,
+    field: "rootDir" | "ruleFile",
+    value: string,
+  ) {
     const normalized = normalizeAgentTypeInput(platform);
     if (!normalized) {
       return;
@@ -204,6 +374,18 @@ export function useWorkbenchAgentConnections({
       }));
     }
     setDirty("data", true);
+  }
+
+  function handleReorderEnabledAgentRows(orderedPlatforms: string[]) {
+    const currentSet = new Set(enabledAgentRows.map((row) => row.platform));
+    const next = orderedPlatforms
+      .map((item) => normalizeAgentTypeInput(item))
+      .filter((item) => currentSet.has(item))
+      .filter((item, index, list) => list.indexOf(item) === index);
+    const missing = enabledAgentRows
+      .map((row) => row.platform)
+      .filter((item) => !next.includes(item));
+    saveAgentPlatformOrder([...next, ...missing]);
   }
 
   function handleStartAgentConnectionEdit(platform: string) {
@@ -248,8 +430,9 @@ export function useWorkbenchAgentConnections({
       platform: normalizedPlatform,
       rootDir: connectionDrafts[normalizedPlatform] ?? "",
       ruleFile: connectionRuleFileDrafts[normalizedPlatform] ?? defaultAgentRuleFile(normalizedPlatform),
+      enabled: true,
     });
-    const validationError = validateAgentConnectionDraft(normalized, "edit");
+    const validationError = validateAgentConnectionDraft(normalized);
     if (validationError) {
       toast({ title: validationError, variant: "destructive" });
       return;
@@ -262,16 +445,15 @@ export function useWorkbenchAgentConnections({
         platform: normalized.platform,
         rootDir: normalized.rootDir,
         ruleFile: normalized.ruleFile,
+        rootDirSource: "manual",
+        ruleFileSource: "manual",
         enabled: true,
       });
       if (!result.ok) {
         toast({ title: result.message, variant: "destructive" });
         return;
       }
-      await Promise.all([
-        loadSettingsConnections(activeWorkspaceId),
-        loadAgentConnections(activeWorkspaceId),
-      ]);
+      await reloadLinkedStates(activeWorkspaceId);
       setAgentConnectionEditingPlatforms((prev) => prev.filter((item) => item !== normalizedPlatform));
       setDirty("data", false);
       toast({ title: l("Agent 配置已保存", "Agent settings saved") });
@@ -286,49 +468,50 @@ export function useWorkbenchAgentConnections({
     }
   }
 
-  function handleNewAgentConnectionFieldChange(field: AgentConnectionDraftField, value: string) {
-    setNewAgentConnectionDraft((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-    setDirty("data", true);
-  }
-
-  async function handleCreateAgentConnection() {
+  async function handleEnableAgentPreset(platform: string) {
     if (!activeWorkspaceId) {
       toast({ title: projectBootingMessage, variant: "destructive" });
       return;
     }
-    const normalized = normalizeAgentConnectionDraft(newAgentConnectionDraft);
-    const validationError = validateAgentConnectionDraft(normalized, "create");
+    const normalizedPlatform = normalizeAgentTypeInput(platform);
+    if (!normalizedPlatform) {
+      return;
+    }
+    const defaults = getAgentConnectionDefaults(normalizedPlatform);
+    const normalized = normalizeAgentConnectionDraft({
+      platform: normalizedPlatform,
+      rootDir: connectionDrafts[normalizedPlatform] ?? defaults.rootDir,
+      ruleFile: connectionRuleFileDrafts[normalizedPlatform] ?? defaults.ruleFile,
+      enabled: true,
+    });
+    const validationError = validateAgentConnectionDraft(normalized);
     if (validationError) {
       toast({ title: validationError, variant: "destructive" });
       return;
     }
 
-    setAgentConnectionSavingId("__new_agent__");
+    setAgentConnectionSavingId(`enable:${normalizedPlatform}`);
     try {
       const result = await upsertConnection({
         workspaceId: activeWorkspaceId,
         platform: normalized.platform,
         rootDir: normalized.rootDir,
         ruleFile: normalized.ruleFile,
+        rootDirSource: "manual",
+        ruleFileSource: "manual",
         enabled: true,
       });
       if (!result.ok) {
         toast({ title: result.message, variant: "destructive" });
         return;
       }
-      await Promise.all([
-        loadSettingsConnections(activeWorkspaceId),
-        loadAgentConnections(activeWorkspaceId),
-      ]);
-      setNewAgentConnectionDraft(DEFAULT_NEW_AGENT_CONNECTION_DRAFT);
+      await reloadLinkedStates(activeWorkspaceId);
       setDirty("data", false);
-      toast({ title: l("Agent 已新增", "Agent created") });
+      const displayName = getAgentPresetById(normalizedPlatform)?.name ?? normalizedPlatform;
+      toast({ title: l(`${displayName} 已添加`, `${displayName} added`) });
     } catch (error) {
       toast({
-        title: l("新增 Agent 失败", "Failed to create agent"),
+        title: l("添加 Agent 失败", "Failed to add agent"),
         description: unknownToMessage(error, l("未知错误", "Unknown error")),
         variant: "destructive",
       });
@@ -337,22 +520,63 @@ export function useWorkbenchAgentConnections({
     }
   }
 
-  async function handleDeleteAgentConnection(platform: string) {
-    const normalized = normalizeAgentTypeInput(platform);
-    if (!normalized) {
-      return;
-    }
+  async function handleDisableAgentConnection(platform: string) {
     if (!activeWorkspaceId) {
       toast({ title: projectBootingMessage, variant: "destructive" });
       return;
     }
-    if (!window.confirm(l(`确认删除 Agent 配置「${normalized}」吗？`, `Delete agent settings "${normalized}"?`))) {
+    const normalized = normalizeAgentTypeInput(platform);
+    if (!normalized) {
+      return;
+    }
+    const existing = settingsConnectionMap.get(normalized);
+    if (!existing || !existing.enabled) {
       return;
     }
 
-    setAgentConnectionSavingId(`delete:${normalized}`);
+    const displayName = getAgentPresetById(normalized)?.name ?? normalized;
+    if (!window.confirm(l(`确认停用「${displayName}」吗？`, `Disable "${displayName}"?`))) {
+      return;
+    }
+
+    setAgentConnectionSavingId(`disable:${normalized}`);
     try {
-      const result = await deleteConnection({
+      const result = await toggleConnection({
+        workspaceId: activeWorkspaceId,
+        platform: normalized,
+        enabled: false,
+      });
+      if (!result.ok) {
+        toast({ title: result.message, variant: "destructive" });
+        return;
+      }
+      await reloadLinkedStates(activeWorkspaceId);
+      setAgentConnectionEditingPlatforms((prev) => prev.filter((item) => item !== normalized));
+      setDirty("data", false);
+      toast({ title: l(`${displayName} 已停用`, `${displayName} disabled`) });
+    } catch (error) {
+      toast({
+        title: l("停用 Agent 失败", "Failed to disable agent"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+    } finally {
+      setAgentConnectionSavingId(null);
+    }
+  }
+
+  async function handleRedetectAgentConnection(platform: string) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    const normalized = normalizeAgentTypeInput(platform);
+    if (!normalized) {
+      return;
+    }
+    setAgentConnectionSavingId(`redetect:${normalized}`);
+    try {
+      const result = await redetectConnection({
         workspaceId: activeWorkspaceId,
         platform: normalized,
       });
@@ -360,16 +584,45 @@ export function useWorkbenchAgentConnections({
         toast({ title: result.message, variant: "destructive" });
         return;
       }
-      await Promise.all([
-        loadSettingsConnections(activeWorkspaceId),
-        loadAgentConnections(activeWorkspaceId),
-      ]);
-      setAgentConnectionEditingPlatforms((prev) => prev.filter((item) => item !== normalized));
+      await reloadLinkedStates(activeWorkspaceId);
       setDirty("data", false);
-      toast({ title: l(`${normalized} 已移除`, `${normalized} removed`) });
+      toast({ title: l("重新检测完成", "Redetection completed") });
     } catch (error) {
       toast({
-        title: l("移除 Agent 失败", "Failed to remove agent"),
+        title: l("重新检测失败", "Failed to redetect"),
+        description: unknownToMessage(error, l("未知错误", "Unknown error")),
+        variant: "destructive",
+      });
+    } finally {
+      setAgentConnectionSavingId(null);
+    }
+  }
+
+  async function handleRestoreAgentConnectionDefaults(platform: string) {
+    if (!activeWorkspaceId) {
+      toast({ title: projectBootingMessage, variant: "destructive" });
+      return;
+    }
+    const normalized = normalizeAgentTypeInput(platform);
+    if (!normalized) {
+      return;
+    }
+    setAgentConnectionSavingId(`restore:${normalized}`);
+    try {
+      const result = await restoreConnectionDefaults({
+        workspaceId: activeWorkspaceId,
+        platform: normalized,
+      });
+      if (!result.ok) {
+        toast({ title: result.message, variant: "destructive" });
+        return;
+      }
+      await reloadLinkedStates(activeWorkspaceId);
+      setDirty("data", false);
+      toast({ title: l("已恢复默认配置", "Defaults restored") });
+    } catch (error) {
+      toast({
+        title: l("恢复默认失败", "Failed to restore defaults"),
         description: unknownToMessage(error, l("未知错误", "Unknown error")),
         variant: "destructive",
       });
@@ -383,15 +636,12 @@ export function useWorkbenchAgentConnections({
     if (!normalized) {
       return;
     }
+    const defaults = getAgentConnectionDefaults(normalized);
     const fallbackPath =
       normalizeDirectoryInput(connectionDrafts[normalized] ?? "") ||
-      normalizeDirectoryInput(defaultAgentConfigDir(homePath, normalized)) ||
+      normalizeDirectoryInput(defaults.rootDir) ||
       normalizeDirectoryInput(activeWorkspaceRootPath || "");
-    const picked = await pickDirectoryInFinder(
-      fallbackPath,
-      "选择目录失败",
-      "Failed to choose directory",
-    );
+    const picked = await pickDirectoryInFinder(fallbackPath, "选择目录失败", "Failed to choose directory");
     if (!picked) {
       return;
     }
@@ -402,41 +652,20 @@ export function useWorkbenchAgentConnections({
     setDirty("data", true);
   }
 
-  async function handlePickNewAgentConnectionRootDir() {
-    const normalizedPlatform = normalizeAgentTypeInput(newAgentConnectionDraft.platform);
-    const fallbackPath =
-      normalizeDirectoryInput(newAgentConnectionDraft.rootDir) ||
-      normalizeDirectoryInput(defaultAgentConfigDir(homePath, normalizedPlatform || "codex")) ||
-      normalizeDirectoryInput(activeWorkspaceRootPath || "");
-    const picked = await pickDirectoryInFinder(
-      fallbackPath,
-      "选择目录失败",
-      "Failed to choose directory",
-    );
-    if (!picked) {
-      return;
-    }
-    setNewAgentConnectionDraft((prev) => ({
-      ...prev,
-      rootDir: picked,
-    }));
-    setDirty("data", true);
-  }
-
   return {
-    newAgentConnectionDraft,
+    enabledAgentRows,
+    availableAgentPresetRows,
     agentConnectionEditingPlatforms,
     agentConnectionSavingId,
-    settingsAgentRows,
-    settingsAgentTypes,
     handleAgentConnectionFieldChange,
     handleStartAgentConnectionEdit,
     handleCancelAgentConnectionEdit,
     handleSaveAgentConnection,
-    handleNewAgentConnectionFieldChange,
-    handleCreateAgentConnection,
-    handleDeleteAgentConnection,
+    handleEnableAgentPreset,
+    handleDisableAgentConnection,
+    handleReorderEnabledAgentRows,
+    handleRedetectAgentConnection,
+    handleRestoreAgentConnectionDefaults,
     handlePickAgentConnectionRootDir,
-    handlePickNewAgentConnectionRootDir,
   };
 }

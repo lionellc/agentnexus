@@ -38,6 +38,7 @@ export const useSkillsStore = create<SkillsState>((set, get) => ({
   managerLastBatchResult: null,
   usageAgentFilter: "",
   usageSourceFilter: "",
+  usageEvidenceSourceFilter: "",
   usageStatsBySkillId: {},
   usageStatsLoading: false,
   usageStatsError: "",

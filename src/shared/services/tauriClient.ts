@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AgentConnection,
   AgentConnectionDeleteInput,
+  AgentConnectionPresetActionInput,
   AgentConnectionToggleInput,
   AgentConnectionUpsertInput,
   AgentRuleAgentTag,
@@ -117,6 +118,8 @@ type CommandMap = {
   agent_connection_upsert: { args: { input: AgentConnectionUpsertInput }; result: AgentConnection };
   agent_connection_toggle: { args: { input: AgentConnectionToggleInput }; result: AgentConnection };
   agent_connection_delete: { args: { input: AgentConnectionDeleteInput }; result: AgentConnection[] };
+  agent_connection_redetect: { args: { input: AgentConnectionPresetActionInput }; result: AgentConnection };
+  agent_connection_restore_defaults: { args: { input: AgentConnectionPresetActionInput }; result: AgentConnection };
   agent_connection_preview: { args: { input: AgentRuleFilePreviewInput }; result: AgentRuleFilePreviewResult };
   agent_rule_asset_list: { args: { workspaceId: string }; result: AgentRuleAsset[] };
   agent_rule_asset_create: { args: { input: AgentRuleAssetCreateInput }; result: AgentRuleAsset };

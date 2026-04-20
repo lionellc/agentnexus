@@ -67,6 +67,15 @@ export interface TargetDeleteInput {
 }
 
 export type AgentPlatform = "codex" | "claude" | string;
+export type AgentPathSource = "manual" | "inferred" | string;
+export type AgentDetectionStatus = "detected" | "undetected" | "permission_denied" | string;
+
+export interface AgentConnectionSearchDir {
+  path: string;
+  enabled: boolean;
+  priority: number;
+  source: AgentPathSource;
+}
 
 export interface AgentConnection {
   id: string;
@@ -74,6 +83,11 @@ export interface AgentConnection {
   platform: AgentPlatform;
   rootDir: string;
   ruleFile: string;
+  rootDirSource: AgentPathSource;
+  ruleFileSource: AgentPathSource;
+  detectionStatus: AgentDetectionStatus;
+  detectedAt: string | null;
+  skillSearchDirs: AgentConnectionSearchDir[];
   enabled: boolean;
   resolvedPath: string | null;
   createdAt: string;
@@ -85,6 +99,10 @@ export interface AgentConnectionUpsertInput {
   platform: AgentPlatform;
   rootDir: string;
   ruleFile?: string;
+  rootDirSource?: AgentPathSource;
+  ruleFileSource?: AgentPathSource;
+  detectionStatus?: AgentDetectionStatus;
+  skillSearchDirs?: AgentConnectionSearchDir[];
   enabled?: boolean;
 }
 
@@ -95,6 +113,11 @@ export interface AgentConnectionToggleInput {
 }
 
 export interface AgentConnectionDeleteInput {
+  workspaceId: string;
+  platform: AgentPlatform;
+}
+
+export interface AgentConnectionPresetActionInput {
   workspaceId: string;
   platform: AgentPlatform;
 }

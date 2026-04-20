@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { EmptyState } from "../../../common/components/EmptyState";
 import { cn } from "../../../../shared/lib/cn";
-import { Button, Card, CardContent, Input, Tag, tagVariants } from "../../../../shared/ui";
+import { Button, Card, CardContent, Tag, tagVariants } from "../../../../shared/ui";
 import type {
   SkillsManagerMatrixFilter,
   SkillsManagerMatrixSummary,
@@ -26,14 +27,14 @@ type OperationsTableProps = {
   onMatrixFilterChange: (next: Partial<SkillsManagerMatrixFilter>) => void;
   onToggleExpanded: (skillId: string | null) => void;
   onOpenSkillDetail: (skillId: string) => void;
-  onRunLink: (skillId: string, tool: string) => Promise<void> | void;
-  onRunUnlink: (skillId: string, tool: string) => Promise<void> | void;
   onPurgeSkill: (skillId: string, skillName: string) => Promise<void> | void;
   onDismissRowHint: (skillId: string) => void;
   onJumpToConfig: () => void;
   onOpenDistributionForRow: (row: SkillsManagerOperationsRow) => void;
   onOpenStatus: (row: SkillsManagerOperationsRow, tool: string, status: SkillsManagerOperationsRow["statusCells"][number]["status"]) => void;
 };
+
+const AGENT_BOARD_COLLAPSE_LIMIT = 6;
 
 export function OperationsTable({
   l,
@@ -45,16 +46,22 @@ export function OperationsTable({
   onMatrixFilterChange,
   onToggleExpanded,
   onOpenSkillDetail,
-  onRunLink,
-  onRunUnlink,
   onPurgeSkill,
   onDismissRowHint,
   onJumpToConfig,
   onOpenDistributionForRow,
   onOpenStatus,
 }: OperationsTableProps) {
-  const [targetSearch, setTargetSearch] = useState<Record<string, string>>({});
+  const [agentBoardExpanded, setAgentBoardExpanded] = useState(false);
   const [operationsPage, setOperationsPage] = useState(1);
+
+  const visibleMatrixSummaries = useMemo(() => {
+    if (agentBoardExpanded) {
+      return matrixSummaries;
+    }
+    return matrixSummaries.slice(0, AGENT_BOARD_COLLAPSE_LIMIT);
+  }, [agentBoardExpanded, matrixSummaries]);
+  const hiddenMatrixCount = Math.max(0, matrixSummaries.length - AGENT_BOARD_COLLAPSE_LIMIT);
 
   const totalOperationsPages = useMemo(
     () => Math.max(1, Math.ceil(rows.length / OPERATIONS_PAGE_SIZE)),
@@ -71,60 +78,80 @@ export function OperationsTable({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
-        {matrixSummaries.map((summary) => {
-          const active = matrixFilter.tool === summary.tool;
-          return (
-            <Card key={summary.tool} className={active ? "border-blue-300 shadow-sm" : "border-slate-200"}>
-              <CardContent className="space-y-2 p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    className="text-left text-sm font-semibold text-slate-900"
-                    onClick={() => onMatrixFilterChange({ tool: active ? null : summary.tool, status: "all" })}
-                  >
-                    {summary.tool}
-                  </button>
-                  <span className="text-xs text-slate-500">
-                    {summary.linked}/{summary.total} {l("已链接", "linked")}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <button
-                    type="button"
-                    className={cn(
-                      tagVariants({ tone: statusTagTone("linked") }),
-                      "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    )}
-                    onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "linked" })}
-                  >
-                    {statusLabel("linked", l)} {summary.linked}
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      tagVariants({ tone: statusTagTone("missing") }),
-                      "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    )}
-                    onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "missing" })}
-                  >
-                    {statusLabel("missing", l)} {summary.missing}
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      tagVariants({ tone: statusTagTone("wrong") }),
-                      "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    )}
-                    onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "wrong" })}
-                  >
-                    {statusLabel("wrong", l)} {summary.wrong + summary.directory}
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
+      <div className="space-y-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+          {visibleMatrixSummaries.map((summary) => {
+            const active = matrixFilter.tool === summary.tool;
+            return (
+              <Card key={summary.tool} className="border-slate-200">
+                <CardContent className="space-y-2 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      className="text-left text-sm font-semibold text-slate-900"
+                      onClick={() => onMatrixFilterChange({ tool: active ? null : summary.tool, status: "all" })}
+                    >
+                      {summary.tool}
+                    </button>
+                    <span className="text-xs text-slate-500">
+                      {summary.linked}/{summary.total} {l("已链接", "linked")}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      className={cn(
+                        tagVariants({ tone: statusTagTone("linked") }),
+                        "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                      onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "linked" })}
+                    >
+                      {statusLabel("linked", l)} {summary.linked}
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        tagVariants({ tone: statusTagTone("missing") }),
+                        "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                      onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "missing" })}
+                    >
+                      {statusLabel("missing", l)} {summary.missing}
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        tagVariants({ tone: statusTagTone("wrong") }),
+                        "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                      )}
+                      onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "wrong" })}
+                    >
+                      {statusLabel("wrong", l)} {summary.wrong + summary.directory}
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        {hiddenMatrixCount > 0 ? (
+          <div className="flex justify-end">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setAgentBoardExpanded((previous) => !previous)}
+            >
+              {agentBoardExpanded ? (
+                <ChevronUp className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-4 w-4" aria-hidden="true" />
+              )}
+              {agentBoardExpanded
+                ? l("收起 Agent 看板", "Collapse Agent Board")
+                : l(`展开 Agent 看板 (+${hiddenMatrixCount})`, `Expand Agent Board (+${hiddenMatrixCount})`)}
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       {rows.length === 0 ? (
@@ -134,7 +161,7 @@ export function OperationsTable({
             description={l("请切换状态筛选或重置筛选条件。", "Change status filter or reset filters.")}
             action={
               <Button variant="outline" onClick={() => onMatrixFilterChange({ tool: null, status: "all" })}>
-                {l("重置筛选", "Reset Filters")}
+                {l("重置状态筛选", "Reset Status Filters")}
               </Button>
             }
           />
@@ -154,34 +181,55 @@ export function OperationsTable({
           <CardContent className="space-y-3 p-3">
             {pagedRows.map((row) => {
               const expanded = expandedSkillId === row.id;
-              const searchValue = targetSearch[row.id] ?? "";
-              const statusRows = row.statusCells.filter((item) =>
-                searchValue.trim()
-                  ? item.tool.toLowerCase().includes(searchValue.trim().toLowerCase())
-                  : true,
-              );
+              const statusRows = expanded ? row.statusCells : row.statusPreview;
 
               return (
                 <div key={row.id} className="rounded-xl border border-slate-200 bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-slate-900">{row.name}</span>
-                        {row.sourceMissing ? <Tag tone="danger">{l("源目录缺失", "Source Missing")}</Tag> : null}
-                        {row.conflict ? <Tag tone="warning">{l("命名冲突", "Conflict")}</Tag> : null}
-                        {row.rowHint ? <Tag tone="warning">{row.rowHint}</Tag> : null}
+                  <div className="space-y-3 px-3 py-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-slate-900">{row.name}</span>
+                          {row.sourceMissing ? <Tag tone="danger">{l("源目录缺失", "Source Missing")}</Tag> : null}
+                          {row.conflict ? <Tag tone="warning">{l("命名冲突", "Conflict")}</Tag> : null}
+                          {row.rowHint ? <Tag tone="warning">{row.rowHint}</Tag> : null}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {row.linkedCount}/{row.totalCount} {l("已链接", "linked")} · {row.issueCount} {l("异常", "issues")} ·{" "}
+                          {l("调用", "Calls")} {row.totalCalls} · 7d {row.last7dCalls} · {l("最近", "Last")}{" "}
+                          {formatLastCalled(row.lastCalledAt)}
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500">
-                        {row.group || "-"} · {row.linkedCount}/{row.totalCount} {l("已链接", "linked")} · {row.issueCount}{" "}
-                        {l("异常", "issues")} · {l("调用", "Calls")} {row.totalCalls} · 7d {row.last7dCalls} · {l("最近", "Last")}{" "}
-                        {formatLastCalled(row.lastCalledAt)}
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {row.sourceMissing ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => void onPurgeSkill(row.id, row.name)}
+                            disabled={purgingSkillId === row.id}
+                          >
+                            {purgingSkillId === row.id ? l("清除中...", "Clearing...") : l("清除", "Clear")}
+                          </Button>
+                        ) : null}
+                        {row.rowHint ? (
+                          <Button size="sm" variant="outline" onClick={() => onDismissRowHint(row.id)}>
+                            {l("忽略提示", "Dismiss hint")}
+                          </Button>
+                        ) : null}
+                        <Button size="sm" onClick={() => onOpenDistributionForRow(row)}>
+                          {l("链接", "Link")}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => onOpenSkillDetail(row.id)}>
+                          {l("详情", "Detail")}
+                        </Button>
                       </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                      {row.statusPreview.map((cell) => (
+                      {statusRows.map((cell) => (
                         <button
-                          key={`${row.id}:${cell.tool}`}
+                          key={`${row.id}:${expanded ? "expanded" : "preview"}:${cell.tool}`}
                           type="button"
                           className={cn(
                             tagVariants({ tone: statusTagTone(cell.status) }),
@@ -193,99 +241,13 @@ export function OperationsTable({
                         </button>
                       ))}
                       {row.hiddenStatusCount > 0 ? (
-                        <Button size="sm" variant="outline" onClick={() => onToggleExpanded(row.id)}>
+                        <Button size="sm" variant="ghost" className="px-2 text-slate-600" onClick={() => onToggleExpanded(row.id)}>
+                          {expanded ? <ChevronUp className="h-4 w-4" aria-hidden="true" /> : <ChevronDown className="h-4 w-4" aria-hidden="true" />}
                           {expanded ? l("收起", "Collapse") : l(`查看更多 (${row.hiddenStatusCount})`, `More (${row.hiddenStatusCount})`)}
                         </Button>
                       ) : null}
-                      {row.sourceMissing ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => void onPurgeSkill(row.id, row.name)}
-                          disabled={purgingSkillId === row.id}
-                        >
-                          {purgingSkillId === row.id ? l("清除中...", "Clearing...") : l("清除", "Clear")}
-                        </Button>
-                      ) : null}
-                      <Button size="sm" variant="outline" onClick={() => onOpenDistributionForRow(row)}>
-                        {l("链接", "Link")}
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => onOpenSkillDetail(row.id)}>
-                        {l("详情", "Detail")}
-                      </Button>
                     </div>
                   </div>
-
-                  {expanded ? (
-                    <div className="grid gap-3 border-t border-slate-100 p-3 lg:grid-cols-[1.1fr_0.9fr]">
-                      <div className="space-y-2">
-                        <Input
-                          value={searchValue}
-                          onChange={(event) =>
-                            setTargetSearch((prev) => ({
-                              ...prev,
-                              [row.id]: event.currentTarget.value,
-                            }))
-                          }
-                          placeholder={l("搜索目标目录", "Search targets")}
-                        />
-                        <div className="max-h-52 space-y-2 overflow-auto">
-                          {statusRows.length === 0 ? (
-                            <div className="rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
-                              {l("没有匹配的目标目录", "No matching targets")}
-                            </div>
-                          ) : (
-                            statusRows.map((cell) => (
-                              <button
-                                key={`${row.id}:expanded:${cell.tool}`}
-                                type="button"
-                                className="flex w-full items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-left"
-                                onClick={() => onOpenStatus(row, cell.tool, cell.status)}
-                              >
-                                <span className="text-sm text-slate-800">{cell.tool}</span>
-                                <Tag tone={statusTagTone(cell.status)}>{statusLabel(cell.status, l)}</Tag>
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                      <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-                        <div className="text-xs font-medium text-slate-600">{l("快捷动作", "Quick actions")}</div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              if (row.statusCells[0]) {
-                                void onRunLink(row.id, row.statusCells[0].tool);
-                              }
-                            }}
-                          >
-                            {l("快速补链", "Quick Link")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              if (row.statusCells[0]) {
-                                void onRunUnlink(row.id, row.statusCells[0].tool);
-                              }
-                            }}
-                          >
-                            {l("快速断链", "Quick Unlink")}
-                          </Button>
-                          <Button size="sm" variant="outline" onClick={() => onOpenDistributionForRow(row)}>
-                            {l("打开链接向导", "Open Link Wizard")}
-                          </Button>
-                          {row.rowHint ? (
-                            <Button size="sm" variant="outline" onClick={() => onDismissRowHint(row.id)}>
-                              {l("忽略提示", "Dismiss hint")}
-                            </Button>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
                 </div>
               );
             })}

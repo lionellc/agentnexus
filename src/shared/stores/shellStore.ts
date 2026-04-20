@@ -3,6 +3,13 @@ import { persist } from "zustand/middleware";
 
 import type { MainModule, PromptViewMode, SettingsCategory, SkillDetailTab } from "../../features/shell/types";
 
+export type SkillsHubSortMode =
+  | "default"
+  | "calls_desc"
+  | "calls_asc"
+  | "created_desc"
+  | "created_asc";
+
 export type GlobalSearchHit = {
   module: MainModule;
   id: string;
@@ -20,6 +27,8 @@ type ShellState = {
   mobileDetailOpen: boolean;
   promptViewMode: PromptViewMode;
   skillDetailTab: SkillDetailTab;
+  skillsHubSortMode: SkillsHubSortMode;
+  agentPlatformOrderByWorkspace: Record<string, string[]>;
   settingsCategory: SettingsCategory;
   searchHits: GlobalSearchHit[];
   setActiveModule: (module: MainModule) => void;
@@ -32,6 +41,8 @@ type ShellState = {
   setMobileDetailOpen: (open: boolean) => void;
   setPromptViewMode: (mode: PromptViewMode) => void;
   setSkillDetailTab: (tab: SkillDetailTab) => void;
+  setSkillsHubSortMode: (mode: SkillsHubSortMode) => void;
+  setAgentPlatformOrder: (workspaceId: string, orderedPlatforms: string[]) => void;
   setSettingsCategory: (category: SettingsCategory) => void;
   setSearchHits: (hits: GlobalSearchHit[]) => void;
 };
@@ -48,6 +59,8 @@ export const useShellStore = create<ShellState>()(
       mobileDetailOpen: false,
       promptViewMode: "list",
       skillDetailTab: "overview",
+      skillsHubSortMode: "default",
+      agentPlatformOrderByWorkspace: {},
       settingsCategory: "general",
       searchHits: [],
       setActiveModule: (activeModule) => set({ activeModule }),
@@ -71,6 +84,24 @@ export const useShellStore = create<ShellState>()(
       setMobileDetailOpen: (mobileDetailOpen) => set({ mobileDetailOpen }),
       setPromptViewMode: (promptViewMode) => set({ promptViewMode }),
       setSkillDetailTab: (skillDetailTab) => set({ skillDetailTab }),
+      setSkillsHubSortMode: (skillsHubSortMode) => set({ skillsHubSortMode }),
+      setAgentPlatformOrder: (workspaceId, orderedPlatforms) =>
+        set((state) => {
+          const normalizedWorkspaceId = workspaceId.trim();
+          if (!normalizedWorkspaceId) {
+            return state;
+          }
+          const deduped = orderedPlatforms
+            .map((item) => item.trim().toLowerCase())
+            .filter(Boolean)
+            .filter((item, index, list) => list.indexOf(item) === index);
+          return {
+            agentPlatformOrderByWorkspace: {
+              ...state.agentPlatformOrderByWorkspace,
+              [normalizedWorkspaceId]: deduped,
+            },
+          };
+        }),
       setSettingsCategory: (settingsCategory) => set({ settingsCategory }),
       setSearchHits: (searchHits) => set({ searchHits }),
     }),
@@ -80,6 +111,8 @@ export const useShellStore = create<ShellState>()(
         activeModule: state.activeModule,
         promptViewMode: state.promptViewMode,
         skillDetailTab: state.skillDetailTab,
+        skillsHubSortMode: state.skillsHubSortMode,
+        agentPlatformOrderByWorkspace: state.agentPlatformOrderByWorkspace,
         settingsCategory: state.settingsCategory,
       }),
     },

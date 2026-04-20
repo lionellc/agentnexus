@@ -15,6 +15,8 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     mobileDetailOpen: false,
     promptViewMode: "table" as "list" | "gallery" | "table",
     skillDetailTab: "overview" as const,
+    skillsHubSortMode: "default" as const,
+    agentPlatformOrderByWorkspace: {} as Record<string, string[]>,
     settingsCategory: "general" as "general" | "data" | "agents" | "model" | "about",
     searchHits: [] as Array<{ module: "agents"; id: string; title: string; subtitle?: string }>,
     setActiveModule: vi.fn(),
@@ -27,6 +29,8 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     setMobileDetailOpen: vi.fn(),
     setPromptViewMode: vi.fn(),
     setSkillDetailTab: vi.fn(),
+    setSkillsHubSortMode: vi.fn(),
+    setAgentPlatformOrder: vi.fn(),
     setSettingsCategory: vi.fn(),
     setSearchHits: vi.fn(),
   };
@@ -145,6 +149,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     managerLastBatchResult: null,
     usageAgentFilter: "",
     usageSourceFilter: "",
+    usageEvidenceSourceFilter: "",
     usageStatsBySkillId: {},
     usageStatsLoading: false,
     usageStatsError: "",
@@ -183,6 +188,7 @@ const { toastMock, shellState, promptsState, skillsState, agentState, settingsSt
     setUsageFilters: vi.fn(),
     refreshUsageStats: vi.fn(async () => undefined),
     startListUsageSync: vi.fn(async () => undefined),
+    dismissListUsageSyncJob: vi.fn(),
     startDetailUsageSync: vi.fn(async () => undefined),
     loadUsageCalls: vi.fn(async () => undefined),
     clearUsageDetail: vi.fn(),
@@ -396,24 +402,29 @@ describe("WorkbenchApp skills operations", () => {
     expect(container.textContent).toContain("扫描");
   });
 
-  it("来源筛选使用通用 Select 组件", async () => {
+  it("调用筛选栏不再展示 agent/source/evidence 三类筛选", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
     expect(container.textContent).toContain("当前筛选 2 项");
-    expect(container.textContent).toContain("来源");
+    expect(container.textContent).not.toContain("按 Agent 过滤");
+    expect(container.textContent).not.toContain("按来源过滤");
+    expect(container.textContent).not.toContain("证据：全部");
+    expect(container.textContent).not.toContain("重置筛选");
     expect(container.querySelectorAll("select").length).toBe(0);
   });
 
-  it("从扫描进入中控时会自动刷新一次", async () => {
+  it("从扫描进入中控时不会自动触发扫描与刷新", async () => {
     skillsState.managerMode = "config";
 
     await act(async () => {
       root.render(<WorkbenchApp />);
     });
 
-    const baselineCalls = skillsState.loadManagerState.mock.calls.length;
+    const baselineLoadManagerStateCalls = skillsState.loadManagerState.mock.calls.length;
+    const baselineFetchSkillsCalls = skillsState.fetchSkills.mock.calls.length;
+    const baselineScanSkillsCalls = skillsState.scanSkills.mock.calls.length;
 
     await act(async () => {
       const operationsTab = Array.from(container.querySelectorAll("button")).find((button) =>
@@ -430,8 +441,9 @@ describe("WorkbenchApp skills operations", () => {
       await new Promise((resolve) => window.setTimeout(resolve, 0));
     });
 
-    expect(skillsState.loadManagerState.mock.calls.length).toBeGreaterThan(baselineCalls);
-    expect(skillsState.scanSkills).toHaveBeenCalledWith("w1", ["/tmp/w1/skills"]);
+    expect(skillsState.loadManagerState.mock.calls.length).toBe(baselineLoadManagerStateCalls);
+    expect(skillsState.fetchSkills.mock.calls.length).toBe(baselineFetchSkillsCalls);
+    expect(skillsState.scanSkills.mock.calls.length).toBe(baselineScanSkillsCalls);
   });
 
   it("点击刷新会先扫描再刷新列表", async () => {

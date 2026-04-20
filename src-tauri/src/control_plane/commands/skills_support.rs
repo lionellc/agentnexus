@@ -1,6 +1,11 @@
-use std::{fs, path::{Path, PathBuf}};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+};
 
 use rusqlite::{params, Connection, OptionalExtension};
+use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 use walkdir::WalkDir;
@@ -36,6 +41,34 @@ pub(super) fn derive_skill_source_parent(source: &str) -> String {
             .filter(|name| !name.trim().is_empty())
             .unwrap_or_else(|| "unknown".to_string()),
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub(super) struct SkillSourceMetadata {
+    pub source_type: String,
+    pub source: String,
+    pub source_url: String,
+    pub skill_path: String,
+    pub repo_owner: String,
+    pub repo_name: String,
+    pub repo_ref: String,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct AgentsSkillLockFile {
+    #[serde(default)]
+    skills: HashMap<String, AgentsSkillLockEntry>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct AgentsSkillLockEntry {
+    source: Option<String>,
+    source_type: Option<String>,
+    source_url: Option<String>,
+    skill_path: Option<String>,
+    branch: Option<String>,
+    source_branch: Option<String>,
 }
 
 fn detect_skill_symlink(local_path: &str) -> bool {
@@ -80,7 +113,10 @@ pub(super) fn detect_skill_source_symlink(local_path: &str, source_root: &str) -
     false
 }
 
-pub(super) fn build_skill_source_candidate_paths(source_root: &str, skill_name: &str) -> Vec<PathBuf> {
+pub(super) fn build_skill_source_candidate_paths(
+    source_root: &str,
+    skill_name: &str,
+) -> Vec<PathBuf> {
     let normalized_root = source_root.trim_end_matches(['/', '\\']);
     let normalized_name = skill_name.trim();
     if normalized_root.is_empty() || normalized_name.is_empty() {
@@ -123,6 +159,167 @@ pub(super) fn resolve_skill_display_source_path(
         }
     }
     fallback.to_string()
+}
+
+fn normalize_source_lookup_key(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    Some(trimmed.to_ascii_lowercase())
+}
+
+fn parse_owner_repo(source: &str) -> Option<(String, String)> {
+    let normalized = source
+        .trim()
+        .trim_end_matches(".git")
+        .trim_start_matches("https://github.com/")
+        .trim_start_matches("http://github.com/");
+    let mut parts = normalized.split('/').filter(|seg| !seg.trim().is_empty());
+    let owner = parts.next()?;
+    let repo = parts.next()?;
+    Some((owner.to_string(), repo.to_string()))
+}
+
+fn parse_branch_from_source_url(source_url: Option<&str>) -> Option<String> {
+    let source_url = source_url?;
+    let source_url = source_url.trim();
+    if source_url.is_empty() {
+        return None;
+    }
+
+    if let Some((_, after_tree)) = source_url.split_once("/tree/") {
+        let branch = after_tree
+            .split('/')
+            .next()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())?;
+        return Some(branch.to_string());
+    }
+
+    if let Some((_, fragment)) = source_url.split_once('#') {
+        let branch = fragment
+            .split('&')
+            .next()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())?;
+        return Some(branch.to_string());
+    }
+
+    if let Some((_, query)) = source_url.split_once('?') {
+        for pair in query.split('&') {
+            let Some((key, value)) = pair.split_once('=') else {
+                continue;
+            };
+            if matches!(key, "branch" | "ref") {
+                let branch = value.trim();
+                if !branch.is_empty() {
+                    return Some(branch.to_string());
+                }
+            }
+        }
+    }
+
+    None
+}
+
+fn normalize_optional_value(raw: Option<String>) -> String {
+    raw.unwrap_or_default().trim().to_string()
+}
+
+fn detect_skill_dir_name_from_path(skill_path: &str) -> Option<String> {
+    let path = Path::new(skill_path.trim());
+    let parent = path.parent()?;
+    let dir_name = parent.file_name()?.to_string_lossy().to_string();
+    if dir_name.trim().is_empty() {
+        None
+    } else {
+        Some(dir_name)
+    }
+}
+
+pub(super) fn load_skill_source_hints_from_agents_lock() -> HashMap<String, SkillSourceMetadata> {
+    let mut hints: HashMap<String, SkillSourceMetadata> = HashMap::new();
+    let Some(home) = dirs::home_dir() else {
+        return hints;
+    };
+    let lock_path = home.join(".agents").join(".skill-lock.json");
+    let content = match fs::read_to_string(&lock_path) {
+        Ok(value) => value,
+        Err(_) => return hints,
+    };
+    let lock_file = match serde_json::from_str::<AgentsSkillLockFile>(&content) {
+        Ok(value) => value,
+        Err(_) => return hints,
+    };
+
+    for (lock_key, item) in lock_file.skills {
+        let source_type = normalize_optional_value(item.source_type.clone());
+        if source_type != "github" {
+            continue;
+        }
+        let source = normalize_optional_value(item.source.clone());
+        let Some((repo_owner, repo_name)) = parse_owner_repo(&source) else {
+            continue;
+        };
+        let source_url = normalize_optional_value(item.source_url.clone());
+        let repo_ref = item
+            .branch
+            .clone()
+            .or(item.source_branch.clone())
+            .or_else(|| parse_branch_from_source_url(item.source_url.as_deref()))
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        let skill_path = normalize_optional_value(item.skill_path.clone());
+        let metadata = SkillSourceMetadata {
+            source_type: "github".to_string(),
+            source,
+            source_url,
+            skill_path: skill_path.clone(),
+            repo_owner,
+            repo_name,
+            repo_ref,
+        };
+
+        if let Some(key) = normalize_source_lookup_key(&lock_key) {
+            hints.entry(key).or_insert_with(|| metadata.clone());
+        }
+        if let Some(dir_name) = detect_skill_dir_name_from_path(&skill_path)
+            .and_then(|name| normalize_source_lookup_key(&name))
+        {
+            hints.entry(dir_name).or_insert_with(|| metadata.clone());
+        }
+    }
+    hints
+}
+
+pub(super) fn resolve_skill_source_metadata(
+    skill_name: &str,
+    source_local_path: &str,
+    lock_hints: &HashMap<String, SkillSourceMetadata>,
+) -> SkillSourceMetadata {
+    let mut candidates: Vec<String> = Vec::new();
+    if let Some(key) = normalize_source_lookup_key(skill_name) {
+        candidates.push(key);
+    }
+    if let Some(path_name) = Path::new(source_local_path)
+        .file_name()
+        .and_then(|name| normalize_source_lookup_key(&name.to_string_lossy()))
+    {
+        candidates.push(path_name);
+    }
+
+    for key in candidates {
+        if let Some(metadata) = lock_hints.get(&key) {
+            return metadata.clone();
+        }
+    }
+
+    SkillSourceMetadata {
+        source_type: "local".to_string(),
+        ..SkillSourceMetadata::default()
+    }
 }
 
 pub(super) fn get_skill_root_by_id(conn: &Connection, skill_id: &str) -> Result<PathBuf, AppError> {
@@ -210,7 +407,10 @@ pub(super) fn list_skill_tree_entries(root: &Path, current: &Path) -> Result<Vec
     Ok(entries)
 }
 
-pub(super) fn resolve_skill_child_path(root: &Path, relative_path: &str) -> Result<PathBuf, AppError> {
+pub(super) fn resolve_skill_child_path(
+    root: &Path,
+    relative_path: &str,
+) -> Result<PathBuf, AppError> {
     let trimmed = relative_path.trim();
     if trimmed.is_empty() {
         return Err(AppError::invalid_argument("relative_path 不能为空"));
@@ -385,7 +585,8 @@ pub(super) fn run_open_with_mode(path: &Path, _mode: &str) -> Result<(), AppErro
 }
 
 pub(super) fn dedupe_skills(discovered: Vec<DiscoveredSkill>) -> Vec<DiscoveredSkill> {
-    let mut mapped: std::collections::HashMap<String, DiscoveredSkill> = std::collections::HashMap::new();
+    let mut mapped: std::collections::HashMap<String, DiscoveredSkill> =
+        std::collections::HashMap::new();
 
     for skill in discovered {
         match mapped.get(&skill.identity) {
@@ -424,7 +625,9 @@ fn skill_source_priority(source: &str) -> u8 {
     3
 }
 
-pub(super) fn ensure_workspace_managed_skills_root(workspace_root: &Path) -> Result<PathBuf, AppError> {
+pub(super) fn ensure_workspace_managed_skills_root(
+    workspace_root: &Path,
+) -> Result<PathBuf, AppError> {
     let root = workspace_root.join("skills");
     fs::create_dir_all(&root)?;
     Ok(root)
@@ -642,6 +845,79 @@ pub(super) fn upsert_skill_version(
     Ok(())
 }
 
+pub(super) fn upsert_skill_asset_source(
+    conn: &Connection,
+    asset_id: &str,
+    metadata: &SkillSourceMetadata,
+    source_local_path: &str,
+    local_content_hash: &str,
+    remote_content_hash: &str,
+    hash_checked_at: Option<&str>,
+) -> Result<(), AppError> {
+    let now = now_rfc3339();
+    let existing = conn
+        .query_row(
+            "SELECT id FROM skills_asset_sources WHERE asset_id = ?1",
+            params![asset_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    let id = existing.unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    conn.execute(
+        "INSERT INTO skills_asset_sources(
+            id,
+            asset_id,
+            source_type,
+            source,
+            source_url,
+            skill_path,
+            repo_owner,
+            repo_name,
+            repo_ref,
+            source_local_path,
+            local_content_hash,
+            remote_content_hash,
+            hash_checked_at,
+            created_at,
+            updated_at
+         )
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+         ON CONFLICT(asset_id) DO UPDATE SET
+            source_type = excluded.source_type,
+            source = excluded.source,
+            source_url = excluded.source_url,
+            skill_path = excluded.skill_path,
+            repo_owner = excluded.repo_owner,
+            repo_name = excluded.repo_name,
+            repo_ref = excluded.repo_ref,
+            source_local_path = excluded.source_local_path,
+            local_content_hash = excluded.local_content_hash,
+            remote_content_hash = excluded.remote_content_hash,
+            hash_checked_at = excluded.hash_checked_at,
+            updated_at = excluded.updated_at",
+        params![
+            id,
+            asset_id,
+            metadata.source_type,
+            metadata.source,
+            metadata.source_url,
+            metadata.skill_path,
+            metadata.repo_owner,
+            metadata.repo_name,
+            metadata.repo_ref,
+            source_local_path,
+            local_content_hash,
+            remote_content_hash,
+            hash_checked_at,
+            now,
+            now,
+        ],
+    )?;
+
+    Ok(())
+}
+
 pub(super) fn get_skill_asset(conn: &Connection, skill_id: &str) -> Result<SkillAsset, AppError> {
     conn.query_row(
         "SELECT id, identity, name, version, latest_version, source, local_path, source_local_path, source_is_symlink, update_candidate, last_used_at, created_at, updated_at
@@ -689,7 +965,10 @@ pub(super) fn skill_asset_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<
     })
 }
 
-pub(super) fn list_skills_by_ids(conn: &Connection, ids: &[String]) -> Result<Vec<SkillAsset>, AppError> {
+pub(super) fn list_skills_by_ids(
+    conn: &Connection,
+    ids: &[String],
+) -> Result<Vec<SkillAsset>, AppError> {
     let mut list = Vec::new();
     for skill_id in ids {
         if let Some(item) = conn

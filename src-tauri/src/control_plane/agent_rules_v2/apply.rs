@@ -307,7 +307,7 @@ fn list_enabled_connections(
     };
 
     let mut stmt = conn.prepare(
-        "SELECT id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at
+        "SELECT id, workspace_id, agent_type, root_dir, rule_file, root_dir_source, rule_file_source, detection_status, detected_at, enabled, created_at, updated_at
          FROM agent_connections
          WHERE workspace_id = ?1 AND enabled = 1
          ORDER BY agent_type ASC",
@@ -320,9 +320,13 @@ fn list_enabled_connections(
             agent_type: row.get(2)?,
             root_dir: row.get(3)?,
             rule_file: row.get(4)?,
-            enabled: row.get::<_, i64>(5)? == 1,
-            created_at: row.get(6)?,
-            updated_at: row.get(7)?,
+            root_dir_source: row.get(5)?,
+            rule_file_source: row.get(6)?,
+            detection_status: row.get(7)?,
+            detected_at: row.get(8)?,
+            enabled: row.get::<_, i64>(9)? == 1,
+            created_at: row.get(10)?,
+            updated_at: row.get(11)?,
         })
     })?;
 

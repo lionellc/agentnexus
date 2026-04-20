@@ -20,12 +20,11 @@ import {
 } from "../../../shared/ui";
 
 import { AgentConnectionsSection } from "./data-settings/AgentConnectionsSection";
-import { CreateAgentDialog } from "./data-settings/CreateAgentDialog";
 import { CreateTargetDialog } from "./data-settings/CreateTargetDialog";
 import { TargetsSection } from "./data-settings/TargetsSection";
 import type {
-  AgentConnectionDraft,
   AgentConnectionRow,
+  AgentPresetRow,
   DistributionTarget,
   DistributionTargetDraft,
   Translator,
@@ -60,11 +59,12 @@ export type DataSettingsPanelProps = {
     value: string,
   ) => void;
   onCreateDistributionTarget: () => void;
-  agentConnectionRows: AgentConnectionRow[];
+  enabledAgentRows: AgentConnectionRow[];
+  availableAgentPresetRows: AgentPresetRow[];
   agentConnectionEditingPlatforms: string[];
-  newAgentConnectionDraft: AgentConnectionDraft;
   agentConnectionSavingId: string | null;
-  onPickNewAgentConnectionRootDir: () => void;
+  onEnableAgentPreset: (platform: string) => void;
+  onReorderEnabledAgentRows: (orderedPlatforms: string[]) => void;
   onPickAgentConnectionRootDir: (platform: string) => void;
   onAgentConnectionFieldChange: (
     platform: string,
@@ -74,12 +74,9 @@ export type DataSettingsPanelProps = {
   onStartAgentConnectionEdit: (platform: string) => void;
   onCancelAgentConnectionEdit: (platform: string) => void;
   onSaveAgentConnection: (platform: string) => void;
-  onDeleteAgentConnection: (platform: string) => void;
-  onNewAgentConnectionFieldChange: (
-    field: "platform" | "rootDir" | "ruleFile",
-    value: string,
-  ) => void;
-  onCreateAgentConnection: () => void;
+  onDisableAgentConnection: (platform: string) => void;
+  onRedetectAgentConnection: (platform: string) => void;
+  onRestoreAgentConnectionDefaults: (platform: string) => void;
 };
 
 export function DataSettingsPanel({
@@ -104,28 +101,26 @@ export function DataSettingsPanel({
   onDeleteDistributionTarget,
   onNewDistributionTargetFieldChange,
   onCreateDistributionTarget,
-  agentConnectionRows,
+  enabledAgentRows,
+  availableAgentPresetRows,
   agentConnectionEditingPlatforms,
-  newAgentConnectionDraft,
   agentConnectionSavingId,
-  onPickNewAgentConnectionRootDir,
+  onEnableAgentPreset,
+  onReorderEnabledAgentRows,
   onPickAgentConnectionRootDir,
   onAgentConnectionFieldChange,
   onStartAgentConnectionEdit,
   onCancelAgentConnectionEdit,
   onSaveAgentConnection,
-  onDeleteAgentConnection,
-  onNewAgentConnectionFieldChange,
-  onCreateAgentConnection,
+  onDisableAgentConnection,
+  onRedetectAgentConnection,
+  onRestoreAgentConnectionDefaults,
 }: DataSettingsPanelProps) {
   const [editingTargetId, setEditingTargetId] = useState<string | null>(null);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createSubmitted, setCreateSubmitted] = useState(false);
   const createSavingObservedRef = useRef(false);
   const [editingAgentPlatform, setEditingAgentPlatform] = useState<string | null>(null);
-  const [createAgentDialogOpen, setCreateAgentDialogOpen] = useState(false);
-  const [createAgentSubmitted, setCreateAgentSubmitted] = useState(false);
-  const createAgentSavingObservedRef = useRef(false);
 
   const editingTarget = useMemo(
     () => distributionTargets.find((item) => item.id === editingTargetId) ?? null,
@@ -146,8 +141,8 @@ export function DataSettingsPanel({
   }, [distributionTargetDrafts, editingTarget]);
 
   const editingAgent = useMemo(
-    () => agentConnectionRows.find((item) => item.platform === editingAgentPlatform) ?? null,
-    [agentConnectionRows, editingAgentPlatform],
+    () => enabledAgentRows.find((item) => item.platform === editingAgentPlatform) ?? null,
+    [enabledAgentRows, editingAgentPlatform],
   );
 
   useEffect(() => {
@@ -193,7 +188,7 @@ export function DataSettingsPanel({
     if (!editingAgentPlatform) {
       return;
     }
-    if (!agentConnectionRows.some((item) => item.platform === editingAgentPlatform)) {
+    if (!enabledAgentRows.some((item) => item.platform === editingAgentPlatform)) {
       setEditingAgentPlatform(null);
       return;
     }
@@ -205,36 +200,9 @@ export function DataSettingsPanel({
     }
   }, [
     agentConnectionEditingPlatforms,
-    agentConnectionRows,
+    enabledAgentRows,
     agentConnectionSavingId,
     editingAgentPlatform,
-  ]);
-
-  useEffect(() => {
-    if (agentConnectionSavingId === "__new_agent__") {
-      createAgentSavingObservedRef.current = true;
-      return;
-    }
-    if (
-      createAgentDialogOpen &&
-      createAgentSubmitted &&
-      createAgentSavingObservedRef.current &&
-      agentConnectionSavingId === null &&
-      !newAgentConnectionDraft.platform &&
-      !newAgentConnectionDraft.rootDir &&
-      !newAgentConnectionDraft.ruleFile
-    ) {
-      setCreateAgentDialogOpen(false);
-      setCreateAgentSubmitted(false);
-      createAgentSavingObservedRef.current = false;
-    }
-  }, [
-    agentConnectionSavingId,
-    createAgentDialogOpen,
-    createAgentSubmitted,
-    newAgentConnectionDraft.platform,
-    newAgentConnectionDraft.rootDir,
-    newAgentConnectionDraft.ruleFile,
   ]);
 
   function handleCreateTargetOpenChange(open: boolean) {
@@ -242,14 +210,6 @@ export function DataSettingsPanel({
     if (!open) {
       setCreateSubmitted(false);
       createSavingObservedRef.current = false;
-    }
-  }
-
-  function handleCreateAgentOpenChange(open: boolean) {
-    setCreateAgentDialogOpen(open);
-    if (!open) {
-      setCreateAgentSubmitted(false);
-      createAgentSavingObservedRef.current = false;
     }
   }
 
@@ -304,18 +264,16 @@ export function DataSettingsPanel({
 
       <AgentConnectionsSection
         l={l}
-        agentConnectionRows={agentConnectionRows}
+        enabledAgentRows={enabledAgentRows}
+        availableAgentPresetRows={availableAgentPresetRows}
         agentConnectionSavingId={agentConnectionSavingId}
-        onOpenCreate={() => {
-          setCreateAgentDialogOpen(true);
-          setCreateAgentSubmitted(false);
-          createAgentSavingObservedRef.current = false;
-        }}
+        onEnableAgentPreset={onEnableAgentPreset}
         onStartEdit={(platform) => {
           onStartAgentConnectionEdit(platform);
           setEditingAgentPlatform(platform);
         }}
-        onDeleteAgentConnection={onDeleteAgentConnection}
+        onDisableAgentConnection={onDisableAgentConnection}
+        onReorderEnabledAgentRows={onReorderEnabledAgentRows}
       />
 
       <CreateTargetDialog
@@ -409,20 +367,6 @@ export function DataSettingsPanel({
         </DialogContent>
       </Dialog>
 
-      <CreateAgentDialog
-        l={l}
-        open={createAgentDialogOpen}
-        draft={newAgentConnectionDraft}
-        saving={agentConnectionSavingId === "__new_agent__"}
-        onOpenChange={handleCreateAgentOpenChange}
-        onDraftChange={onNewAgentConnectionFieldChange}
-        onPickRootDir={onPickNewAgentConnectionRootDir}
-        onSubmit={() => {
-          setCreateAgentSubmitted(true);
-          onCreateAgentConnection();
-        }}
-      />
-
       <Dialog
         open={Boolean(editingAgentPlatform && editingAgent)}
         onOpenChange={(open) => {
@@ -440,8 +384,8 @@ export function DataSettingsPanel({
           {editingAgentPlatform && editingAgent ? (
             <FormFieldset className="space-y-3 text-sm">
               <FormField>
-                <FormLabel>{l("名称", "Name")}</FormLabel>
-                <Input value={editingAgent.platform} disabled />
+                <FormLabel>{l("平台", "Platform")}</FormLabel>
+                <Input value={editingAgent.displayName} disabled />
               </FormField>
               <DirectoryPathField
                 label={l("Global Config 目录（绝对路径）", "Global Config Directory (Absolute Path)")}
@@ -463,9 +407,32 @@ export function DataSettingsPanel({
                   disabled={agentConnectionSavingId === editingAgentPlatform}
                 />
               </FormField>
+              <div className="rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-600 dark:border-slate-800">
+                <div>{l("检测状态", "Detection")}: {editingAgent.detectionStatus}</div>
+                <div>{l("目录来源", "Root Source")}: {editingAgent.rootDirSource}</div>
+                <div>{l("规则来源", "Rule Source")}: {editingAgent.ruleFileSource}</div>
+              </div>
             </FormFieldset>
           ) : null}
           <DialogFooter>
+            {editingAgentPlatform ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => onRedetectAgentConnection(editingAgentPlatform)}
+                  disabled={agentConnectionSavingId === editingAgentPlatform}
+                >
+                  {l("重新检测", "Redetect")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => onRestoreAgentConnectionDefaults(editingAgentPlatform)}
+                  disabled={agentConnectionSavingId === editingAgentPlatform}
+                >
+                  {l("恢复默认", "Restore Defaults")}
+                </Button>
+              </>
+            ) : null}
             <Button
               variant="outline"
               onClick={() => {

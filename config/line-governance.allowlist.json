@@ -67,6 +67,27 @@
       "reviewBy": "2026-06-30"
     },
     {
+      "path": "src-tauri/src/control_plane/agent_rules_v2/api.rs",
+      "maxLines": 1000,
+      "owner": "@tauri-control-plane",
+      "reason": "agent connection lifecycle now coordinates rule-tag auto-binding and default detection; endpoint split will follow after cutover.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src-tauri/src/control_plane/skills_manager/store.rs",
+      "maxLines": 700,
+      "owner": "@tauri-control-plane",
+      "reason": "skills manager snapshot/store helpers now include agent-to-tool projection; utility extraction is scheduled post-cutover.",
+      "reviewBy": "2026-06-30"
+    },
+    {
+      "path": "src/app/workbench/hooks/useWorkbenchAgentConnections.ts",
+      "maxLines": 700,
+      "owner": "@frontend-workbench",
+      "reason": "agent connection UI flow now drives multi-panel refresh and lifecycle sync; follow-up split pending.",
+      "reviewBy": "2026-06-30"
+    },
+    {
       "path": "src/app/workbench/hooks/WorkbenchAppContent.tsx",
       "maxLines": 1000,
       "owner": "@frontend-workbench",

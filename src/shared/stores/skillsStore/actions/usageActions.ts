@@ -13,6 +13,7 @@ type SkillsUsageActions = Pick<
   | "setUsageFilters"
   | "refreshUsageStats"
   | "startListUsageSync"
+  | "dismissListUsageSyncJob"
   | "startDetailUsageSync"
   | "loadUsageCalls"
   | "clearUsageDetail"
@@ -72,19 +73,22 @@ export function createUsageActions(set: SkillsStoreSet, get: SkillsStoreGet): Sk
   };
 
   return {
-    setUsageFilters: ({ agent, source }) =>
+    setUsageFilters: ({ agent, source, evidenceSource }) =>
       set((state) => ({
         usageAgentFilter: agent === undefined ? state.usageAgentFilter : agent,
         usageSourceFilter: source === undefined ? state.usageSourceFilter : source,
+        usageEvidenceSourceFilter:
+          evidenceSource === undefined ? state.usageEvidenceSourceFilter : evidenceSource,
       })),
     refreshUsageStats: async (workspaceId) => {
       set({ usageStatsLoading: true, usageStatsError: "" });
       try {
-        const { usageAgentFilter, usageSourceFilter } = get();
+        const { usageAgentFilter, usageSourceFilter, usageEvidenceSourceFilter } = get();
         const result = await skillsUsageApi.queryStats({
           workspaceId,
           agent: normalizeUsageFilter(usageAgentFilter),
           source: normalizeUsageFilter(usageSourceFilter),
+          evidenceSource: normalizeUsageFilter(usageEvidenceSourceFilter),
         });
         const usageStatsBySkillId = result.rows.reduce<Record<string, (typeof result.rows)[number]>>(
           (acc, row) => {
@@ -112,6 +116,10 @@ export function createUsageActions(set: SkillsStoreSet, get: SkillsStoreGet): Sk
       set({ usageListSyncJob: snapshot, usageStatsError: "" });
       void pollUsageSyncJob("list", workspaceId, snapshot.jobId);
     },
+    dismissListUsageSyncJob: () =>
+      set({
+        usageListSyncJob: null,
+      }),
     startDetailUsageSync: async (workspaceId, skillId) => {
       const currentJob = get().usageDetailSyncJob;
       if (isUsageSyncRunning(currentJob)) {
@@ -132,12 +140,13 @@ export function createUsageActions(set: SkillsStoreSet, get: SkillsStoreGet): Sk
         usageDetailCallsError: "",
       });
       try {
-        const { usageAgentFilter, usageSourceFilter } = get();
+        const { usageAgentFilter, usageSourceFilter, usageEvidenceSourceFilter } = get();
         const result = await skillsUsageApi.queryCalls({
           workspaceId,
           skillId,
           agent: normalizeUsageFilter(usageAgentFilter),
           source: normalizeUsageFilter(usageSourceFilter),
+          evidenceSource: normalizeUsageFilter(usageEvidenceSourceFilter),
           limit: 120,
           offset: 0,
         });

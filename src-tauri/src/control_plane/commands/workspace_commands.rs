@@ -9,6 +9,10 @@ use tauri::State;
 use uuid::Uuid;
 
 use crate::{
+    control_plane::agent_presets::{
+        all_builtin_agent_presets, default_agent_enabled, default_agent_root_dir,
+        default_agent_rule_file,
+    },
     db::{load_runtime_flags, AppState},
     domain::models::{
         RuntimeFlags, RuntimeFlagsInput, Workspace, WorkspaceActivateInput, WorkspaceCreateInput,
@@ -20,29 +24,6 @@ use crate::{
 };
 
 use super::shared::{append_audit_event, bool_to_int, get_workspace, workspace_from_row};
-
-fn default_agent_root_dir(agent_type: &str) -> String {
-    let normalized = agent_type.trim().to_lowercase();
-    let suffix = match normalized.as_str() {
-        "codex" => Some(".codex"),
-        "claude" => Some(".claude"),
-        _ => None,
-    };
-    if let Some(suffix) = suffix {
-        if let Some(home) = dirs::home_dir() {
-            return home.join(suffix).to_string_lossy().to_string();
-        }
-    }
-    String::new()
-}
-
-fn default_agent_rule_file(agent_type: &str) -> String {
-    match agent_type.trim().to_lowercase().as_str() {
-        "codex" => "AGENTS.md".to_string(),
-        "claude" => "CLAUDE.md".to_string(),
-        _ => "AGENTS.md".to_string(),
-    }
-}
 
 #[tauri::command]
 pub fn workspace_create(
@@ -83,12 +64,14 @@ pub fn workspace_create(
             workspace.updated_at,
         ],
     )?;
-    for agent_type in ["codex", "claude"] {
+    for preset in all_builtin_agent_presets() {
+        let agent_type = preset.id;
         let default_root = default_agent_root_dir(agent_type);
         let default_rule_file = default_agent_rule_file(agent_type);
+        let enabled = if default_agent_enabled(agent_type) { 1 } else { 0 };
         conn.execute(
             "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
              ON CONFLICT(workspace_id, agent_type) DO NOTHING",
             params![
                 Uuid::new_v4().to_string(),
@@ -96,6 +79,7 @@ pub fn workspace_create(
                 agent_type,
                 default_root,
                 default_rule_file,
+                enabled,
                 workspace.created_at.clone(),
                 workspace.updated_at.clone()
             ],

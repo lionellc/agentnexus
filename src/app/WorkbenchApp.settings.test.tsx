@@ -16,6 +16,8 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
     mobileDetailOpen: false,
     promptViewMode: "table" as "list" | "gallery" | "table",
     skillDetailTab: "preview" as const,
+    skillsHubSortMode: "default" as const,
+    agentPlatformOrderByWorkspace: {} as Record<string, string[]>,
     settingsCategory: "general" as "general" | "data" | "model" | "about",
     searchHits: [] as Array<{ module: "agents"; id: string; title: string; subtitle?: string }>,
     setActiveModule: vi.fn(),
@@ -28,6 +30,8 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
     setMobileDetailOpen: vi.fn(),
     setPromptViewMode: vi.fn(),
     setSkillDetailTab: vi.fn(),
+    setSkillsHubSortMode: vi.fn(),
+    setAgentPlatformOrder: vi.fn(),
     setSettingsCategory: vi.fn((category: "general" | "data" | "model" | "about") => {
       shellState.settingsCategory = category;
     }),
@@ -80,6 +84,7 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
     managerLastBatchResult: null,
     usageAgentFilter: "",
     usageSourceFilter: "",
+    usageEvidenceSourceFilter: "",
     usageStatsLoading: false,
     usageStatsError: "",
     usageListSyncJob: null,
@@ -125,6 +130,7 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
     setUsageFilters: vi.fn(),
     refreshUsageStats: vi.fn(async () => undefined),
     startListUsageSync: vi.fn(async () => undefined),
+    dismissListUsageSyncJob: vi.fn(),
     startDetailUsageSync: vi.fn(async () => undefined),
     loadUsageCalls: vi.fn(async () => undefined),
     clearUsageDetail: vi.fn(),
@@ -209,6 +215,7 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
         workspaceId: "w1",
         platform: "codex",
         rootDir: "/tmp",
+        ruleFile: "AGENTS.md",
         enabled: true,
         resolvedPath: "/tmp/.codex/AGENTS.md",
         createdAt: "2026-04-04T00:00:00Z",
@@ -219,8 +226,20 @@ const { toastMock, pickDialogOpenMock, shellState, promptsState, skillsState, ag
         workspaceId: "w1",
         platform: "claude",
         rootDir: "/tmp",
+        ruleFile: "CLAUDE.md",
         enabled: true,
         resolvedPath: "/tmp/.claude/CLAUDE.md",
+        createdAt: "2026-04-04T00:00:00Z",
+        updatedAt: "2026-04-04T00:00:00Z",
+      },
+      {
+        id: "conn-3",
+        workspaceId: "w1",
+        platform: "gemini",
+        rootDir: "/tmp",
+        ruleFile: "AGENTS.md",
+        enabled: true,
+        resolvedPath: "/tmp/.gemini/AGENTS.md",
         createdAt: "2026-04-04T00:00:00Z",
         updatedAt: "2026-04-04T00:00:00Z",
       },
@@ -510,7 +529,8 @@ describe("WorkbenchApp settings interactions", () => {
     });
 
     expect(container.textContent).toContain("Agents 配置");
-    expect(container.textContent).toContain("新增 Agent");
+    expect(container.textContent).toContain("已启用平台");
+    expect(container.textContent).toContain("可添加平台");
   });
 
   it("基础设置页 Agents 配置支持选择目录并保存", async () => {

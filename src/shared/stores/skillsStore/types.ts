@@ -42,6 +42,7 @@ export type SkillsStateValues = {
   managerLastBatchResult: SkillsManagerBatchResult | null;
   usageAgentFilter: string;
   usageSourceFilter: string;
+  usageEvidenceSourceFilter: string;
   usageStatsBySkillId: Record<string, SkillsUsageStatsRow>;
   usageStatsLoading: boolean;
   usageStatsError: string;
@@ -91,9 +92,10 @@ export type SkillsStateActions = {
   clearManagerRowHint: (skillId: string) => void;
   setManagerStatusFilter: (value: "all" | SkillManagerStatus) => void;
   setManagerSelectedTool: (value: string) => void;
-  setUsageFilters: (value: { agent?: string; source?: string }) => void;
+  setUsageFilters: (value: { agent?: string; source?: string; evidenceSource?: string }) => void;
   refreshUsageStats: (workspaceId: string) => Promise<void>;
   startListUsageSync: (workspaceId: string) => Promise<void>;
+  dismissListUsageSyncJob: () => void;
   startDetailUsageSync: (workspaceId: string, skillId: string) => Promise<void>;
   loadUsageCalls: (workspaceId: string, skillId: string) => Promise<void>;
   clearUsageDetail: () => void;

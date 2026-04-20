@@ -2,9 +2,14 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-use crate::{error::AppError, security::validate_absolute_root_dir};
-
-use super::{AGENT_CLAUDE, AGENT_CODEX};
+use crate::{
+    control_plane::agent_presets::{
+        default_agent_root_dir as preset_default_agent_root_dir,
+        default_agent_rule_file as preset_default_agent_rule_file,
+    },
+    error::AppError,
+    security::validate_absolute_root_dir,
+};
 
 pub(super) fn normalize_agent_type(agent_type: &str) -> Result<String, AppError> {
     let normalized = agent_type.trim().to_lowercase();
@@ -21,25 +26,11 @@ pub(super) fn normalize_agent_type(agent_type: &str) -> Result<String, AppError>
 }
 
 pub(super) fn default_rule_file_name(agent_type: &str) -> String {
-    match agent_type.trim().to_lowercase().as_str() {
-        AGENT_CODEX => "AGENTS.md".to_string(),
-        AGENT_CLAUDE => "CLAUDE.md".to_string(),
-        _ => "AGENTS.md".to_string(),
-    }
+    preset_default_agent_rule_file(agent_type)
 }
 
 pub(super) fn default_agent_root_dir(agent_type: &str) -> String {
-    let suffix = match agent_type.trim().to_lowercase().as_str() {
-        AGENT_CODEX => Some(".codex"),
-        AGENT_CLAUDE => Some(".claude"),
-        _ => None,
-    };
-    if let Some(suffix) = suffix {
-        if let Some(home) = dirs::home_dir() {
-            return home.join(suffix).to_string_lossy().to_string();
-        }
-    }
-    String::new()
+    preset_default_agent_root_dir(agent_type)
 }
 
 pub(super) fn normalize_rule_file(rule_file: Option<&str>, agent_type: &str) -> Result<String, AppError> {

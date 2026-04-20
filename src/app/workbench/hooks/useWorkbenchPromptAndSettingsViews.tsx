@@ -121,19 +121,20 @@ export function buildWorkbenchPromptAndSettingsViews(args: any) {
     handleDeleteDistributionTarget,
     handleNewDistributionTargetFieldChange,
     handleCreateDistributionTarget,
-    settingsAgentRows,
+    enabledAgentRows,
+    availableAgentPresetRows,
     agentConnectionEditingPlatforms,
-    newAgentConnectionDraft,
     agentConnectionSavingId,
-    handlePickNewAgentConnectionRootDir,
     handlePickAgentConnectionRootDir,
     handleAgentConnectionFieldChange,
     handleStartAgentConnectionEdit,
     handleCancelAgentConnectionEdit,
     handleSaveAgentConnection,
-    handleDeleteAgentConnection,
-    handleNewAgentConnectionFieldChange,
-    handleCreateAgentConnection,
+    handleEnableAgentPreset,
+    handleDisableAgentConnection,
+    handleReorderEnabledAgentRows,
+    handleRedetectAgentConnection,
+    handleRestoreAgentConnectionDefaults,
     modelLoading,
     modelSaving,
     localAgentProfiles,
@@ -305,19 +306,24 @@ export function buildWorkbenchPromptAndSettingsViews(args: any) {
       onDeleteDistributionTarget={(targetId) => void handleDeleteDistributionTarget(targetId)}
       onNewDistributionTargetFieldChange={handleNewDistributionTargetFieldChange}
       onCreateDistributionTarget={() => void handleCreateDistributionTarget()}
-      agentConnectionRows={settingsAgentRows}
+      enabledAgentRows={enabledAgentRows}
+      availableAgentPresetRows={availableAgentPresetRows}
       agentConnectionEditingPlatforms={agentConnectionEditingPlatforms}
-      newAgentConnectionDraft={newAgentConnectionDraft}
       agentConnectionSavingId={agentConnectionSavingId}
-      onPickNewAgentConnectionRootDir={() => void handlePickNewAgentConnectionRootDir()}
+      onEnableAgentPreset={(platform) => void handleEnableAgentPreset(platform)}
+      onReorderEnabledAgentRows={(orderedPlatforms) =>
+        handleReorderEnabledAgentRows(orderedPlatforms)
+      }
       onPickAgentConnectionRootDir={(platform) => void handlePickAgentConnectionRootDir(platform)}
       onAgentConnectionFieldChange={handleAgentConnectionFieldChange}
       onStartAgentConnectionEdit={handleStartAgentConnectionEdit}
       onCancelAgentConnectionEdit={handleCancelAgentConnectionEdit}
       onSaveAgentConnection={(platform) => void handleSaveAgentConnection(platform)}
-      onDeleteAgentConnection={(platform) => void handleDeleteAgentConnection(platform)}
-      onNewAgentConnectionFieldChange={handleNewAgentConnectionFieldChange}
-      onCreateAgentConnection={() => void handleCreateAgentConnection()}
+      onDisableAgentConnection={(platform) => void handleDisableAgentConnection(platform)}
+      onRedetectAgentConnection={(platform) => void handleRedetectAgentConnection(platform)}
+      onRestoreAgentConnectionDefaults={(platform) =>
+        void handleRestoreAgentConnectionDefaults(platform)
+      }
     />
   );
 

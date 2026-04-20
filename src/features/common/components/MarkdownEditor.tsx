@@ -255,7 +255,7 @@ export function MarkdownPreview({
   const effectiveEmptyText = emptyText ?? (language === "en" ? "(No content)" : "(无内容)");
   return (
     <div
-      className={`overflow-x-hidden overflow-y-auto rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 ${className ?? ""}`}
+      className={`box-border overflow-x-hidden overflow-y-auto rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 ${className ?? ""}`}
       style={{ minHeight, maxHeight }}
     >
       <div className="space-y-3 break-words [overflow-wrap:anywhere]">
@@ -336,7 +336,7 @@ export function MarkdownEditor({
             onChange={(event) => onChange?.(event.currentTarget.value)}
             placeholder={placeholder}
             readOnly={readOnly}
-            className="overflow-auto"
+            className="box-border overflow-auto"
             style={{ minHeight, maxHeight }}
           />
         ) : null}

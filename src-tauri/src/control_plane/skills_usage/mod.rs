@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs::{self, File},
     io::{BufRead, BufReader, Seek, SeekFrom},
     path::{Path, PathBuf},
@@ -70,10 +70,20 @@ struct WorkspaceScope {
 }
 
 #[derive(Debug, Clone)]
-struct SkillAliasEntry {
+struct SkillAliasCandidate {
     skill_id: String,
     identity: String,
     name: String,
+    alias_quality: i32,
+    local_path: Option<String>,
+    source_local_path: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+struct AgentSearchDirScope {
+    path: String,
+    priority: i64,
+    source: String,
 }
 
 #[derive(Debug, Clone)]
@@ -89,6 +99,8 @@ struct SessionSkillCallEvent {
     skill_name: String,
     called_at: String,
     result_status: String,
+    evidence_source: String,
+    evidence_kind: String,
     confidence: f64,
     raw_ref: String,
     dedupe_key: String,
@@ -111,6 +123,13 @@ struct SessionFile {
     agent: String,
     source: String,
     path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+struct SessionDiscoverIssue {
+    agent: String,
+    source_path: String,
+    reason: String,
 }
 
 #[derive(Debug, Clone)]

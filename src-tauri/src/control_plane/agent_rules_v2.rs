@@ -1,8 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-const AGENT_CODEX: &str = "codex";
-const AGENT_CLAUDE: &str = "claude";
-
 mod api;
 mod apply;
 mod normalize;
@@ -10,7 +7,7 @@ mod publish;
 
 pub use api::{
     agent_connection_delete, agent_connection_list, agent_connection_preview, agent_connection_toggle,
-    agent_connection_upsert,
+    agent_connection_redetect, agent_connection_restore_defaults, agent_connection_upsert,
 };
 pub use apply::{agent_rule_apply, agent_rule_refresh, agent_rule_retry, agent_rule_status};
 pub use publish::{
@@ -20,12 +17,26 @@ pub use publish::{
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentConnectionSearchDirDto {
+    pub path: String,
+    pub enabled: bool,
+    pub priority: i64,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentConnectionDto {
     pub id: String,
     pub workspace_id: String,
     pub agent_type: String,
     pub root_dir: String,
     pub rule_file: String,
+    pub root_dir_source: String,
+    pub rule_file_source: String,
+    pub detection_status: String,
+    pub detected_at: Option<String>,
+    pub skill_search_dirs: Vec<AgentConnectionSearchDirDto>,
     pub enabled: bool,
     pub resolved_path: Option<String>,
     pub created_at: String,
@@ -114,6 +125,19 @@ pub struct AgentConnectionUpsertInput {
     pub root_dir: String,
     pub rule_file: Option<String>,
     pub enabled: bool,
+    pub root_dir_source: Option<String>,
+    pub rule_file_source: Option<String>,
+    pub detection_status: Option<String>,
+    pub skill_search_dirs: Option<Vec<AgentConnectionSearchDirInput>>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConnectionSearchDirInput {
+    pub path: String,
+    pub enabled: bool,
+    pub priority: Option<i64>,
+    pub source: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -127,6 +151,13 @@ pub struct AgentConnectionToggleInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConnectionDeleteInput {
+    pub workspace_id: String,
+    pub agent_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentConnectionPresetActionInput {
     pub workspace_id: String,
     pub agent_type: String,
 }
@@ -208,6 +239,10 @@ pub(super) struct ConnectionRow {
     pub agent_type: String,
     pub root_dir: String,
     pub rule_file: String,
+    pub root_dir_source: String,
+    pub rule_file_source: String,
+    pub detection_status: String,
+    pub detected_at: Option<String>,
     pub enabled: bool,
     pub created_at: String,
     pub updated_at: String,
