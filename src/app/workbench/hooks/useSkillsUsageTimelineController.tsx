@@ -12,12 +12,13 @@ type UseSkillsUsageTimelineControllerInput = {
   skills: Array<{ id: string; name: string }>;
   usageAgentFilter: string;
   usageSourceFilter: string;
+  usageEvidenceSourceFilter: string;
   usageDetailSyncJob: SkillsUsageSyncJobSnapshot | null;
   usageDetailCalls: SkillsUsageCallItem[];
   usageDetailCallsTotal: number;
   usageDetailCallsLoading: boolean;
   usageDetailCallsError: string;
-  setUsageFilters: (next: { agent?: string; source?: string }) => void;
+  setUsageFilters: (next: { agent?: string; source?: string; evidenceSource?: string }) => void;
   refreshUsageStats: (workspaceId: string) => Promise<void>;
   startListUsageSync: (workspaceId: string) => Promise<void>;
   startDetailUsageSync: (workspaceId: string, skillId: string) => Promise<void>;
@@ -33,6 +34,7 @@ export function useSkillsUsageTimelineController({
   skills,
   usageAgentFilter,
   usageSourceFilter,
+  usageEvidenceSourceFilter,
   usageDetailSyncJob,
   usageDetailCalls,
   usageDetailCallsTotal,
@@ -69,7 +71,7 @@ export function useSkillsUsageTimelineController({
     }
   }
 
-  function handleUsageFilterChange(next: { agent?: string; source?: string }) {
+  function handleUsageFilterChange(next: { agent?: string; source?: string; evidenceSource?: string }) {
     setUsageFilters(next);
   }
 
@@ -126,6 +128,7 @@ export function useSkillsUsageTimelineController({
     refreshUsageStats,
     usageAgentFilter,
     usageSourceFilter,
+    usageEvidenceSourceFilter,
     usageTimelineOpen,
     usageTimelineSkillId,
   ]);

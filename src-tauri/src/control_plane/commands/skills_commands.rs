@@ -24,9 +24,11 @@ use super::{
         dedupe_skills, detect_file_language, detect_skill_source_symlink,
         detect_skill_source_symlink_by_name, ensure_workspace_managed_skills_root, get_skill_asset,
         get_skill_root_by_id, ingest_skill_into_workspace_storage, is_path_under_root,
-        is_supported_preview_file, list_skill_tree_entries, list_skills_by_ids, normalize_fs_path,
-        normalize_open_mode, normalize_rel_path, resolve_skill_child_path, run_open_with_mode,
-        skill_asset_from_row, summarize_json_rows, upsert_skill_asset, upsert_skill_version,
+        is_supported_preview_file, list_skill_tree_entries, list_skills_by_ids,
+        load_skill_source_hints_from_agents_lock, normalize_fs_path, normalize_open_mode,
+        normalize_rel_path, resolve_skill_child_path, resolve_skill_source_metadata,
+        run_open_with_mode, skill_asset_from_row, summarize_json_rows, upsert_skill_asset,
+        upsert_skill_asset_source, upsert_skill_version,
     },
     target_commands::list_targets,
 };
@@ -51,6 +53,7 @@ pub fn skills_scan(
     let latest_versions = input.latest_versions.unwrap_or_default();
     let managed_skills_root = ensure_workspace_managed_skills_root(&workspace_root)?;
     let managed_skills_root_normalized = normalize_fs_path(&managed_skills_root);
+    let source_hints = load_skill_source_hints_from_agents_lock();
     let mut managed_source_count = 0usize;
 
     let mut assets = Vec::new();
@@ -75,7 +78,19 @@ pub fn skills_scan(
             .get(&managed_skill.identity)
             .cloned()
             .unwrap_or_else(|| local_version.clone());
-        let update_candidate = crate::utils::compare_version(&local_version, &latest_version).is_lt();
+        let source_metadata =
+            resolve_skill_source_metadata(&managed_skill.name, &source_local_path, &source_hints);
+        let local_content_hash =
+            crate::utils::sha256_directory(Path::new(&managed_skill.local_path))
+                .unwrap_or_default();
+        let remote_content_hash =
+            crate::utils::sha256_directory(Path::new(&source_local_path)).unwrap_or_default();
+        let version_update_candidate =
+            crate::utils::compare_version(&local_version, &latest_version).is_lt();
+        let hash_update_candidate = !local_content_hash.is_empty()
+            && !remote_content_hash.is_empty()
+            && local_content_hash != remote_content_hash;
+        let update_candidate = version_update_candidate || hash_update_candidate;
 
         let id = upsert_skill_asset(
             &conn,
@@ -85,6 +100,21 @@ pub fn skills_scan(
             &source_local_path,
             source_is_symlink,
             now_rfc3339(),
+        )?;
+
+        let hash_checked_at = if !local_content_hash.is_empty() || !remote_content_hash.is_empty() {
+            Some(now_rfc3339())
+        } else {
+            None
+        };
+        upsert_skill_asset_source(
+            &conn,
+            &id,
+            &source_metadata,
+            &source_local_path,
+            &local_content_hash,
+            &remote_content_hash,
+            hash_checked_at.as_deref(),
         )?;
 
         upsert_skill_version(&conn, &id, &local_version, &managed_skill.source)?;

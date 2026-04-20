@@ -31,6 +31,7 @@ export interface SkillsManagerSkillEntry {
   group: string;
   source: string;
   localPath: string;
+  createdAt?: string | null;
   sourceMissing?: boolean;
   statusByTool: Record<string, SkillManagerStatus>;
   conflict: boolean;
@@ -86,6 +87,7 @@ export interface SkillsManagerOperationsRow {
   totalCalls: number;
   last7dCalls: number;
   lastCalledAt: string | null;
+  createdAt?: string | null;
   rowHint?: string;
 }
 

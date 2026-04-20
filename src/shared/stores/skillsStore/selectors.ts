@@ -122,6 +122,7 @@ export function toOperationsRows(
         group: skill.group,
         source: skill.source,
         localPath: skill.localPath,
+        createdAt: skill.createdAt ?? null,
         sourceMissing,
         conflict: skill.conflict,
         linkedCount,

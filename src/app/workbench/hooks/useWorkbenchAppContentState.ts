@@ -43,6 +43,10 @@ export function useWorkbenchAppContentState() {
   const setPromptViewMode = useShellStore((state) => state.setPromptViewMode);
   const skillDetailTab = useShellStore((state) => state.skillDetailTab);
   const setSkillDetailTab = useShellStore((state) => state.setSkillDetailTab);
+  const skillsHubSortMode = useShellStore((state) => state.skillsHubSortMode);
+  const setSkillsHubSortMode = useShellStore((state) => state.setSkillsHubSortMode);
+  const agentPlatformOrderByWorkspace = useShellStore((state) => state.agentPlatformOrderByWorkspace);
+  const setAgentPlatformOrder = useShellStore((state) => state.setAgentPlatformOrder);
   const settingsCategory = useShellStore((state) => state.settingsCategory);
   const setSettingsCategory = useShellStore((state) => state.setSettingsCategory);
   const sidebarOpen = useShellStore((state) => state.mobileSidebarOpen);
@@ -82,6 +86,8 @@ export function useWorkbenchAppContentState() {
   const managerRowHints = useSkillsStore((state) => state.managerRowHints);
   const usageAgentFilter = useSkillsStore((state) => state.usageAgentFilter);
   const usageSourceFilter = useSkillsStore((state) => state.usageSourceFilter);
+  const usageEvidenceSourceFilter = useSkillsStore((state) => state.usageEvidenceSourceFilter);
+  const usageStatsBySkillId = useSkillsStore((state) => state.usageStatsBySkillId);
   const usageStatsLoading = useSkillsStore((state) => state.usageStatsLoading);
   const usageStatsError = useSkillsStore((state) => state.usageStatsError);
   const usageListSyncJob = useSkillsStore((state) => state.usageListSyncJob);
@@ -101,6 +107,7 @@ export function useWorkbenchAppContentState() {
   const setUsageFilters = useSkillsStore((state) => state.setUsageFilters);
   const refreshUsageStats = useSkillsStore((state) => state.refreshUsageStats);
   const startListUsageSync = useSkillsStore((state) => state.startListUsageSync);
+  const dismissListUsageSyncJob = useSkillsStore((state) => state.dismissListUsageSyncJob);
   const startDetailUsageSync = useSkillsStore((state) => state.startDetailUsageSync);
   const loadUsageCalls = useSkillsStore((state) => state.loadUsageCalls);
   const clearUsageDetail = useSkillsStore((state) => state.clearUsageDetail);
@@ -133,7 +140,10 @@ export function useWorkbenchAppContentState() {
   const upsertTarget = useSettingsStore((state) => state.upsertTarget);
   const deleteTarget = useSettingsStore((state) => state.deleteTarget);
   const upsertConnection = useSettingsStore((state) => state.upsertConnection);
+  const toggleConnection = useSettingsStore((state) => state.toggleConnection);
   const deleteConnection = useSettingsStore((state) => state.deleteConnection);
+  const redetectConnection = useSettingsStore((state) => state.redetectConnection);
+  const restoreConnectionDefaults = useSettingsStore((state) => state.restoreConnectionDefaults);
   const setDirty = useSettingsStore((state) => state.setDirty);
   const [language, setLanguage] = useState<AppLanguage>(() => resolveInitialLanguage());
   const [theme, setTheme] = useState<AppTheme>(() => resolveInitialTheme());
@@ -246,6 +256,12 @@ export function useWorkbenchAppContentState() {
     const projectSkillsDir = normalizeDirectoryInput(`${root}/skills`);
     return projectSkillsDir ? [projectSkillsDir] : [];
   }, [activeWorkspace?.rootPath]);
+  const activeWorkspaceAgentOrder = useMemo(() => {
+    if (!activeWorkspaceId) {
+      return [] as string[];
+    }
+    return agentPlatformOrderByWorkspace[activeWorkspaceId] ?? [];
+  }, [activeWorkspaceId, agentPlatformOrderByWorkspace]);
   const settingCategories = useMemo<Array<{ key: SettingsCategory; label: string }>>(
     () =>
       SETTING_CATEGORY_KEYS.map((key) => {
@@ -281,6 +297,11 @@ export function useWorkbenchAppContentState() {
     setPromptViewMode,
     skillDetailTab,
     setSkillDetailTab,
+    skillsHubSortMode,
+    setSkillsHubSortMode,
+    agentPlatformOrderByWorkspace,
+    setAgentPlatformOrder,
+    activeWorkspaceAgentOrder,
     settingsCategory,
     setSettingsCategory,
     sidebarOpen,
@@ -322,6 +343,8 @@ export function useWorkbenchAppContentState() {
     managerRowHints,
     usageAgentFilter,
     usageSourceFilter,
+    usageEvidenceSourceFilter,
+    usageStatsBySkillId,
     usageStatsLoading,
     usageStatsError,
     usageListSyncJob,
@@ -341,6 +364,7 @@ export function useWorkbenchAppContentState() {
     setUsageFilters,
     refreshUsageStats,
     startListUsageSync,
+    dismissListUsageSyncJob,
     startDetailUsageSync,
     loadUsageCalls,
     clearUsageDetail,
@@ -375,7 +399,10 @@ export function useWorkbenchAppContentState() {
     upsertTarget,
     deleteTarget,
     upsertConnection,
+    toggleConnection,
     deleteConnection,
+    redetectConnection,
+    restoreConnectionDefaults,
     setDirty,
     // local states and derived
     language,

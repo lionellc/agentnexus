@@ -1,14 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 import {
   SkillsConfigPanel,
-  type SkillsConfigConflictPair,
   type SkillsConfigGroup,
 } from "../../../features/skills/components/SkillsConfigPanel";
 import { SkillsCenter, type SkillsCenterProps } from "../../../features/skills/components/SkillsCenter";
 import { SkillsOperationsPanel } from "../../../features/skills/components/SkillsOperationsPanel";
 import { SkillsModule } from "../../../features/skills/module/SkillsModule";
-import type { MainModule } from "../../../features/shell/types";
+import type { SkillsHubSortMode } from "../../../shared/stores/shellStore";
 import type {
   SkillsManagerMatrixFilter,
   SkillsManagerMatrixSummary,
@@ -38,7 +37,6 @@ type SkillsCenterExternalProps = Omit<
 type UseWorkbenchSkillsControllerInput = {
   l: (zh: string, en: string) => string;
   toast: (options: ToastOptions) => string;
-  activeModule: MainModule;
   activeWorkspaceId: string | null;
   projectBootingMessage: string;
   skills: Array<{ id: string; name: string }>;
@@ -57,9 +55,9 @@ type UseWorkbenchSkillsControllerInput = {
   operationsScanDirectories: string[];
   selectedSkillScanDirectories: string[];
   scanGroups: SkillsConfigGroup[];
-  conflictPairs: SkillsConfigConflictPair[];
   usageAgentFilter: string;
   usageSourceFilter: string;
+  usageEvidenceSourceFilter: string;
   usageStatsLoading: boolean;
   usageStatsError: string;
   usageListSyncJob: SkillsUsageSyncJobSnapshot | null;
@@ -73,21 +71,23 @@ type UseWorkbenchSkillsControllerInput = {
   loadManagerState: (workspaceId: string) => Promise<void>;
   managerBatchLink: (workspaceId: string, skillIds: string[], tool: string, force?: boolean) => Promise<void>;
   managerBatchUnlink: (workspaceId: string, skillIds: string[], tool: string) => Promise<void>;
-  setUsageFilters: (next: { agent?: string; source?: string }) => void;
+  setUsageFilters: (next: { agent?: string; source?: string; evidenceSource?: string }) => void;
   refreshUsageStats: (workspaceId: string) => Promise<void>;
   startListUsageSync: (workspaceId: string) => Promise<void>;
+  dismissListUsageSyncJob: () => void;
   startDetailUsageSync: (workspaceId: string, skillId: string) => Promise<void>;
   loadUsageCalls: (workspaceId: string, skillId: string) => Promise<void>;
   clearUsageDetail: () => void;
   onOpenSkillDetail: (skillId: string) => void;
   resetSkillDetailView: () => void;
+  skillsHubSortMode: SkillsHubSortMode;
+  setSkillsHubSortMode: (mode: SkillsHubSortMode) => void;
   skillsCenterProps: SkillsCenterExternalProps;
 };
 
 export function useWorkbenchSkillsController({
   l,
   toast,
-  activeModule,
   activeWorkspaceId,
   projectBootingMessage,
   skills,
@@ -106,9 +106,9 @@ export function useWorkbenchSkillsController({
   operationsScanDirectories,
   selectedSkillScanDirectories,
   scanGroups,
-  conflictPairs,
   usageAgentFilter,
   usageSourceFilter,
+  usageEvidenceSourceFilter,
   usageStatsLoading,
   usageStatsError,
   usageListSyncJob,
@@ -125,18 +125,18 @@ export function useWorkbenchSkillsController({
   setUsageFilters,
   refreshUsageStats,
   startListUsageSync,
+  dismissListUsageSyncJob,
   startDetailUsageSync,
   loadUsageCalls,
   clearUsageDetail,
   onOpenSkillDetail,
   resetSkillDetailView,
+  skillsHubSortMode,
+  setSkillsHubSortMode,
   skillsCenterProps,
 }: UseWorkbenchSkillsControllerInput) {
   const [scanPhase, setScanPhase] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [scanMessage, setScanMessage] = useState("");
-  const operationsModeEnteredRef = useRef(
-    activeModule === "skills" && managerMode === "operations",
-  );
 
   const operationsController = useSkillsOperationsActions({
     l,
@@ -158,6 +158,7 @@ export function useWorkbenchSkillsController({
     skills,
     usageAgentFilter,
     usageSourceFilter,
+    usageEvidenceSourceFilter,
     usageDetailSyncJob,
     usageDetailCalls,
     usageDetailCallsTotal,
@@ -170,43 +171,6 @@ export function useWorkbenchSkillsController({
     loadUsageCalls,
     clearUsageDetail,
   });
-
-  useEffect(() => {
-    const inOperations = activeModule === "skills" && managerMode === "operations";
-    if (inOperations && !operationsModeEnteredRef.current && activeWorkspaceId) {
-      const workspaceId = activeWorkspaceId;
-      // 切换进入运营模式时先渲染当前状态，扫描与刷新放到后台异步执行。
-      void loadManagerState(workspaceId);
-      void fetchSkills();
-      void refreshUsageStats(workspaceId).catch(() => undefined);
-
-      if (operationsScanDirectories.length > 0) {
-        window.setTimeout(() => {
-          void (async () => {
-            try {
-              await scanSkills(workspaceId, operationsScanDirectories);
-            } finally {
-              await Promise.allSettled([
-                fetchSkills(),
-                loadManagerState(workspaceId),
-                refreshUsageStats(workspaceId),
-              ]);
-            }
-          })();
-        }, 0);
-      }
-    }
-    operationsModeEnteredRef.current = inOperations;
-  }, [
-    activeModule,
-    managerMode,
-    activeWorkspaceId,
-    fetchSkills,
-    loadManagerState,
-    operationsScanDirectories,
-    refreshUsageStats,
-    scanSkills,
-  ]);
 
   async function handleRefreshSkills() {
     if (!activeWorkspaceId) {
@@ -267,11 +231,19 @@ export function useWorkbenchSkillsController({
       rows={operationsRows}
       matrixSummaries={operationsMatrixSummaries}
       matrixFilter={managerMatrixFilter}
+      skillQuery={skillsCenterProps.skillQuery}
+      onSkillQueryChange={skillsCenterProps.setSkillQuery}
+      onRefreshSkills={() => void handleRefreshSkills()}
+      skillsLoading={skillsCenterProps.skillsLoading}
       usageAgentFilter={usageAgentFilter}
       usageSourceFilter={usageSourceFilter}
+      usageEvidenceSourceFilter={usageEvidenceSourceFilter}
       usageStatsLoading={usageStatsLoading}
       usageStatsError={usageStatsError}
       usageSyncJob={usageListSyncJob}
+      onDismissUsageSyncJob={dismissListUsageSyncJob}
+      sortMode={skillsHubSortMode}
+      onSortModeChange={setSkillsHubSortMode}
       expandedSkillId={managerExpandedSkillId}
       runningDistribution={managerLoading || managerCalibrating}
       onUsageFilterChange={usageController.handleUsageFilterChange}
@@ -296,13 +268,7 @@ export function useWorkbenchSkillsController({
       scanPhase={scanPhase}
       scanMessage={scanMessage}
       scanGroups={scanGroups}
-      conflictPairs={conflictPairs}
-      diffView={operationsController.diffView}
       onScanSkills={() => void handleScanSkills()}
-      onStartConflictDiff={(leftSkillId, rightSkillId) =>
-        void operationsController.handleStartConflictDiff(leftSkillId, rightSkillId)}
-      onCancelDiff={() => void operationsController.handleCancelDiff()}
-      onCloseDiff={operationsController.handleCloseDiff}
       l={l}
     />
   );

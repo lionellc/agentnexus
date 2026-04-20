@@ -31,7 +31,9 @@ pub(super) fn get_workspace_scope(conn: &Connection, workspace_id: &str) -> Resu
     .ok_or_else(AppError::workspace_not_found)
 }
 
-pub(super) fn list_skill_aliases(conn: &Connection) -> Result<HashMap<String, SkillAliasEntry>, AppError> {
+pub(super) fn list_skill_aliases(
+    conn: &Connection,
+) -> Result<HashMap<String, Vec<SkillAliasCandidate>>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT id, identity, name, local_path, source_local_path
          FROM skills_assets",
@@ -47,39 +49,125 @@ pub(super) fn list_skill_aliases(conn: &Connection) -> Result<HashMap<String, Sk
         ))
     })?;
 
-    let mut map = HashMap::new();
+    let mut map = HashMap::<String, Vec<SkillAliasCandidate>>::new();
     for row in rows {
         let (skill_id, identity, name, local_path, source_local_path) = row?;
-        let entry = SkillAliasEntry {
-            skill_id,
-            identity: identity.clone(),
-            name: name.clone(),
-        };
-
-        let mut aliases = Vec::new();
-        aliases.extend(normalize_skill_alias_candidates(&identity));
-        aliases.extend(normalize_skill_alias_candidates(&name));
-
-        if let Some(base) = Path::new(&local_path)
+        let local_base = Path::new(&local_path)
             .file_name()
             .and_then(|item| item.to_str())
-        {
-            aliases.extend(normalize_skill_alias_candidates(base));
-        }
-        if let Some(source_path) = source_local_path {
-            if let Some(base) = Path::new(&source_path)
+            .map(str::to_string);
+        let source_base = source_local_path.as_ref().and_then(|source_path| {
+            Path::new(source_path)
                 .file_name()
                 .and_then(|item| item.to_str())
-            {
-                aliases.extend(normalize_skill_alias_candidates(base));
-            }
-        }
+                .map(str::to_string)
+        });
 
-        aliases.sort();
-        aliases.dedup();
-        for alias in aliases {
-            map.entry(alias).or_insert_with(|| entry.clone());
+        let push_aliases = |target: &mut HashMap<String, Vec<SkillAliasCandidate>>,
+                            raw: &str,
+                            alias_quality: i32,
+                            skill_id: &str,
+                            identity: &str,
+                            name: &str,
+                            local_path: &str,
+                            source_local_path: &Option<String>| {
+            for alias in normalize_skill_alias_candidates(raw) {
+                target.entry(alias).or_default().push(SkillAliasCandidate {
+                    skill_id: skill_id.to_string(),
+                    identity: identity.to_string(),
+                    name: name.to_string(),
+                    alias_quality,
+                    local_path: normalize_path(local_path),
+                    source_local_path: source_local_path.as_ref().and_then(|item| normalize_path(item)),
+                });
+            }
+        };
+
+        push_aliases(
+            &mut map,
+            &identity,
+            0,
+            &skill_id,
+            &identity,
+            &name,
+            &local_path,
+            &source_local_path,
+        );
+        push_aliases(
+            &mut map,
+            &name,
+            1,
+            &skill_id,
+            &identity,
+            &name,
+            &local_path,
+            &source_local_path,
+        );
+        if let Some(base) = local_base.as_deref() {
+            push_aliases(
+                &mut map,
+                base,
+                2,
+                &skill_id,
+                &identity,
+                &name,
+                &local_path,
+                &source_local_path,
+            );
         }
+        if let Some(base) = source_base.as_deref() {
+            push_aliases(
+                &mut map,
+                base,
+                2,
+                &skill_id,
+                &identity,
+                &name,
+                &local_path,
+                &source_local_path,
+            );
+        }
+    }
+
+    Ok(map)
+}
+
+pub(super) fn list_enabled_agent_search_dirs(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<HashMap<String, Vec<AgentSearchDirScope>>, AppError> {
+    let mut stmt = conn.prepare(
+        "SELECT agent_type, root_dir, root_dir_source
+         FROM agent_connections
+         WHERE workspace_id = ?1 AND enabled = 1
+         ORDER BY agent_type ASC",
+    )?;
+
+    let rows = stmt.query_map(params![workspace_id], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, Option<String>>(1)?,
+            row.get::<_, Option<String>>(2)?,
+        ))
+    })?;
+
+    let mut map = HashMap::<String, Vec<AgentSearchDirScope>>::new();
+    for row in rows {
+        let (agent_type, root_dir, source) = row?;
+        let Some(root_value) = root_dir else {
+            continue;
+        };
+        let Some(normalized) = normalize_path(&root_value) else {
+            continue;
+        };
+        if normalized.trim().is_empty() {
+            continue;
+        }
+        map.entry(agent_type).or_default().push(AgentSearchDirScope {
+            path: normalized,
+            priority: 0,
+            source: source.unwrap_or_else(|| "inferred".to_string()),
+        });
     }
 
     Ok(map)
@@ -131,13 +219,15 @@ pub(super) fn persist_events(
                 skill_name,
                 called_at,
                 result_status,
+                evidence_source,
+                evidence_kind,
                 confidence,
                 raw_ref,
                 dedupe_key,
                 created_at,
                 updated_at
             )
-            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)
             ON CONFLICT(dedupe_key) DO NOTHING",
             params![
                 Uuid::new_v4().to_string(),
@@ -152,6 +242,8 @@ pub(super) fn persist_events(
                 call.skill_name,
                 call.called_at,
                 call.result_status,
+                call.evidence_source,
+                call.evidence_kind,
                 call.confidence,
                 call.raw_ref,
                 call.dedupe_key,

@@ -1,8 +1,12 @@
+    use std::collections::HashMap;
+
     use serde_json::json;
 
     use super::{
-        build_parse_failure_summary, extract_claude_skill_calls, extract_codex_skill_calls,
-        normalize_skill_alias_candidates, truncate_text, ParsedSkillCall, RESULT_STATUS_SUCCESS,
+        build_parse_failure_summary, discover_session_files, extract_claude_skill_calls,
+        extract_codex_skill_calls, normalize_skill_alias_candidates,
+        resolve_alias_without_search_dirs, truncate_text, AgentSearchDirScope, ParsedSkillCall,
+        SkillAliasCandidate, RESULT_STATUS_SUCCESS,
     };
 
     #[test]
@@ -11,6 +15,57 @@
         assert!(list.contains(&"ce:work".to_string()));
         assert!(list.contains(&"ce-work".to_string()));
         assert!(list.contains(&"work".to_string()));
+    }
+
+    #[test]
+    fn resolve_alias_without_search_dirs_prefers_highest_quality_unique_skill() {
+        let resolved = resolve_alias_without_search_dirs(&[
+            SkillAliasCandidate {
+                skill_id: "s1".to_string(),
+                identity: "ce-work".to_string(),
+                name: "ce-work".to_string(),
+                alias_quality: 0,
+                local_path: Some("/Users/demo/.codex/skills/ce-work".to_string()),
+                source_local_path: None,
+            },
+            SkillAliasCandidate {
+                skill_id: "s1".to_string(),
+                identity: "ce-work".to_string(),
+                name: "ce-work".to_string(),
+                alias_quality: 1,
+                local_path: Some("/Users/demo/.codex/skills/ce-work".to_string()),
+                source_local_path: None,
+            },
+        ])
+        .expect("should resolve");
+
+        assert_eq!(resolved.skill_id, "s1");
+        assert_eq!(resolved.alias_quality, 0);
+    }
+
+    #[test]
+    fn resolve_alias_without_search_dirs_reports_conflict_for_same_quality() {
+        let result = resolve_alias_without_search_dirs(&[
+            SkillAliasCandidate {
+                skill_id: "s1".to_string(),
+                identity: "ce-work".to_string(),
+                name: "ce-work".to_string(),
+                alias_quality: 0,
+                local_path: Some("/Users/demo/.codex/skills/ce-work".to_string()),
+                source_local_path: None,
+            },
+            SkillAliasCandidate {
+                skill_id: "s2".to_string(),
+                identity: "ce-work-fork".to_string(),
+                name: "ce-work".to_string(),
+                alias_quality: 0,
+                local_path: Some("/Users/demo/.claude/skills/ce-work".to_string()),
+                source_local_path: None,
+            },
+        ]);
+
+        let err = result.expect_err("should report alias conflict");
+        assert_eq!(err, "alias-conflict");
     }
 
     #[test]
@@ -117,4 +172,20 @@
         assert!(summary.contains("发现 11 条解析异常"));
         assert!(summary.contains("skill-not-mapped: a ×5"));
         assert!(summary.contains("其余 1 类已省略"));
+    }
+
+    #[test]
+    fn discover_session_files_ignores_unsupported_agents_without_failure() {
+        let mut dirs = HashMap::new();
+        dirs.insert(
+            "cursor".to_string(),
+            vec![AgentSearchDirScope {
+                path: "/tmp/agentnexus-test".to_string(),
+                priority: 0,
+                source: "manual".to_string(),
+            }],
+        );
+
+        let (_files, issues) = discover_session_files(&dirs);
+        assert!(issues.is_empty());
     }

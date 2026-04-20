@@ -64,6 +64,8 @@ describe("SkillUsageTimelineDialog", () => {
               agent: "codex",
               source: "codex_jsonl",
               resultStatus: "success",
+              evidenceSource: "observed",
+              evidenceKind: "explicit_use_skill",
               confidence: 0.95,
               sessionId: "sess-1",
               eventRef: "1:0",

@@ -15,22 +15,30 @@ import {
   type SkillDistributionPreviewKind,
 } from "./operations/helpers";
 import { OperationsTable } from "./operations/OperationsTable";
-import { UsageFilters } from "./operations/UsageFilters";
+import { UsageFilters, type UsageSortMode } from "./operations/UsageFilters";
 
 export type SkillsOperationsPanelProps = {
   rows: SkillsManagerOperationsRow[];
   matrixSummaries: SkillsManagerMatrixSummary[];
   matrixFilter: SkillsManagerMatrixFilter;
+  skillQuery: string;
+  onSkillQueryChange: (value: string) => void;
+  onRefreshSkills: () => Promise<void> | void;
+  skillsLoading: boolean;
   usageAgentFilter: string;
   usageSourceFilter: string;
+  usageEvidenceSourceFilter: string;
   usageStatsLoading: boolean;
   usageStatsError: string;
   usageSyncJob: SkillsUsageSyncJobSnapshot | null;
+  onDismissUsageSyncJob?: () => void;
+  sortMode?: UsageSortMode;
+  onSortModeChange?: (next: UsageSortMode) => void;
   expandedSkillId: string | null;
   runningDistribution: boolean;
   purgingSkillId: string | null;
   onMatrixFilterChange: (next: Partial<SkillsManagerMatrixFilter>) => void;
-  onUsageFilterChange: (next: { agent?: string; source?: string }) => void;
+  onUsageFilterChange: (next: { agent?: string; source?: string; evidenceSource?: string }) => void;
   onUsageRefresh: () => Promise<void> | void;
   onToggleExpanded: (skillId: string | null) => void;
   onOpenSkillDetail: (skillId: string) => void;
@@ -48,11 +56,19 @@ export function SkillsOperationsPanel({
   rows,
   matrixSummaries,
   matrixFilter,
+  skillQuery,
+  onSkillQueryChange,
+  onRefreshSkills,
+  skillsLoading,
   usageAgentFilter,
   usageSourceFilter,
+  usageEvidenceSourceFilter,
   usageStatsLoading,
   usageStatsError,
   usageSyncJob,
+  onDismissUsageSyncJob,
+  sortMode,
+  onSortModeChange,
   expandedSkillId,
   runningDistribution,
   purgingSkillId,
@@ -85,21 +101,61 @@ export function SkillsOperationsPanel({
     }>
   >([]);
   const [bulkLinking, setBulkLinking] = useState(false);
-  const [sortByUsage, setSortByUsage] = useState(false);
+  const [localSortMode, setLocalSortMode] = useState<UsageSortMode>("default");
+  const currentSortMode = sortMode ?? localSortMode;
 
   const sortedRows = useMemo(() => {
     const list = [...rows];
-    if (!sortByUsage) {
+
+    const createdAtWeight = (value?: string | null) => {
+      if (!value) {
+        return null;
+      }
+      const timestamp = Date.parse(value);
+      return Number.isNaN(timestamp) ? null : timestamp;
+    };
+
+    const compareCallsDesc = (left: SkillsManagerOperationsRow, right: SkillsManagerOperationsRow) =>
+      right.totalCalls - left.totalCalls ||
+      right.last7dCalls - left.last7dCalls ||
+      left.name.localeCompare(right.name);
+
+    if (currentSortMode === "calls_desc") {
+      list.sort(compareCallsDesc);
       return list;
     }
-    list.sort(
-      (left, right) =>
-        right.totalCalls - left.totalCalls ||
-        right.last7dCalls - left.last7dCalls ||
-        left.name.localeCompare(right.name),
-    );
+    if (currentSortMode === "calls_asc") {
+      list.sort(
+        (left, right) =>
+          left.totalCalls - right.totalCalls ||
+          left.last7dCalls - right.last7dCalls ||
+          left.name.localeCompare(right.name),
+      );
+      return list;
+    }
+    if (currentSortMode === "created_desc" || currentSortMode === "created_asc") {
+      list.sort((left, right) => {
+        const leftWeight = createdAtWeight(left.createdAt);
+        const rightWeight = createdAtWeight(right.createdAt);
+        if (leftWeight === null && rightWeight === null) {
+          return compareCallsDesc(left, right);
+        }
+        if (leftWeight === null) {
+          return 1;
+        }
+        if (rightWeight === null) {
+          return -1;
+        }
+        if (currentSortMode === "created_desc") {
+          return rightWeight - leftWeight || compareCallsDesc(left, right);
+        }
+        return leftWeight - rightWeight || compareCallsDesc(left, right);
+      });
+      return list;
+    }
+
     return list;
-  }, [rows, sortByUsage]);
+  }, [rows, currentSortMode]);
 
   const bulkLinkPlans = useMemo(
     () =>
@@ -194,13 +250,25 @@ export function SkillsOperationsPanel({
     <div className="space-y-4">
       <UsageFilters
         l={l}
+        skillQuery={skillQuery}
+        onSkillQueryChange={onSkillQueryChange}
+        onRefreshSkills={onRefreshSkills}
+        skillsLoading={skillsLoading}
         usageAgentFilter={usageAgentFilter}
         usageSourceFilter={usageSourceFilter}
+        usageEvidenceSourceFilter={usageEvidenceSourceFilter}
         usageStatsLoading={usageStatsLoading}
         usageStatsError={usageStatsError}
         usageSyncJob={usageSyncJob}
-        sortByUsage={sortByUsage}
-        onToggleSortByUsage={() => setSortByUsage((prev) => !prev)}
+        onDismissUsageSyncJob={onDismissUsageSyncJob}
+        sortMode={currentSortMode}
+        onSortModeChange={(next) => {
+          if (onSortModeChange) {
+            onSortModeChange(next);
+            return;
+          }
+          setLocalSortMode(next);
+        }}
         onUsageFilterChange={onUsageFilterChange}
         onUsageRefresh={onUsageRefresh}
         onBulkLink={onRunBulkLink ? handleBulkLink : undefined}
@@ -219,8 +287,6 @@ export function SkillsOperationsPanel({
         onMatrixFilterChange={onMatrixFilterChange}
         onToggleExpanded={onToggleExpanded}
         onOpenSkillDetail={onOpenSkillDetail}
-        onRunLink={onRunLink}
-        onRunUnlink={onRunUnlink}
         onPurgeSkill={onPurgeSkill}
         onDismissRowHint={onDismissRowHint}
         onJumpToConfig={onJumpToConfig}

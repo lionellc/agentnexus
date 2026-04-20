@@ -169,6 +169,25 @@ pub struct SkillAsset {
     pub updated_at: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkillAssetSource {
+    pub asset_id: String,
+    pub source_type: String,
+    pub source: String,
+    pub source_url: String,
+    pub skill_path: String,
+    pub repo_owner: String,
+    pub repo_name: String,
+    pub repo_ref: String,
+    pub source_local_path: String,
+    pub local_content_hash: String,
+    pub remote_content_hash: String,
+    pub hash_checked_at: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsFileTreeInput {
@@ -484,6 +503,14 @@ pub struct SkillsManagerUpdateThenLinkInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SkillsManagerCheckExternalUpdatesInput {
+    pub workspace_id: String,
+    pub skill_ids: Option<Vec<String>>,
+    pub operator: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PromptCreateInput {
     pub workspace_id: String,
     pub name: String,
@@ -553,6 +580,7 @@ pub struct SkillsUsageStatsQueryInput {
     pub workspace_id: String,
     pub agent: Option<String>,
     pub source: Option<String>,
+    pub evidence_source: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -562,6 +590,7 @@ pub struct SkillsUsageCallsQueryInput {
     pub skill_id: String,
     pub agent: Option<String>,
     pub source: Option<String>,
+    pub evidence_source: Option<String>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }

@@ -1,5 +1,12 @@
 use super::*;
 
+const FAILURE_TOKEN_INVALID: &str = "token-invalid";
+const FAILURE_TOKEN_EMPTY_OR_NOISE: &str = "token-empty-or-noise";
+const FAILURE_SEARCH_DIRS_EMPTY: &str = "search-dirs-empty";
+const FAILURE_ALIAS_CONFLICT: &str = "alias-conflict";
+const FAILURE_ALIAS_NOT_FOUND: &str = "alias-not-found";
+const FAILURE_JSON_PARSE_FAILED: &str = "json-parse-failed";
+
 pub(super) struct ParseFileResult {
     pub(super) calls: Vec<SessionSkillCallEvent>,
     pub(super) failures: Vec<ParseFailureEvent>,
@@ -15,7 +22,8 @@ pub(super) fn parse_session_file(
     source: &str,
     workspace_scope: &WorkspaceScope,
     workspace_scopes: &[WorkspaceScope],
-    skill_aliases: &HashMap<String, SkillAliasEntry>,
+    skill_aliases: &HashMap<String, Vec<SkillAliasCandidate>>,
+    agent_search_dirs: &HashMap<String, Vec<AgentSearchDirScope>>,
     force_full_scan: bool,
     conn: &Connection,
 ) -> Result<ParseFileResult, AppError> {
@@ -68,7 +76,7 @@ pub(super) fn parse_session_file(
 
         let value: Value = match serde_json::from_str(trimmed) {
             Ok(parsed) => parsed,
-            Err(err) => {
+            Err(_err) => {
                 failures.push(ParseFailureEvent {
                     workspace_id: Some(workspace_scope.id.clone()),
                     agent: agent.to_string(),
@@ -76,7 +84,7 @@ pub(super) fn parse_session_file(
                     session_id: Some(parse_state.session_id.clone()),
                     line_no,
                     event_ref: format!("{line_start}:json-parse"),
-                    reason: format!("json-parse-failed: {err}"),
+                    reason: FAILURE_JSON_PARSE_FAILED.to_string(),
                     raw_excerpt: truncate_text(trimmed, 400),
                 });
                 continue;
@@ -123,12 +131,11 @@ pub(super) fn parse_session_file(
             });
 
         for (idx, skill_call) in skill_calls.iter().enumerate() {
-            let normalized_candidates = normalize_skill_alias_candidates(&skill_call.skill_token);
-            let alias = normalized_candidates
-                .iter()
-                .find_map(|candidate| skill_aliases.get(candidate));
-
-            let Some(alias) = alias else {
+            let search_dirs = agent_search_dirs
+                .get(agent)
+                .cloned()
+                .unwrap_or_default();
+            if search_dirs.is_empty() {
                 failures.push(ParseFailureEvent {
                     workspace_id: matched_workspace.clone(),
                     agent: agent.to_string(),
@@ -136,10 +143,136 @@ pub(super) fn parse_session_file(
                     session_id: Some(parse_state.session_id.clone()),
                     line_no,
                     event_ref: format!("{line_start}:{idx}"),
-                    reason: format!("skill-not-mapped: {}", skill_call.skill_token),
+                    reason: FAILURE_SEARCH_DIRS_EMPTY.to_string(),
                     raw_excerpt: truncate_text(trimmed, 400),
                 });
                 continue;
+            }
+
+            if skill_call.skill_token.trim().is_empty() {
+                failures.push(ParseFailureEvent {
+                    workspace_id: matched_workspace.clone(),
+                    agent: agent.to_string(),
+                    source_path: source_path.clone(),
+                    session_id: Some(parse_state.session_id.clone()),
+                    line_no,
+                    event_ref: format!("{line_start}:{idx}"),
+                    reason: FAILURE_TOKEN_INVALID.to_string(),
+                    raw_excerpt: truncate_text(trimmed, 400),
+                });
+                continue;
+            }
+
+            let normalized_candidates = normalize_skill_alias_candidates(&skill_call.skill_token);
+            if normalized_candidates.is_empty() {
+                failures.push(ParseFailureEvent {
+                    workspace_id: matched_workspace.clone(),
+                    agent: agent.to_string(),
+                    source_path: source_path.clone(),
+                    session_id: Some(parse_state.session_id.clone()),
+                    line_no,
+                    event_ref: format!("{line_start}:{idx}"),
+                    reason: FAILURE_TOKEN_EMPTY_OR_NOISE.to_string(),
+                    raw_excerpt: truncate_text(trimmed, 400),
+                });
+                continue;
+            }
+
+            let mut alias_candidates = Vec::<SkillAliasCandidate>::new();
+            for token in normalized_candidates {
+                if let Some(items) = skill_aliases.get(&token) {
+                    alias_candidates.extend(items.iter().cloned());
+                }
+            }
+            alias_candidates.sort_by(|left, right| {
+                left.skill_id
+                    .cmp(&right.skill_id)
+                    .then_with(|| left.alias_quality.cmp(&right.alias_quality))
+                    .then_with(|| left.identity.cmp(&right.identity))
+            });
+            alias_candidates.dedup_by(|left, right| {
+                left.skill_id == right.skill_id
+                    && left.alias_quality == right.alias_quality
+                    && left.local_path == right.local_path
+                    && left.source_local_path == right.source_local_path
+            });
+
+            if alias_candidates.is_empty() {
+                failures.push(ParseFailureEvent {
+                    workspace_id: matched_workspace.clone(),
+                    agent: agent.to_string(),
+                    source_path: source_path.clone(),
+                    session_id: Some(parse_state.session_id.clone()),
+                    line_no,
+                    event_ref: format!("{line_start}:{idx}"),
+                    reason: FAILURE_ALIAS_NOT_FOUND.to_string(),
+                    raw_excerpt: truncate_text(trimmed, 400),
+                });
+                continue;
+            }
+
+            let mut scoped = Vec::new();
+            for candidate in &alias_candidates {
+                if let Some((priority, source_rank)) =
+                    resolve_candidate_scope_rank(candidate, &search_dirs)
+                {
+                    scoped.push((candidate.clone(), priority, source_rank));
+                }
+            }
+            let alias = if scoped.is_empty() {
+                match resolve_alias_without_search_dirs(&alias_candidates) {
+                    Ok(candidate) => candidate,
+                    Err(reason) => {
+                        failures.push(ParseFailureEvent {
+                            workspace_id: matched_workspace.clone(),
+                            agent: agent.to_string(),
+                            source_path: source_path.clone(),
+                            session_id: Some(parse_state.session_id.clone()),
+                            line_no,
+                            event_ref: format!("{line_start}:{idx}"),
+                            reason: reason.to_string(),
+                            raw_excerpt: truncate_text(trimmed, 400),
+                        });
+                        continue;
+                    }
+                }
+            } else {
+                scoped.sort_by(|left, right| {
+                    left.0
+                        .alias_quality
+                        .cmp(&right.0.alias_quality)
+                        .then_with(|| left.1.cmp(&right.1))
+                        .then_with(|| left.2.cmp(&right.2))
+                        .then_with(|| left.0.skill_id.cmp(&right.0.skill_id))
+                });
+
+                let chosen = scoped.first().cloned();
+                let Some((alias, first_priority, first_source_rank)) = chosen else {
+                    continue;
+                };
+
+                if scoped.len() > 1 {
+                    let (_, second_priority, second_source_rank) = &scoped[1];
+                    let second = &scoped[1].0;
+                    if alias.alias_quality == second.alias_quality
+                        && first_priority == *second_priority
+                        && first_source_rank == *second_source_rank
+                        && alias.skill_id != second.skill_id
+                    {
+                        failures.push(ParseFailureEvent {
+                            workspace_id: matched_workspace.clone(),
+                            agent: agent.to_string(),
+                            source_path: source_path.clone(),
+                            session_id: Some(parse_state.session_id.clone()),
+                            line_no,
+                            event_ref: format!("{line_start}:{idx}"),
+                            reason: FAILURE_ALIAS_CONFLICT.to_string(),
+                            raw_excerpt: truncate_text(trimmed, 400),
+                        });
+                        continue;
+                    }
+                }
+                alias
             };
 
             let event_workspace_id = workspace_scope.id.clone();
@@ -167,6 +300,8 @@ pub(super) fn parse_session_file(
                 skill_name: alias.name.clone(),
                 called_at: called_at.clone(),
                 result_status: skill_call.result_status.clone(),
+                evidence_source: skill_call.evidence_source.clone(),
+                evidence_kind: skill_call.evidence_kind.clone(),
                 confidence: skill_call.confidence,
                 raw_ref: truncate_text(trimmed, 400),
                 dedupe_key: sha256_hex(&dedupe_seed),
@@ -191,6 +326,8 @@ pub(super) fn parse_session_file(
 pub(super) struct ParsedSkillCall {
     pub(super) skill_token: String,
     pub(super) result_status: String,
+    pub(super) evidence_source: String,
+    pub(super) evidence_kind: String,
     pub(super) confidence: f64,
 }
 
@@ -326,10 +463,13 @@ pub(super) fn extract_from_markdown_skill_links(text: &str) -> Vec<ParsedSkillCa
         if let Some(close_paren) = after_bracket.find(')') {
             let target = &after_bracket[..close_paren];
             if target.to_ascii_lowercase().contains("skill.md") {
+                let skill_token = sanitize_skill_token(token).unwrap_or_else(|| token.trim().to_string());
                 calls.push(ParsedSkillCall {
-                    skill_token: token.trim().to_string(),
+                    skill_token,
                     result_status: RESULT_STATUS_UNKNOWN.to_string(),
-                    confidence: 0.92,
+                    evidence_source: "inferred".to_string(),
+                    evidence_kind: "skill_md_link".to_string(),
+                    confidence: 0.72,
                 });
             }
             remain = &after_bracket[close_paren + 1..];
@@ -357,7 +497,9 @@ pub(super) fn extract_from_shell_command(text: &str) -> Vec<ParsedSkillCall> {
                 calls.push(ParsedSkillCall {
                     skill_token,
                     result_status: RESULT_STATUS_SUCCESS.to_string(),
-                    confidence: 0.98,
+                    evidence_source: "observed".to_string(),
+                    evidence_kind: "explicit_use_skill".to_string(),
+                    confidence: 0.99,
                 });
             }
         }
@@ -398,7 +540,9 @@ pub(super) fn extract_from_use_skill_output(text: &str) -> Vec<ParsedSkillCall> 
             calls.push(ParsedSkillCall {
                 skill_token,
                 result_status: RESULT_STATUS_SUCCESS.to_string(),
-                confidence: 0.96,
+                evidence_source: "observed".to_string(),
+                evidence_kind: "tool_output_signal".to_string(),
+                confidence: 0.9,
             });
         }
     }
@@ -548,6 +692,85 @@ pub(super) fn normalize_skill_alias_candidates(token: &str) -> Vec<String> {
     variants
 }
 
+pub(super) fn resolve_alias_without_search_dirs(
+    alias_candidates: &[SkillAliasCandidate],
+) -> Result<SkillAliasCandidate, &'static str> {
+    if alias_candidates.is_empty() {
+        return Err(FAILURE_ALIAS_NOT_FOUND);
+    }
+
+    let mut ranked = alias_candidates.to_vec();
+    ranked.sort_by(|left, right| {
+        left.alias_quality
+            .cmp(&right.alias_quality)
+            .then_with(|| left.skill_id.cmp(&right.skill_id))
+            .then_with(|| left.identity.cmp(&right.identity))
+    });
+
+    let Some(best) = ranked.first().cloned() else {
+        return Err(FAILURE_ALIAS_NOT_FOUND);
+    };
+
+    let best_quality = best.alias_quality;
+    let mut top_skill_ids = ranked
+        .iter()
+        .filter(|item| item.alias_quality == best_quality)
+        .map(|item| item.skill_id.clone())
+        .collect::<Vec<_>>();
+    top_skill_ids.sort();
+    top_skill_ids.dedup();
+
+    if top_skill_ids.len() > 1 {
+        return Err(FAILURE_ALIAS_CONFLICT);
+    }
+
+    Ok(best)
+}
+
+fn resolve_candidate_scope_rank(
+    candidate: &SkillAliasCandidate,
+    search_dirs: &[AgentSearchDirScope],
+) -> Option<(i64, i32)> {
+    let mut best: Option<(i64, i32)> = None;
+    let mut check = |path: &Option<String>| {
+        let Some(path_value) = path.as_ref() else {
+            return;
+        };
+        let normalized_candidate = normalize_path(path_value);
+        let Some(normalized_candidate) = normalized_candidate else {
+            return;
+        };
+        for dir in search_dirs {
+            let Some(normalized_dir) = normalize_path(&dir.path) else {
+                continue;
+            };
+            if !path_in_dir_scope(&normalized_candidate, &normalized_dir) {
+                continue;
+            }
+            let source_rank = if dir.source.eq_ignore_ascii_case("manual") {
+                0
+            } else {
+                1
+            };
+            let rank = (dir.priority, source_rank);
+            if best.map(|current| rank < current).unwrap_or(true) {
+                best = Some(rank);
+            }
+        }
+    };
+    check(&candidate.local_path);
+    check(&candidate.source_local_path);
+    best
+}
+
+fn path_in_dir_scope(candidate_path: &str, search_dir: &str) -> bool {
+    if candidate_path == search_dir {
+        return true;
+    }
+    candidate_path.starts_with(&format!("{search_dir}/"))
+        || candidate_path.starts_with(&format!("{search_dir}\\"))
+}
+
 pub(super) fn truncate_text(value: &str, limit: usize) -> String {
     if value.len() <= limit {
         return value.to_string();
@@ -562,26 +785,52 @@ pub(super) fn truncate_text(value: &str, limit: usize) -> String {
     value[..end].to_string()
 }
 
-pub(super) fn discover_session_files() -> Vec<SessionFile> {
+pub(super) fn discover_session_files(
+    agent_search_dirs: &HashMap<String, Vec<AgentSearchDirScope>>,
+) -> (Vec<SessionFile>, Vec<SessionDiscoverIssue>) {
     let mut files = Vec::new();
+    let mut issues = Vec::new();
+    let mut visited_paths = HashSet::new();
 
-    if let Some(home) = dirs::home_dir() {
-        let codex_root = home.join(".codex").join("sessions");
-        files.extend(discover_jsonl_files(
-            &codex_root,
-            AGENT_CODEX,
-            SOURCE_CODEX_JSONL,
-        ));
+    let mut agents = agent_search_dirs.keys().cloned().collect::<Vec<_>>();
+    agents.sort();
+    for agent in agents {
+        let dirs = agent_search_dirs.get(&agent).cloned().unwrap_or_default();
+        if dirs.is_empty() {
+            issues.push(SessionDiscoverIssue {
+                agent: agent.clone(),
+                source_path: String::new(),
+                reason: FAILURE_SEARCH_DIRS_EMPTY.to_string(),
+            });
+            continue;
+        }
 
-        let claude_root = home.join(".claude").join("transcripts");
-        files.extend(discover_jsonl_files(
-            &claude_root,
-            AGENT_CLAUDE,
-            SOURCE_CLAUDE_TRANSCRIPT,
-        ));
+        let source = if agent == AGENT_CODEX {
+            SOURCE_CODEX_JSONL
+        } else if agent == AGENT_CLAUDE {
+            SOURCE_CLAUDE_TRANSCRIPT
+        } else {
+            // 仅解析当前支持的 session 格式；其它 agent 先静默跳过，避免把能力缺口计为解析异常。
+            continue;
+        };
+
+        for dir in dirs {
+            let base = PathBuf::from(&dir.path);
+            let root = if agent == AGENT_CODEX {
+                base.join("sessions")
+            } else {
+                base.join("transcripts")
+            };
+            for file in discover_jsonl_files(&root, &agent, source) {
+                let key = file.path.to_string_lossy().to_string();
+                if visited_paths.insert(key) {
+                    files.push(file);
+                }
+            }
+        }
     }
 
-    files
+    (files, issues)
 }
 
 pub(super) fn discover_jsonl_files(root: &Path, agent: &str, source: &str) -> Vec<SessionFile> {

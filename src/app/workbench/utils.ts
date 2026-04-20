@@ -9,6 +9,12 @@ import {
   TRANSLATION_TARGET_LANGUAGE_STORAGE_KEY,
 } from "./constants";
 import type { AppTheme, SkillScanDirectory } from "./types";
+import {
+  getAgentPresetById,
+  resolveAgentPresetRootDir,
+  resolveAgentPresetRuleFile,
+  toAgentPresetSortWeight,
+} from "../../features/settings/components/data-settings/agentPresets";
 
 export function toLocalTime(value: string | null | undefined): string {
   if (!value) {
@@ -181,23 +187,22 @@ export function normalizeAgentTypeInput(value: string): string {
 
 export function defaultAgentConfigDir(home: string, agentType: string): string {
   const normalized = normalizeAgentTypeInput(agentType);
+  const presetRoot = resolveAgentPresetRootDir(home, normalized);
+  if (presetRoot) {
+    return presetRoot;
+  }
   const homeTrimmed = home.trim().replace(/[\\/]+$/, "");
-  if (!homeTrimmed) {
-    return "";
-  }
-  if (normalized === "codex") {
-    return `${homeTrimmed}/.codex`;
-  }
-  if (normalized === "claude") {
-    return `${homeTrimmed}/.claude`;
-  }
-  return "";
+  return homeTrimmed ? `${homeTrimmed}/.${normalized}` : "";
 }
 
 export function defaultAgentRuleFile(agentType: string): string {
   const normalized = normalizeAgentTypeInput(agentType);
-  if (normalized === "claude") {
-    return "CLAUDE.md";
+  const presetRule = resolveAgentPresetRuleFile(normalized);
+  if (presetRule) {
+    return presetRule;
+  }
+  if (getAgentPresetById(normalized)) {
+    return "AGENTS.md";
   }
   return "AGENTS.md";
 }
@@ -223,14 +228,7 @@ export function isValidRuleFileInput(ruleFile: string): boolean {
 }
 
 export function toAgentSortWeight(agentType: string): number {
-  const normalized = normalizeAgentTypeInput(agentType);
-  if (normalized === "codex") {
-    return 0;
-  }
-  if (normalized === "claude") {
-    return 1;
-  }
-  return 2;
+  return toAgentPresetSortWeight(agentType);
 }
 
 export function isAbsolutePathInput(path: string): boolean {

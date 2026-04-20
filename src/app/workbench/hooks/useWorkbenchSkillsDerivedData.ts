@@ -1,7 +1,11 @@
 import { useMemo } from "react";
 
 import type { SkillsConfigConflictPair, SkillsConfigGroup } from "../../../features/skills/components/SkillsConfigPanel";
-import type { SkillManagerStatus, SkillsManagerMatrixSummary } from "../../../shared/types";
+import type {
+  SkillManagerStatus,
+  SkillsManagerMatrixSummary,
+  SkillsUsageStatsRow,
+} from "../../../shared/types";
 
 type SkillsManagerSkill = {
   id: string;
@@ -28,6 +32,8 @@ type UseWorkbenchSkillsDerivedDataInput = {
   skillQuery: string;
   activeWorkspaceRootPath: string;
   selectedSkillScanDirectories: string[];
+  agentPlatformOrder: string[];
+  usageStatsBySkillId: Record<string, SkillsUsageStatsRow>;
   normalizeDirectoryInput: (input: string) => string;
   getManagerOperationsRows: () => any[];
   managerMatrixFilter: { tool?: string | null; status: "all" | "missing" | SkillManagerStatus };
@@ -44,6 +50,8 @@ export function useWorkbenchSkillsDerivedData({
   skillQuery,
   activeWorkspaceRootPath,
   selectedSkillScanDirectories,
+  agentPlatformOrder,
+  usageStatsBySkillId,
   normalizeDirectoryInput,
   getManagerOperationsRows,
   managerMatrixFilter,
@@ -112,7 +120,13 @@ export function useWorkbenchSkillsDerivedData({
 
   const operationsSourceRows = useMemo<any[]>(
     () => getManagerOperationsRows().filter((row) => filteredSkillIdSet.has(row.id)),
-    [getManagerOperationsRows, managerState, managerRowHints, filteredSkillIdSet],
+    [
+      getManagerOperationsRows,
+      managerState,
+      managerRowHints,
+      filteredSkillIdSet,
+      usageStatsBySkillId,
+    ],
   );
 
   const operationsRows = useMemo<any[]>(() => {
@@ -174,8 +188,27 @@ export function useWorkbenchSkillsDerivedData({
         issueCount: total - item.linked,
       };
     });
-    return list.sort((left, right) => left.tool.localeCompare(right.tool));
-  }, [operationsSourceRows]);
+    const orderMap = new Map(
+      agentPlatformOrder
+        .map((item) => item.trim().toLowerCase())
+        .filter(Boolean)
+        .map((tool, index) => [tool, index] as const),
+    );
+    return list.sort((left, right) => {
+      const leftOrder = orderMap.get(left.tool.toLowerCase());
+      const rightOrder = orderMap.get(right.tool.toLowerCase());
+      if (leftOrder !== undefined && rightOrder !== undefined && leftOrder !== rightOrder) {
+        return leftOrder - rightOrder;
+      }
+      if (leftOrder !== undefined && rightOrder === undefined) {
+        return -1;
+      }
+      if (leftOrder === undefined && rightOrder !== undefined) {
+        return 1;
+      }
+      return left.tool.localeCompare(right.tool);
+    });
+  }, [operationsSourceRows, agentPlatformOrder]);
 
   const managerSkillById = useMemo(
     () => new Map((managerState?.skills ?? []).map((item) => [item.id, item])),

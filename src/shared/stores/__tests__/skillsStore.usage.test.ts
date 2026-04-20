@@ -60,6 +60,7 @@ function resetStore() {
     managerLastBatchResult: null,
     usageAgentFilter: "",
     usageSourceFilter: "",
+    usageEvidenceSourceFilter: "",
     usageStatsBySkillId: {},
     usageStatsLoading: false,
     usageStatsError: "",
@@ -79,7 +80,7 @@ describe("useSkillsStore usage actions", () => {
     resetStore();
   });
 
-  it("refreshUsageStats 会按过滤条件写入统计映射", async () => {
+  it("refreshUsageStats 会全量写入统计映射", async () => {
     useSkillsStore.getState().setUsageFilters({ agent: "codex", source: "codex_jsonl" });
     skillsUsageApi.queryStats.mockResolvedValueOnce({
       rows: [
@@ -98,6 +99,7 @@ describe("useSkillsStore usage actions", () => {
       workspaceId: "w1",
       agent: "codex",
       source: "codex_jsonl",
+      evidenceSource: undefined,
     });
     expect(useSkillsStore.getState().usageStatsBySkillId.s1?.totalCalls).toBe(12);
     expect(useSkillsStore.getState().usageStatsLoading).toBe(false);
@@ -111,6 +113,8 @@ describe("useSkillsStore usage actions", () => {
           agent: "codex",
           source: "codex_jsonl",
           resultStatus: "success",
+          evidenceSource: "observed",
+          evidenceKind: "explicit_use_skill",
           confidence: 0.95,
           sessionId: "sess-1",
           eventRef: "1:0",
@@ -127,6 +131,7 @@ describe("useSkillsStore usage actions", () => {
       skillId: "s1",
       agent: undefined,
       source: undefined,
+      evidenceSource: undefined,
       limit: 120,
       offset: 0,
     });
@@ -159,4 +164,3 @@ describe("useSkillsStore usage actions", () => {
     expect(skillsUsageApi.syncStart).not.toHaveBeenCalled();
   });
 });
-

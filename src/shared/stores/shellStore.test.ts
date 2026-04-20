@@ -17,6 +17,8 @@ describe("useShellStore persist", () => {
       mobileDetailOpen: false,
       promptViewMode: "list",
       skillDetailTab: "overview",
+      skillsHubSortMode: "default",
+      agentPlatformOrderByWorkspace: {},
       settingsCategory: "general",
       searchHits: [],
     });
@@ -26,6 +28,8 @@ describe("useShellStore persist", () => {
     useShellStore.getState().setActiveModule("skills");
     useShellStore.getState().setPromptViewMode("gallery");
     useShellStore.getState().setSkillDetailTab("files");
+    useShellStore.getState().setSkillsHubSortMode("calls_desc");
+    useShellStore.getState().setAgentPlatformOrder("w1", ["codex", "claude"]);
     useShellStore.getState().setSettingsCategory("security");
 
     useShellStore.getState().setQuery("query-should-not-persist");
@@ -44,12 +48,18 @@ describe("useShellStore persist", () => {
       activeModule: "skills",
       promptViewMode: "gallery",
       skillDetailTab: "files",
+      skillsHubSortMode: "calls_desc",
+      agentPlatformOrderByWorkspace: {
+        w1: ["codex", "claude"],
+      },
       settingsCategory: "security",
     });
     expect(Object.keys(payload.state)).toEqual([
       "activeModule",
       "promptViewMode",
       "skillDetailTab",
+      "skillsHubSortMode",
+      "agentPlatformOrderByWorkspace",
       "settingsCategory",
     ]);
   });

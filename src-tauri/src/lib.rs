@@ -11,10 +11,10 @@ use tauri::Manager;
 
 use control_plane::agent_rules_v2::{
     agent_connection_delete, agent_connection_list, agent_connection_preview,
-    agent_connection_toggle, agent_connection_upsert, agent_rule_apply, agent_rule_asset_create,
-    agent_rule_asset_delete, agent_rule_asset_list, agent_rule_asset_rename,
-    agent_rule_publish_version, agent_rule_refresh, agent_rule_retry, agent_rule_rollback,
-    agent_rule_status, agent_rule_versions,
+    agent_connection_redetect, agent_connection_restore_defaults, agent_connection_toggle,
+    agent_connection_upsert, agent_rule_apply, agent_rule_asset_create, agent_rule_asset_delete,
+    agent_rule_asset_list, agent_rule_asset_rename, agent_rule_publish_version, agent_rule_refresh,
+    agent_rule_retry, agent_rule_rollback, agent_rule_status, agent_rule_versions,
 };
 use control_plane::commands::{
     agent_doc_hash, agent_doc_read, agent_doc_save, audit_query, distribution_detect_drift,
@@ -32,11 +32,11 @@ use control_plane::local_agent_translation::{
     prompt_translation_run, translation_config_get, translation_config_update,
 };
 use control_plane::skills_manager::{
-    skills_manager_batch_link, skills_manager_batch_unlink, skills_manager_clean,
-    skills_manager_delete, skills_manager_diff_cancel, skills_manager_diff_progress,
-    skills_manager_diff_start, skills_manager_link_preview, skills_manager_purge,
-    skills_manager_restore, skills_manager_rules_update, skills_manager_state, skills_manager_sync,
-    skills_manager_update_then_link,
+    skills_manager_batch_link, skills_manager_batch_unlink, skills_manager_check_external_updates,
+    skills_manager_clean, skills_manager_delete, skills_manager_diff_cancel,
+    skills_manager_diff_progress, skills_manager_diff_start, skills_manager_link_preview,
+    skills_manager_purge, skills_manager_restore, skills_manager_rules_update,
+    skills_manager_state, skills_manager_sync, skills_manager_update_then_link,
 };
 use control_plane::skills_usage::{
     skills_usage_query_calls, skills_usage_query_stats, skills_usage_sync_progress,
@@ -75,6 +75,8 @@ pub fn run() {
             agent_connection_upsert,
             agent_connection_toggle,
             agent_connection_delete,
+            agent_connection_redetect,
+            agent_connection_restore_defaults,
             agent_connection_preview,
             agent_rule_asset_list,
             agent_rule_asset_create,
@@ -119,6 +121,7 @@ pub fn run() {
             skills_manager_diff_cancel,
             skills_manager_link_preview,
             skills_manager_update_then_link,
+            skills_manager_check_external_updates,
             prompt_create,
             prompt_update,
             prompt_delete,

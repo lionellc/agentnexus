@@ -12,6 +12,27 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement | u
     | undefined;
 }
 
+function findButtonByAriaLabel(container: HTMLElement, text: string): HTMLButtonElement | undefined {
+  return Array.from(container.querySelectorAll("button")).find((button) =>
+    button.getAttribute("aria-label")?.includes(text),
+  ) as HTMLButtonElement | undefined;
+}
+
+async function openTranslationPanel(container: HTMLElement) {
+  const alreadyOpen = Boolean(
+    findButton(container, "显示译文") ||
+    findButton(container, "隐藏译文"),
+  );
+  if (alreadyOpen) {
+    return;
+  }
+  const panelButton = findButtonByAriaLabel(container, "翻译工具");
+  expect(panelButton).toBeTruthy();
+  await act(async () => {
+    panelButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+}
+
 function createProps(overrides: Partial<ViewerProps> = {}): ViewerProps {
   return {
     isZh: true,
@@ -59,6 +80,8 @@ describe("TranslatableTextViewer", () => {
       root.render(<TranslatableTextViewer {...props} />);
     });
 
+    await openTranslationPanel(container);
+
     const translateButton = findButton(container, "翻译");
     expect(translateButton).toBeTruthy();
 
@@ -76,7 +99,7 @@ describe("TranslatableTextViewer", () => {
     expect(onTranslate).toHaveBeenCalledTimes(1);
   });
 
-  it("显示译文按钮按目标语言可用性启用/禁用", () => {
+  it("显示译文按钮按目标语言可用性启用/禁用", async () => {
     const props = createProps({
       targetLanguage: "zh-CN",
       translatedText: "中文译文",
@@ -86,6 +109,7 @@ describe("TranslatableTextViewer", () => {
       root.render(<TranslatableTextViewer {...props} />);
     });
 
+    await openTranslationPanel(container);
     const showButtonAtZh = findButton(container, "显示译文");
     expect(showButtonAtZh).toBeTruthy();
     expect(showButtonAtZh?.disabled).toBe(false);
@@ -100,6 +124,7 @@ describe("TranslatableTextViewer", () => {
       );
     });
 
+    await openTranslationPanel(container);
     const showButtonAtEnBeforeData = findButton(container, "显示译文");
     expect(showButtonAtEnBeforeData).toBeTruthy();
     expect(showButtonAtEnBeforeData?.disabled).toBe(true);
@@ -114,6 +139,7 @@ describe("TranslatableTextViewer", () => {
       );
     });
 
+    await openTranslationPanel(container);
     const showButtonAtEnAfterData = findButton(container, "显示译文");
     expect(showButtonAtEnAfterData).toBeTruthy();
     expect(showButtonAtEnAfterData?.disabled).toBe(false);
@@ -138,6 +164,8 @@ describe("TranslatableTextViewer", () => {
       root.render(<TranslatableTextViewer {...props} />);
     });
 
+    await openTranslationPanel(container);
+
     const idleTranslateButton = findButton(container, "翻译");
     expect(idleTranslateButton).toBeTruthy();
     expect(idleTranslateButton?.textContent).toContain("翻译");
@@ -160,6 +188,8 @@ describe("TranslatableTextViewer", () => {
         />,
       );
     });
+
+    await openTranslationPanel(container);
 
     const idleButtonAtEn = findButton(container, "翻译");
     expect(idleButtonAtEn).toBeTruthy();

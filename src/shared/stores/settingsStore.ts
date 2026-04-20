@@ -14,6 +14,7 @@ import {
 import type {
   AgentConnection,
   AgentConnectionDeleteInput,
+  AgentConnectionPresetActionInput,
   AgentConnectionToggleInput,
   AgentConnectionUpsertInput,
   DistributionTarget,
@@ -69,6 +70,8 @@ type SettingsState = {
   upsertConnection: (input: AgentConnectionUpsertInput) => Promise<SettingsSaveResult>;
   toggleConnection: (input: AgentConnectionToggleInput) => Promise<SettingsSaveResult>;
   deleteConnection: (input: AgentConnectionDeleteInput) => Promise<SettingsSaveResult>;
+  redetectConnection: (input: AgentConnectionPresetActionInput) => Promise<SettingsSaveResult>;
+  restoreConnectionDefaults: (input: AgentConnectionPresetActionInput) => Promise<SettingsSaveResult>;
   upsertTarget: (input: TargetUpsertInput) => Promise<SettingsSaveResult>;
   deleteTarget: (input: TargetDeleteInput) => Promise<SettingsSaveResult>;
   updateRuntimeFlags: (next: RuntimeFlags) => Promise<SettingsSaveResult>;
@@ -316,6 +319,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const connections = await agentConnectionApi.delete(input);
     set({ connections });
     return { ok: true, message: message("连接已删除", "Connection deleted") };
+  },
+  redetectConnection: async (input) => {
+    const connection = await agentConnectionApi.redetect(input);
+    set((state) => ({
+      connections: state.connections.map((item) =>
+        item.workspaceId === connection.workspaceId && item.platform === connection.platform
+          ? connection
+          : item,
+      ),
+    }));
+    return { ok: true, message: message("已完成重新检测", "Redetection completed") };
+  },
+  restoreConnectionDefaults: async (input) => {
+    const connection = await agentConnectionApi.restoreDefaults(input);
+    set((state) => ({
+      connections: state.connections.map((item) =>
+        item.workspaceId === connection.workspaceId && item.platform === connection.platform
+          ? connection
+          : item,
+      ),
+    }));
+    return { ok: true, message: message("已恢复默认配置", "Defaults restored") };
   },
   upsertTarget: async (input) => {
     if (!validateTargetPath(input.targetPath)) {

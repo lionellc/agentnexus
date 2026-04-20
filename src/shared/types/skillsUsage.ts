@@ -6,6 +6,7 @@ export type SkillsUsageSyncStatus =
   | string;
 
 export type SkillsUsageResultStatus = "success" | "failed" | "unknown" | string;
+export type SkillsUsageEvidenceSource = "observed" | "inferred" | string;
 
 export interface SkillsUsageSyncStartInput {
   workspaceId: string;
@@ -20,6 +21,7 @@ export interface SkillsUsageStatsQueryInput {
   workspaceId: string;
   agent?: string;
   source?: string;
+  evidenceSource?: SkillsUsageEvidenceSource;
 }
 
 export interface SkillsUsageCallsQueryInput {
@@ -27,6 +29,7 @@ export interface SkillsUsageCallsQueryInput {
   skillId: string;
   agent?: string;
   source?: string;
+  evidenceSource?: SkillsUsageEvidenceSource;
   limit?: number;
   offset?: number;
 }
@@ -63,6 +66,8 @@ export interface SkillsUsageCallItem {
   agent: string;
   source: string;
   resultStatus: SkillsUsageResultStatus;
+  evidenceSource: SkillsUsageEvidenceSource;
+  evidenceKind: string;
   confidence: number;
   sessionId: string;
   eventRef: string;
@@ -73,4 +78,3 @@ export interface SkillsUsageCallsResult {
   items: SkillsUsageCallItem[];
   total: number;
 }
-

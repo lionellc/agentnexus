@@ -9,7 +9,12 @@ import {
   Tag,
   type TagProps,
 } from "../../../shared/ui";
-import type { SkillsUsageCallItem, SkillsUsageResultStatus, SkillsUsageSyncJobSnapshot } from "../../../shared/types";
+import type {
+  SkillsUsageCallItem,
+  SkillsUsageEvidenceSource,
+  SkillsUsageResultStatus,
+  SkillsUsageSyncJobSnapshot,
+} from "../../../shared/types";
 
 export type SkillUsageTimelineDialogProps = {
   open: boolean;
@@ -32,6 +37,10 @@ function resultTone(status: SkillsUsageResultStatus): NonNullable<TagProps["tone
     return "danger";
   }
   return "neutral";
+}
+
+function evidenceTone(source: SkillsUsageEvidenceSource): NonNullable<TagProps["tone"]> {
+  return source === "observed" ? "success" : "neutral";
 }
 
 function progressPercent(job: SkillsUsageSyncJobSnapshot | null): number {
@@ -133,11 +142,15 @@ export function SkillUsageTimelineDialog({
                       <Tag tone="neutral">{item.agent}</Tag>
                       <Tag tone="neutral">{item.source}</Tag>
                       <Tag tone={resultTone(item.resultStatus)}>{item.resultStatus}</Tag>
+                      <Tag tone={evidenceTone(item.evidenceSource)}>{item.evidenceSource}</Tag>
                     </div>
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
                     session: {item.sessionId} · event: {item.eventRef} · confidence:{" "}
                     {item.confidence.toFixed(2)}
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">
+                    evidence: {item.evidenceKind}
                   </div>
                 </li>
               ))}

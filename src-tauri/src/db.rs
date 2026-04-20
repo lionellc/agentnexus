@@ -5,6 +5,9 @@ use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 use crate::{
+    control_plane::agent_presets::{
+        all_builtin_agent_presets, default_agent_enabled as preset_default_agent_enabled,
+    },
     domain::models::RuntimeFlags,
     error::AppError,
     utils::{now_rfc3339, sha256_hex},
@@ -172,6 +175,28 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
             FOREIGN KEY(asset_id) REFERENCES skills_assets(id) ON DELETE CASCADE
         );
 
+        CREATE TABLE IF NOT EXISTS skills_asset_sources (
+            id TEXT PRIMARY KEY,
+            asset_id TEXT NOT NULL UNIQUE,
+            source_type TEXT NOT NULL DEFAULT 'local',
+            source TEXT NOT NULL DEFAULT '',
+            source_url TEXT NOT NULL DEFAULT '',
+            skill_path TEXT NOT NULL DEFAULT '',
+            repo_owner TEXT NOT NULL DEFAULT '',
+            repo_name TEXT NOT NULL DEFAULT '',
+            repo_ref TEXT NOT NULL DEFAULT '',
+            source_local_path TEXT NOT NULL DEFAULT '',
+            local_content_hash TEXT NOT NULL DEFAULT '',
+            remote_content_hash TEXT NOT NULL DEFAULT '',
+            hash_checked_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(asset_id) REFERENCES skills_assets(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_skills_asset_sources_source
+            ON skills_asset_sources(source_type, source);
+
         CREATE TABLE IF NOT EXISTS skills_manager_configs (
             workspace_id TEXT PRIMARY KEY,
             rules_json TEXT NOT NULL DEFAULT '{}',
@@ -266,6 +291,8 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
             skill_name TEXT NOT NULL,
             called_at TEXT NOT NULL,
             result_status TEXT NOT NULL,
+            evidence_source TEXT NOT NULL DEFAULT 'observed',
+            evidence_kind TEXT NOT NULL DEFAULT 'explicit_use_skill',
             confidence REAL NOT NULL DEFAULT 0,
             raw_ref TEXT NOT NULL,
             dedupe_key TEXT NOT NULL UNIQUE,
@@ -322,11 +349,28 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
             agent_type TEXT NOT NULL,
             root_dir TEXT NOT NULL DEFAULT '',
             rule_file TEXT NOT NULL DEFAULT '',
+            root_dir_source TEXT NOT NULL DEFAULT 'inferred',
+            rule_file_source TEXT NOT NULL DEFAULT 'inferred',
+            detection_status TEXT NOT NULL DEFAULT 'undetected',
+            detected_at TEXT,
             enabled INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
             UNIQUE(workspace_id, agent_type),
             FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS agent_connection_search_dirs (
+            id TEXT PRIMARY KEY,
+            connection_id TEXT NOT NULL,
+            path TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            priority INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL DEFAULT 'inferred',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(connection_id, path),
+            FOREIGN KEY(connection_id) REFERENCES agent_connections(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS global_rule_assets (
@@ -408,10 +452,13 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
 
     run_backfill_once(conn)?;
     run_skills_assets_source_metadata_migration_once(conn)?;
+    run_skills_asset_sources_migration_once(conn)?;
     run_agent_connection_rule_file_migration_once(conn)?;
+    run_agent_connection_search_dirs_migration_once(conn)?;
     run_global_rules_migration_once(conn)?;
     run_local_agent_translation_migration_once(conn)?;
     run_drop_legacy_metrics_tables_once(conn)?;
+    run_skill_call_facts_evidence_migration_once(conn)?;
 
     Ok(())
 }
@@ -497,6 +544,89 @@ fn run_skills_assets_source_metadata_migration_once(conn: &Connection) -> Result
     Ok(())
 }
 
+fn run_skills_asset_sources_migration_once(conn: &Connection) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM migration_meta WHERE key = 'migrate_skills_asset_sources_v1'",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(());
+    }
+
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS skills_asset_sources (
+            id TEXT PRIMARY KEY,
+            asset_id TEXT NOT NULL UNIQUE,
+            source_type TEXT NOT NULL DEFAULT 'local',
+            source TEXT NOT NULL DEFAULT '',
+            source_url TEXT NOT NULL DEFAULT '',
+            skill_path TEXT NOT NULL DEFAULT '',
+            repo_owner TEXT NOT NULL DEFAULT '',
+            repo_name TEXT NOT NULL DEFAULT '',
+            repo_ref TEXT NOT NULL DEFAULT '',
+            source_local_path TEXT NOT NULL DEFAULT '',
+            local_content_hash TEXT NOT NULL DEFAULT '',
+            remote_content_hash TEXT NOT NULL DEFAULT '',
+            hash_checked_at TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(asset_id) REFERENCES skills_assets(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_skills_asset_sources_source
+            ON skills_asset_sources(source_type, source);
+        "#,
+    )?;
+
+    let mut stmt = conn.prepare(
+        "SELECT id, source, COALESCE(source_local_path, '')
+         FROM skills_assets
+         ORDER BY created_at ASC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+        ))
+    })?;
+
+    let now = now_rfc3339();
+    for row in rows {
+        let (asset_id, source, source_local_path) = row?;
+        let source_row_exists: i64 = conn.query_row(
+            "SELECT COUNT(1) FROM skills_asset_sources WHERE asset_id = ?1",
+            params![asset_id],
+            |r| r.get(0),
+        )?;
+        if source_row_exists > 0 {
+            continue;
+        }
+
+        conn.execute(
+            "INSERT INTO skills_asset_sources(
+                id, asset_id, source_type, source, source_local_path, created_at, updated_at
+             ) VALUES (?1, ?2, 'local', ?3, ?4, ?5, ?6)",
+            params![
+                Uuid::new_v4().to_string(),
+                asset_id,
+                source,
+                source_local_path,
+                now,
+                now,
+            ],
+        )?;
+    }
+
+    conn.execute(
+        "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
+        params!["migrate_skills_asset_sources_v1", "done", now_rfc3339()],
+    )?;
+
+    Ok(())
+}
+
 fn run_global_rules_migration_once(conn: &Connection) -> Result<(), AppError> {
     let exists: i64 = conn.query_row(
         "SELECT COUNT(1) FROM migration_meta WHERE key = 'migrate_global_rule_assets_v1'",
@@ -516,8 +646,9 @@ fn run_global_rules_migration_once(conn: &Connection) -> Result<(), AppError> {
     }
 
     for workspace_id in workspace_ids {
-        ensure_default_agent_connection(conn, &workspace_id, "codex", &now)?;
-        ensure_default_agent_connection(conn, &workspace_id, "claude", &now)?;
+        for preset in all_builtin_agent_presets() {
+            ensure_default_agent_connection(conn, &workspace_id, preset.id, &now)?;
+        }
         migrate_legacy_agent_doc(conn, &workspace_id, &now)?;
     }
 
@@ -609,6 +740,53 @@ fn run_drop_legacy_metrics_tables_once(conn: &Connection) -> Result<(), AppError
     Ok(())
 }
 
+fn run_skill_call_facts_evidence_migration_once(conn: &Connection) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM migration_meta WHERE key = 'migrate_skill_call_facts_evidence_v1'",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(());
+    }
+
+    if !column_exists(conn, "skill_call_facts", "evidence_source")? {
+        conn.execute(
+            "ALTER TABLE skill_call_facts ADD COLUMN evidence_source TEXT NOT NULL DEFAULT 'observed'",
+            [],
+        )?;
+    }
+    if !column_exists(conn, "skill_call_facts", "evidence_kind")? {
+        conn.execute(
+            "ALTER TABLE skill_call_facts ADD COLUMN evidence_kind TEXT NOT NULL DEFAULT 'explicit_use_skill'",
+            [],
+        )?;
+    }
+
+    conn.execute(
+        "UPDATE skill_call_facts
+         SET evidence_source = CASE
+                 WHEN trim(COALESCE(evidence_source, '')) = '' THEN 'observed'
+                 ELSE evidence_source
+             END,
+             evidence_kind = CASE
+                 WHEN trim(COALESCE(evidence_kind, '')) = '' THEN 'explicit_use_skill'
+                 ELSE evidence_kind
+             END",
+        [],
+    )?;
+
+    conn.execute(
+        "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
+        params![
+            "migrate_skill_call_facts_evidence_v1",
+            "done",
+            now_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
 fn ensure_default_agent_connection(
     conn: &Connection,
     workspace_id: &str,
@@ -617,36 +795,114 @@ fn ensure_default_agent_connection(
 ) -> Result<(), AppError> {
     let default_root = default_agent_root_dir(agent_type);
     let default_rule_file = default_agent_rule_file(agent_type);
-    conn.execute(
-        "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6, ?7)
-         ON CONFLICT(workspace_id, agent_type) DO UPDATE SET
-            root_dir = CASE
-                WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
-                THEN excluded.root_dir
-                ELSE agent_connections.root_dir
-            END,
-            rule_file = CASE
-                WHEN trim(COALESCE(agent_connections.rule_file, '')) = ''
-                THEN excluded.rule_file
-                ELSE agent_connections.rule_file
-            END,
-            updated_at = CASE
-                WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
-                  OR trim(COALESCE(agent_connections.rule_file, '')) = ''
-                THEN excluded.updated_at
-                ELSE agent_connections.updated_at
-            END",
-        params![
-            Uuid::new_v4().to_string(),
-            workspace_id,
-            agent_type,
-            default_root,
-            default_rule_file,
-            now,
-            now
-        ],
-    )?;
+    let default_enabled = if preset_default_agent_enabled(agent_type) {
+        1
+    } else {
+        0
+    };
+    let has_source_columns = column_exists(conn, "agent_connections", "root_dir_source")?
+        && column_exists(conn, "agent_connections", "rule_file_source")?
+        && column_exists(conn, "agent_connections", "detection_status")?;
+    if has_source_columns {
+        let detection_status = infer_detection_status(&default_root);
+        let detected_at = if detection_status == "detected" {
+            Some(now.to_string())
+        } else {
+            None
+        };
+        conn.execute(
+            "INSERT INTO agent_connections(
+                id, workspace_id, agent_type, root_dir, rule_file, root_dir_source, rule_file_source,
+                detection_status, detected_at, enabled, created_at, updated_at
+            )
+             VALUES (?1, ?2, ?3, ?4, ?5, 'inferred', 'inferred', ?6, ?7, ?8, ?9, ?10)
+             ON CONFLICT(workspace_id, agent_type) DO UPDATE SET
+                root_dir = CASE
+                    WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                    THEN excluded.root_dir
+                    ELSE agent_connections.root_dir
+                END,
+                rule_file = CASE
+                    WHEN trim(COALESCE(agent_connections.rule_file, '')) = ''
+                    THEN excluded.rule_file
+                    ELSE agent_connections.rule_file
+                END,
+                root_dir_source = CASE
+                    WHEN trim(COALESCE(agent_connections.root_dir_source, '')) = ''
+                    THEN excluded.root_dir_source
+                    ELSE agent_connections.root_dir_source
+                END,
+                rule_file_source = CASE
+                    WHEN trim(COALESCE(agent_connections.rule_file_source, '')) = ''
+                    THEN excluded.rule_file_source
+                    ELSE agent_connections.rule_file_source
+                END,
+                detection_status = CASE
+                    WHEN trim(COALESCE(agent_connections.detection_status, '')) = ''
+                    THEN excluded.detection_status
+                    ELSE agent_connections.detection_status
+                END,
+                detected_at = CASE
+                    WHEN agent_connections.detected_at IS NULL
+                    THEN excluded.detected_at
+                    ELSE agent_connections.detected_at
+                END,
+                updated_at = CASE
+                    WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                      OR trim(COALESCE(agent_connections.rule_file, '')) = ''
+                    THEN excluded.updated_at
+                    ELSE agent_connections.updated_at
+                END",
+            params![
+                Uuid::new_v4().to_string(),
+                workspace_id,
+                agent_type,
+                default_root,
+                default_rule_file,
+                detection_status,
+                detected_at,
+                default_enabled,
+                now,
+                now
+            ],
+        )?;
+    } else {
+        conn.execute(
+            "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+             ON CONFLICT(workspace_id, agent_type) DO UPDATE SET
+                root_dir = CASE
+                    WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                    THEN excluded.root_dir
+                    ELSE agent_connections.root_dir
+                END,
+                rule_file = CASE
+                    WHEN trim(COALESCE(agent_connections.rule_file, '')) = ''
+                    THEN excluded.rule_file
+                    ELSE agent_connections.rule_file
+                END,
+                updated_at = CASE
+                    WHEN trim(COALESCE(agent_connections.root_dir, '')) = ''
+                      OR trim(COALESCE(agent_connections.rule_file, '')) = ''
+                    THEN excluded.updated_at
+                    ELSE agent_connections.updated_at
+                END",
+            params![
+                Uuid::new_v4().to_string(),
+                workspace_id,
+                agent_type,
+                default_root,
+                default_rule_file,
+                default_enabled,
+                now,
+                now
+            ],
+        )?;
+    }
+
+    if table_exists(conn, "agent_connection_search_dirs")? {
+        ensure_default_agent_search_dirs(conn, workspace_id, agent_type, now)?;
+    }
     Ok(())
 }
 
@@ -659,6 +915,74 @@ fn column_exists(conn: &Connection, table: &str, column: &str) -> Result<bool, A
         }
     }
     Ok(false)
+}
+
+fn table_exists(conn: &Connection, table: &str) -> Result<bool, AppError> {
+    let count: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM sqlite_master WHERE type = 'table' AND name = ?1",
+        params![table],
+        |row| row.get(0),
+    )?;
+    Ok(count > 0)
+}
+
+fn infer_detection_status(root_dir: &str) -> &'static str {
+    let trimmed = root_dir.trim();
+    if trimmed.is_empty() {
+        return "undetected";
+    }
+    match fs::metadata(trimmed) {
+        Ok(metadata) => {
+            if metadata.is_dir() {
+                "detected"
+            } else {
+                "undetected"
+            }
+        }
+        Err(err) if err.kind() == std::io::ErrorKind::PermissionDenied => "permission_denied",
+        Err(_) => "undetected",
+    }
+}
+
+fn ensure_default_agent_search_dirs(
+    conn: &Connection,
+    workspace_id: &str,
+    agent_type: &str,
+    now: &str,
+) -> Result<(), AppError> {
+    let row = conn
+        .query_row(
+            "SELECT id, root_dir FROM agent_connections WHERE workspace_id = ?1 AND agent_type = ?2",
+            params![workspace_id, agent_type],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+        )
+        .optional()?;
+    let Some((connection_id, root_dir)) = row else {
+        return Ok(());
+    };
+
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM agent_connection_search_dirs WHERE connection_id = ?1",
+        params![connection_id.as_str()],
+        |item| item.get(0),
+    )?;
+    if exists > 0 || root_dir.trim().is_empty() {
+        return Ok(());
+    }
+
+    conn.execute(
+        "INSERT INTO agent_connection_search_dirs(
+            id, connection_id, path, enabled, priority, source, created_at, updated_at
+        ) VALUES (?1, ?2, ?3, 1, 0, 'inferred', ?4, ?5)",
+        params![
+            Uuid::new_v4().to_string(),
+            connection_id,
+            root_dir.trim(),
+            now,
+            now,
+        ],
+    )?;
+    Ok(())
 }
 
 fn run_agent_connection_rule_file_migration_once(conn: &Connection) -> Result<(), AppError> {
@@ -687,7 +1011,8 @@ fn run_agent_connection_rule_file_migration_once(conn: &Connection) -> Result<()
     }
 
     for workspace_id in workspace_ids {
-        for agent_type in ["codex", "claude"] {
+        for preset in all_builtin_agent_presets() {
+            let agent_type = preset.id;
             let default_root = default_agent_root_dir(agent_type);
             let default_rule_file = default_agent_rule_file(agent_type);
             conn.execute(
@@ -712,7 +1037,7 @@ fn run_agent_connection_rule_file_migration_once(conn: &Connection) -> Result<()
                     agent_type,
                     default_root,
                     default_rule_file,
-                    now
+                    now.as_str()
                 ],
             )?;
             ensure_default_agent_connection(conn, &workspace_id, agent_type, &now)?;
@@ -730,28 +1055,141 @@ fn run_agent_connection_rule_file_migration_once(conn: &Connection) -> Result<()
     Ok(())
 }
 
-fn default_agent_root_dir(agent_type: &str) -> String {
-    let normalized = agent_type.trim().to_lowercase();
-    let suffix = match normalized.as_str() {
-        "codex" => Some(".codex"),
-        "claude" => Some(".claude"),
-        _ => None,
-    };
+fn run_agent_connection_search_dirs_migration_once(conn: &Connection) -> Result<(), AppError> {
+    let exists: i64 = conn.query_row(
+        "SELECT COUNT(1) FROM migration_meta WHERE key = 'migrate_agent_connection_search_dirs_v1'",
+        [],
+        |row| row.get(0),
+    )?;
+    if exists > 0 {
+        return Ok(());
+    }
 
-    if let Some(suffix) = suffix {
-        if let Some(home) = dirs::home_dir() {
-            return home.join(suffix).to_string_lossy().to_string();
+    if !column_exists(conn, "agent_connections", "root_dir_source")? {
+        conn.execute(
+            "ALTER TABLE agent_connections ADD COLUMN root_dir_source TEXT NOT NULL DEFAULT 'inferred'",
+            [],
+        )?;
+    }
+    if !column_exists(conn, "agent_connections", "rule_file_source")? {
+        conn.execute(
+            "ALTER TABLE agent_connections ADD COLUMN rule_file_source TEXT NOT NULL DEFAULT 'inferred'",
+            [],
+        )?;
+    }
+    if !column_exists(conn, "agent_connections", "detection_status")? {
+        conn.execute(
+            "ALTER TABLE agent_connections ADD COLUMN detection_status TEXT NOT NULL DEFAULT 'undetected'",
+            [],
+        )?;
+    }
+    if !column_exists(conn, "agent_connections", "detected_at")? {
+        conn.execute("ALTER TABLE agent_connections ADD COLUMN detected_at TEXT", [])?;
+    }
+
+    conn.execute_batch(
+        r#"
+        CREATE TABLE IF NOT EXISTS agent_connection_search_dirs (
+            id TEXT PRIMARY KEY,
+            connection_id TEXT NOT NULL,
+            path TEXT NOT NULL,
+            enabled INTEGER NOT NULL DEFAULT 1,
+            priority INTEGER NOT NULL DEFAULT 0,
+            source TEXT NOT NULL DEFAULT 'inferred',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            UNIQUE(connection_id, path),
+            FOREIGN KEY(connection_id) REFERENCES agent_connections(id) ON DELETE CASCADE
+        );
+        "#,
+    )?;
+
+    let now = now_rfc3339();
+    let mut stmt = conn.prepare(
+        "SELECT workspace_id, agent_type, root_dir, rule_file
+         FROM agent_connections
+         ORDER BY created_at ASC",
+    )?;
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            row.get::<_, String>(0)?,
+            row.get::<_, String>(1)?,
+            row.get::<_, String>(2)?,
+            row.get::<_, String>(3)?,
+        ))
+    })?;
+
+    for row in rows {
+        let (workspace_id, agent_type, root_dir, rule_file) = row?;
+        let default_root = default_agent_root_dir(&agent_type);
+        let default_rule = default_agent_rule_file(&agent_type);
+        let is_inferred_root = !default_root.trim().is_empty() && root_dir.trim() == default_root.trim();
+        let is_inferred_rule = !default_rule.trim().is_empty() && rule_file.trim() == default_rule.trim();
+        let root_source = if is_inferred_root { "inferred" } else { "manual" };
+        let rule_source = if is_inferred_rule { "inferred" } else { "manual" };
+        let status = infer_detection_status(&root_dir);
+
+        conn.execute(
+            "UPDATE agent_connections
+             SET root_dir_source = CASE
+                     WHEN trim(COALESCE(root_dir_source, '')) = '' THEN ?3
+                     ELSE root_dir_source
+                 END,
+                 rule_file_source = CASE
+                     WHEN trim(COALESCE(rule_file_source, '')) = '' THEN ?4
+                     ELSE rule_file_source
+                 END,
+                 detection_status = CASE
+                     WHEN trim(COALESCE(detection_status, '')) = '' THEN ?5
+                     ELSE detection_status
+                 END,
+                 detected_at = CASE
+                     WHEN detected_at IS NULL THEN ?6
+                     ELSE detected_at
+                 END,
+                 updated_at = ?6
+             WHERE workspace_id = ?1 AND agent_type = ?2",
+            params![
+                workspace_id,
+                agent_type,
+                root_source,
+                rule_source,
+                status,
+                now.as_str()
+            ],
+        )?;
+    }
+
+    let mut workspace_stmt = conn.prepare("SELECT id FROM workspaces ORDER BY created_at ASC")?;
+    let workspace_rows = workspace_stmt.query_map([], |row| row.get::<_, String>(0))?;
+    let mut workspace_ids = Vec::new();
+    for row in workspace_rows {
+        workspace_ids.push(row?);
+    }
+
+    for workspace_id in workspace_ids {
+        for preset in all_builtin_agent_presets() {
+            ensure_default_agent_connection(conn, &workspace_id, preset.id, &now)?;
         }
     }
-    String::new()
+
+    conn.execute(
+        "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)",
+        params![
+            "migrate_agent_connection_search_dirs_v1",
+            "done",
+            now_rfc3339(),
+        ],
+    )?;
+    Ok(())
+}
+
+fn default_agent_root_dir(agent_type: &str) -> String {
+    crate::control_plane::agent_presets::default_agent_root_dir(agent_type)
 }
 
 fn default_agent_rule_file(agent_type: &str) -> String {
-    match agent_type.trim().to_lowercase().as_str() {
-        "codex" => "AGENTS.md".to_string(),
-        "claude" => "CLAUDE.md".to_string(),
-        _ => "AGENTS.md".to_string(),
-    }
+    crate::control_plane::agent_presets::default_agent_rule_file(agent_type)
 }
 
 fn default_local_agent_executable(profile_key: &str) -> &'static str {
