@@ -3,6 +3,7 @@ export { agentRulesApi } from "./agentRulesApi";
 export {
   runtimeApi,
   securityApi,
+  modelUsageApi,
   skillsApi,
   skillsManagerApi,
   skillsUsageApi,
@@ -23,6 +24,8 @@ export type {
   AgentNexusAgentRuleTag,
   AgentNexusAgentRuleVersion,
   AgentNexusBatchResult,
+  AgentNexusModelUsageDashboard,
+  AgentNexusModelUsageRequestLogs,
   AgentNexusPrompt,
   AgentNexusRuntimeFlags,
   AgentNexusSkill,

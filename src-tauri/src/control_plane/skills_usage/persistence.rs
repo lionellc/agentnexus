@@ -16,7 +16,10 @@ pub(super) fn list_workspace_scopes(conn: &Connection) -> Result<Vec<WorkspaceSc
     Ok(scopes)
 }
 
-pub(super) fn get_workspace_scope(conn: &Connection, workspace_id: &str) -> Result<WorkspaceScope, AppError> {
+pub(super) fn get_workspace_scope(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<WorkspaceScope, AppError> {
     conn.query_row(
         "SELECT id, root_path FROM workspaces WHERE id = ?1",
         params![workspace_id],
@@ -78,7 +81,9 @@ pub(super) fn list_skill_aliases(
                     name: name.to_string(),
                     alias_quality,
                     local_path: normalize_path(local_path),
-                    source_local_path: source_local_path.as_ref().and_then(|item| normalize_path(item)),
+                    source_local_path: source_local_path
+                        .as_ref()
+                        .and_then(|item| normalize_path(item)),
                 });
             }
         };
@@ -163,11 +168,13 @@ pub(super) fn list_enabled_agent_search_dirs(
         if normalized.trim().is_empty() {
             continue;
         }
-        map.entry(agent_type).or_default().push(AgentSearchDirScope {
-            path: normalized,
-            priority: 0,
-            source: source.unwrap_or_else(|| "inferred".to_string()),
-        });
+        map.entry(agent_type)
+            .or_default()
+            .push(AgentSearchDirScope {
+                path: normalized,
+                priority: 0,
+                source: source.unwrap_or_else(|| "inferred".to_string()),
+            });
     }
 
     Ok(map)

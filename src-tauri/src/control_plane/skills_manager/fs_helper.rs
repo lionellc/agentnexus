@@ -133,7 +133,10 @@ pub(super) fn is_same_symlink_target(target: &Path, expected_source: &Path) -> b
     normalize_path(&resolved) == normalize_path(expected_source)
 }
 
-pub(super) fn replace_link_target_with_symlink(source: &Path, target: &Path) -> Result<(), AppError> {
+pub(super) fn replace_link_target_with_symlink(
+    source: &Path,
+    target: &Path,
+) -> Result<(), AppError> {
     remove_existing_target(target)?;
     create_symlink_dir(source, target)
 }

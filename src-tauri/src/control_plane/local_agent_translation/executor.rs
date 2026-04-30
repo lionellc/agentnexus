@@ -16,9 +16,7 @@ use uuid::Uuid;
 use crate::{error::AppError, utils::now_rfc3339};
 
 use super::{
-    validation::{
-        contains_forbidden_exec_pattern, truncate_text, validate_args_template,
-    },
+    validation::{contains_forbidden_exec_pattern, truncate_text, validate_args_template},
     LocalAgentProfileDto, TranslationExecutionResult, BUILTIN_CODEX, CODEX_JSON_MODE_FLAG,
     CODEX_SKIP_GIT_REPO_CHECK_FLAG, FORMAT_PRESERVATION_RULE, MAX_STD_STREAM_BYTES,
 };
@@ -268,12 +266,13 @@ pub(super) fn execute_translation(
         ));
     }
 
-    let mut parsed = parse_translation_protocol(&stdout, target_language, &stderr).map_err(|err| {
-        if let Some(sink) = stream_sink {
-            sink.emit("lifecycle", "protocol-invalid", true);
-        }
-        err
-    })?;
+    let mut parsed =
+        parse_translation_protocol(&stdout, target_language, &stderr).map_err(|err| {
+            if let Some(sink) = stream_sink {
+                sink.emit("lifecycle", "protocol-invalid", true);
+            }
+            err
+        })?;
     if let Some(sink) = stream_sink {
         sink.emit("lifecycle", "completed", true);
     }
@@ -356,7 +355,11 @@ pub(super) fn build_translation_payload(
     format!("{FORMAT_PRESERVATION_RULE}\n\n{rendered}")
 }
 
-fn render_args_template(args_template: &[String], payload: &str, target_language: &str) -> Vec<String> {
+fn render_args_template(
+    args_template: &[String],
+    payload: &str,
+    target_language: &str,
+) -> Vec<String> {
     let mut vars = HashMap::new();
     vars.insert("source_text", payload.to_string());
     vars.insert("target_language", target_language.to_string());
@@ -372,7 +375,10 @@ fn render_args_template(args_template: &[String], payload: &str, target_language
         .collect()
 }
 
-pub(super) fn apply_execution_compatibility(profile_key: &str, mut args: Vec<String>) -> Vec<String> {
+pub(super) fn apply_execution_compatibility(
+    profile_key: &str,
+    mut args: Vec<String>,
+) -> Vec<String> {
     if profile_key.trim().eq_ignore_ascii_case(BUILTIN_CODEX) {
         args.retain(|arg| arg.trim() != CODEX_JSON_MODE_FLAG);
         let already_present = args.iter().any(|arg| {
@@ -544,7 +550,10 @@ fn cli_fallback_dirs(home_dir: Option<&PathBuf>) -> Vec<PathBuf> {
     dirs
 }
 
-pub(super) fn prepend_executable_parent_to_path(env_pairs: &mut Vec<(String, String)>, executable: &str) {
+pub(super) fn prepend_executable_parent_to_path(
+    env_pairs: &mut Vec<(String, String)>,
+    executable: &str,
+) {
     let executable = executable.trim();
     if executable.is_empty() {
         return;

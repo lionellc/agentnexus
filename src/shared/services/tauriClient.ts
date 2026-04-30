@@ -52,6 +52,18 @@ import type {
   PromptTranslationRetranslateInput,
   PromptTranslationRunInput,
   PromptUpdateInput,
+  ModelPricingOverrideUpsertInput,
+  ModelPricingQueryInput,
+  ModelPricingQueryResult,
+  ModelPricingSyncInput,
+  ModelPricingSyncResult,
+  ModelUsageDashboardQueryInput,
+  ModelUsageDashboardResult,
+  ModelUsageRequestLogsQueryInput,
+  ModelUsageRequestLogsResult,
+  ModelUsageSyncJobSnapshot,
+  ModelUsageSyncProgressInput,
+  ModelUsageSyncStartInput,
   RuntimeFlags,
   RuntimeFlagsInput,
   SkillAsset,
@@ -200,6 +212,37 @@ type CommandMap = {
   };
   skills_usage_query_stats: { args: { input: SkillsUsageStatsQueryInput }; result: SkillsUsageStatsResult };
   skills_usage_query_calls: { args: { input: SkillsUsageCallsQueryInput }; result: SkillsUsageCallsResult };
+  model_usage_sync_start: { args: { input: ModelUsageSyncStartInput }; result: ModelUsageSyncJobSnapshot };
+  model_usage_sync_progress: {
+    args: { input: ModelUsageSyncProgressInput };
+    result: ModelUsageSyncJobSnapshot;
+  };
+  model_usage_query_dashboard: {
+    args: { input: ModelUsageDashboardQueryInput };
+    result: ModelUsageDashboardResult;
+  };
+  model_usage_query_request_logs: {
+    args: { input: ModelUsageRequestLogsQueryInput };
+    result: ModelUsageRequestLogsResult;
+  };
+  model_pricing_sync_trigger: {
+    args: { input: ModelPricingSyncInput };
+    result: ModelPricingSyncResult;
+  };
+  model_pricing_query: { args: { input: ModelPricingQueryInput }; result: ModelPricingQueryResult };
+  model_pricing_override_upsert: {
+    args: { input: ModelPricingOverrideUpsertInput };
+    result: {
+      workspaceId: string;
+      provider: string;
+      model: string;
+      currency: string;
+      inputCostPerMillion: number;
+      outputCostPerMillion: number;
+      updatedAt: string;
+      source: string;
+    };
+  };
 };
 
 export type TauriCommandName = keyof CommandMap;

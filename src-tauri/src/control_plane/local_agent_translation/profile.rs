@@ -2,11 +2,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use tauri::State;
 use uuid::Uuid;
 
-use crate::{
-    db::AppState,
-    error::AppError,
-    utils::now_rfc3339,
-};
+use crate::{db::AppState, error::AppError, utils::now_rfc3339};
 
 use super::{
     validation::{
@@ -111,7 +107,10 @@ pub fn local_agent_profile_delete(
     list_profiles(&conn, &input.workspace_id)
 }
 
-pub(super) fn ensure_workspace_exists(conn: &Connection, workspace_id: &str) -> Result<(), AppError> {
+pub(super) fn ensure_workspace_exists(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<(), AppError> {
     let exists: i64 = conn.query_row(
         "SELECT COUNT(1) FROM workspaces WHERE id = ?1",
         params![workspace_id],
@@ -161,7 +160,10 @@ fn default_profile_templates(profile_key: &str) -> (&'static str, Vec<String>) {
     }
 }
 
-pub(super) fn ensure_default_profiles(conn: &Connection, workspace_id: &str) -> Result<(), AppError> {
+pub(super) fn ensure_default_profiles(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<(), AppError> {
     let now = now_rfc3339();
 
     for key in [BUILTIN_CODEX, BUILTIN_CLAUDE] {

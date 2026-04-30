@@ -111,7 +111,10 @@ pub(super) fn run_sync_job(
     Ok(())
 }
 
-pub(super) fn build_parse_failure_summary(total: u64, reason_counts: &HashMap<String, u64>) -> String {
+pub(super) fn build_parse_failure_summary(
+    total: u64,
+    reason_counts: &HashMap<String, u64>,
+) -> String {
     if total == 0 {
         return String::new();
     }

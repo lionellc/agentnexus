@@ -4,6 +4,7 @@ export * from "./agentRules";
 export * from "./skills";
 export * from "./skillsManager";
 export * from "./skillsUsage";
+export * from "./modelUsage";
 export * from "./prompts";
 export * from "./settings";
 export * from "./store";

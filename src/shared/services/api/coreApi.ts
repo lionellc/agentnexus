@@ -1,4 +1,16 @@
 import type {
+  ModelPricingOverrideUpsertInput,
+  ModelPricingQueryInput,
+  ModelPricingQueryResult,
+  ModelPricingSyncInput,
+  ModelPricingSyncResult,
+  ModelUsageDashboardQueryInput,
+  ModelUsageDashboardResult,
+  ModelUsageRequestLogsQueryInput,
+  ModelUsageRequestLogsResult,
+  ModelUsageSyncJobSnapshot,
+  ModelUsageSyncProgressInput,
+  ModelUsageSyncStartInput,
   RuntimeFlagsInput,
   SkillsBatchInput,
   SkillsFileReadInput,
@@ -125,6 +137,23 @@ export const skillsUsageApi = {
     invokeCommand("skills_usage_query_stats", { input }),
   queryCalls: (input: SkillsUsageCallsQueryInput): Promise<SkillsUsageCallsResult> =>
     invokeCommand("skills_usage_query_calls", { input }),
+};
+
+export const modelUsageApi = {
+  syncStart: (input: ModelUsageSyncStartInput): Promise<ModelUsageSyncJobSnapshot> =>
+    invokeCommand("model_usage_sync_start", { input }),
+  syncProgress: (input: ModelUsageSyncProgressInput): Promise<ModelUsageSyncJobSnapshot> =>
+    invokeCommand("model_usage_sync_progress", { input }),
+  queryDashboard: (input: ModelUsageDashboardQueryInput): Promise<ModelUsageDashboardResult> =>
+    invokeCommand("model_usage_query_dashboard", { input }),
+  queryRequestLogs: (input: ModelUsageRequestLogsQueryInput): Promise<ModelUsageRequestLogsResult> =>
+    invokeCommand("model_usage_query_request_logs", { input }),
+  syncPricing: (input: ModelPricingSyncInput): Promise<ModelPricingSyncResult> =>
+    invokeCommand("model_pricing_sync_trigger", { input }),
+  queryPricing: (input: ModelPricingQueryInput): Promise<ModelPricingQueryResult> =>
+    invokeCommand("model_pricing_query", { input }),
+  upsertPricingOverride: (input: ModelPricingOverrideUpsertInput) =>
+    invokeCommand("model_pricing_override_upsert", { input }),
 };
 
 export const securityApi = {

@@ -1,6 +1,4 @@
-use std::{
-    path::{Component, Path, PathBuf},
-};
+use std::path::{Component, Path, PathBuf};
 
 use crate::{
     control_plane::agent_presets::{
@@ -33,7 +31,10 @@ pub(super) fn default_agent_root_dir(agent_type: &str) -> String {
     preset_default_agent_root_dir(agent_type)
 }
 
-pub(super) fn normalize_rule_file(rule_file: Option<&str>, agent_type: &str) -> Result<String, AppError> {
+pub(super) fn normalize_rule_file(
+    rule_file: Option<&str>,
+    agent_type: &str,
+) -> Result<String, AppError> {
     let candidate = rule_file
         .map(str::trim)
         .filter(|value| !value.is_empty())

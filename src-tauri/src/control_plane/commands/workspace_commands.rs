@@ -68,7 +68,11 @@ pub fn workspace_create(
         let agent_type = preset.id;
         let default_root = default_agent_root_dir(agent_type);
         let default_rule_file = default_agent_rule_file(agent_type);
-        let enabled = if default_agent_enabled(agent_type) { 1 } else { 0 };
+        let enabled = if default_agent_enabled(agent_type) {
+            1
+        } else {
+            0
+        };
         conn.execute(
             "INSERT INTO agent_connections(id, workspace_id, agent_type, root_dir, rule_file, enabled, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)

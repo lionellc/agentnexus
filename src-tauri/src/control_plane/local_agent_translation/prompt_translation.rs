@@ -12,7 +12,9 @@ use crate::{
 use super::{
     config::{ensure_default_translation_config, get_translation_config},
     executor::{build_translation_payload, execute_translation, new_request_id, StreamSink},
-    profile::{ensure_default_profiles, ensure_prompt_exists, ensure_workspace_exists, profile_by_key},
+    profile::{
+        ensure_default_profiles, ensure_prompt_exists, ensure_workspace_exists, profile_by_key,
+    },
     validation::{
         clamp_timeout, json_to_sql_value, normalize_apply_mode, normalize_profile_key,
         normalize_source_text, normalize_strategy, normalize_target_language,

@@ -9,6 +9,8 @@ import type {
   AgentRuleRelease,
   AgentRuleVersion,
   DistributionTarget,
+  ModelUsageDashboardResult,
+  ModelUsageRequestLogsResult,
   PromptAsset,
   RuntimeFlags,
   SkillAsset,
@@ -35,6 +37,8 @@ export type AgentNexusTargets = DistributionTarget[];
 export type AgentNexusBatchResult = SkillsBatchResult;
 export type AgentNexusSkillsUsageStats = SkillsUsageStatsResult;
 export type AgentNexusSkillsUsageCalls = SkillsUsageCallsResult;
+export type AgentNexusModelUsageDashboard = ModelUsageDashboardResult;
+export type AgentNexusModelUsageRequestLogs = ModelUsageRequestLogsResult;
 export type AgentNexusAgentRuleDraft = AgentRuleDraft;
 export type AgentNexusAgentRuleRelease = AgentRuleRelease;
 export type AgentNexusAgentRuleDistributionJob = AgentRuleDistributionJob;

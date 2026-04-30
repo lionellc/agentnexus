@@ -27,6 +27,7 @@ import { useWorkbenchAppContentState } from "./useWorkbenchAppContentState";
 import { useWorkbenchPromptsController } from "./useWorkbenchPromptsController";
 import { useWorkbenchSettingsController } from "./useWorkbenchSettingsController";
 import { useWorkbenchSkillsController } from "./useWorkbenchSkillsController";
+import { useWorkbenchUsageController } from "./useWorkbenchUsageController";
 import { useWorkbenchSkillFileHandlers } from "./useWorkbenchSkillFileHandlers";
 import { createWorkbenchPromptActions } from "./useWorkbenchPromptActions";
 import { createWorkbenchModelActions } from "./useWorkbenchModelActions";
@@ -871,12 +872,18 @@ export function WorkbenchAppContent() {
     modelPanel: modelSettingsPanel,
     aboutPanel,
   });
+  const usageModuleController = useWorkbenchUsageController({
+    l,
+    activeWorkspaceId,
+  });
 
   const center =
     activeModule === "prompts"
       ? promptsModuleController.module
       : activeModule === "skills"
         ? skillsModuleController.module
+      : activeModule === "usage"
+        ? usageModuleController.module
       : activeModule === "agents"
           ? agentsModuleController.module
           : settingsModuleController.module;
