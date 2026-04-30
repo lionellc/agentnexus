@@ -201,7 +201,10 @@ fn ensure_default_skills_distribution_targets(
     Ok(())
 }
 
-pub(super) fn get_target(conn: &Connection, target_id: &str) -> Result<DistributionTarget, AppError> {
+pub(super) fn get_target(
+    conn: &Connection,
+    target_id: &str,
+) -> Result<DistributionTarget, AppError> {
     conn.query_row(
         "SELECT id, workspace_id, platform, target_path, skills_path, install_mode, created_at, updated_at
          FROM distribution_targets

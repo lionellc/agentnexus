@@ -7,7 +7,8 @@ pub(super) fn lock_diff_jobs(
         .map_err(|_| AppError::internal("diff job 池锁异常"))
 }
 
-pub(super) fn skills_manager_diff_jobs() -> &'static Mutex<HashMap<String, SkillsManagerDiffJobHandle>> {
+pub(super) fn skills_manager_diff_jobs(
+) -> &'static Mutex<HashMap<String, SkillsManagerDiffJobHandle>> {
     SKILLS_MANAGER_DIFF_JOBS.get_or_init(|| Mutex::new(HashMap::new()))
 }
 

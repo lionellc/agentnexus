@@ -145,7 +145,6 @@ fn normalize_filter_value(value: Option<&str>) -> Option<String> {
         .map(str::to_string)
 }
 
-
 mod api;
 mod jobs;
 mod parser;

@@ -159,7 +159,8 @@ pub fn skills_usage_query_calls(
         source_filter.as_deref(),
         evidence_source_filter.as_deref(),
     );
-    let total: i64 = conn.query_row(&count_sql, params_from_iter(count_params), |row| row.get(0))?;
+    let total: i64 =
+        conn.query_row(&count_sql, params_from_iter(count_params), |row| row.get(0))?;
 
     Ok(json!({
         "items": rows,

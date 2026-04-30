@@ -6,13 +6,14 @@ mod normalize;
 mod publish;
 
 pub use api::{
-    agent_connection_delete, agent_connection_list, agent_connection_preview, agent_connection_toggle,
-    agent_connection_redetect, agent_connection_restore_defaults, agent_connection_upsert,
+    agent_connection_delete, agent_connection_list, agent_connection_preview,
+    agent_connection_redetect, agent_connection_restore_defaults, agent_connection_toggle,
+    agent_connection_upsert,
 };
 pub use apply::{agent_rule_apply, agent_rule_refresh, agent_rule_retry, agent_rule_status};
 pub use publish::{
-    agent_rule_asset_create, agent_rule_asset_delete, agent_rule_asset_list, agent_rule_asset_rename,
-    agent_rule_publish_version, agent_rule_rollback, agent_rule_versions,
+    agent_rule_asset_create, agent_rule_asset_delete, agent_rule_asset_list,
+    agent_rule_asset_rename, agent_rule_publish_version, agent_rule_rollback, agent_rule_versions,
 };
 
 #[derive(Debug, Clone, Serialize)]

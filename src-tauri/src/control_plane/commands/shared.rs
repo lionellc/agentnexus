@@ -4,11 +4,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::{
-    domain::models::Workspace,
-    error::AppError,
-    utils::now_rfc3339,
-};
+use crate::{domain::models::Workspace, error::AppError, utils::now_rfc3339};
 
 pub(super) fn bool_to_int(value: bool) -> i64 {
     if value {

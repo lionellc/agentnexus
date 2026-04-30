@@ -207,9 +207,7 @@ pub fn agent_connection_redetect(
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
     if !is_builtin_agent_preset(&agent_type) {
-        return Err(AppError::invalid_argument(
-            "仅内置 Agent 支持重新检测",
-        ));
+        return Err(AppError::invalid_argument("仅内置 Agent 支持重新检测"));
     }
 
     let existing = get_connection_row_required(&conn, &input.workspace_id, &agent_type)?;
@@ -275,9 +273,7 @@ pub fn agent_connection_restore_defaults(
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
     if !is_builtin_agent_preset(&agent_type) {
-        return Err(AppError::invalid_argument(
-            "仅内置 Agent 支持恢复默认配置",
-        ));
+        return Err(AppError::invalid_argument("仅内置 Agent 支持恢复默认配置"));
     }
 
     let existing = get_connection_row_required(&conn, &input.workspace_id, &agent_type)?;
@@ -306,7 +302,11 @@ pub fn agent_connection_restore_defaults(
             SOURCE_INFERRED,
             detection_status,
             now_rfc3339(),
-            if default_agent_enabled(&agent_type) { 1 } else { 0 },
+            if default_agent_enabled(&agent_type) {
+                1
+            } else {
+                0
+            },
             now_rfc3339(),
         ],
     )?;
@@ -374,7 +374,10 @@ pub fn agent_connection_preview(
     }
 }
 
-pub(super) fn ensure_workspace_exists(conn: &Connection, workspace_id: &str) -> Result<(), AppError> {
+pub(super) fn ensure_workspace_exists(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<(), AppError> {
     let exists: i64 = conn.query_row(
         "SELECT COUNT(1) FROM workspaces WHERE id = ?1",
         params![workspace_id],
@@ -734,9 +737,7 @@ fn default_search_dirs(
 fn normalize_search_dir_path(path: &str) -> Result<String, AppError> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
-        return Err(AppError::invalid_argument(
-            "skillSearchDirs.path 不能为空",
-        ));
+        return Err(AppError::invalid_argument("skillSearchDirs.path 不能为空"));
     }
     validate_absolute_root_dir(trimmed)?;
     Ok(trimmed.to_string())
@@ -847,9 +848,10 @@ fn create_rule_asset_from_content(
     let asset_id = Uuid::new_v4().to_string();
     let safe_rule_file = rule_file.replace(['/', '\\', ' '], "_");
     let hash_short = content_hash.chars().take(8).collect::<String>();
+    let random_suffix = Uuid::new_v4().to_string().chars().take(6).collect::<String>();
     let name = format!(
         "auto:{agent_type}:{safe_rule_file}:{hash_short}:{}",
-        Uuid::new_v4().to_string().chars().take(6).collect::<String>()
+        random_suffix
     );
 
     conn.execute(

@@ -763,4 +763,3 @@ pub fn skills_manager_update_then_link(
         "message": if updated { "已更新 skill 并完成链接。" } else { "已完成链接，未发生内容更新。" },
     }))
 }
-

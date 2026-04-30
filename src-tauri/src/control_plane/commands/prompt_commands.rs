@@ -377,7 +377,10 @@ struct PromptAssetRow {
     active_version: i64,
 }
 
-fn get_prompt_asset_row(conn: &rusqlite::Connection, prompt_id: &str) -> Result<PromptAssetRow, AppError> {
+fn get_prompt_asset_row(
+    conn: &rusqlite::Connection,
+    prompt_id: &str,
+) -> Result<PromptAssetRow, AppError> {
     conn.query_row(
         "SELECT id, tags, category, favorite, active_version
          FROM prompts_assets
