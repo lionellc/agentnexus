@@ -156,7 +156,8 @@ pub fn agent_rule_publish_version(
     input: AgentRuleAssetPublishInput,
 ) -> Result<AgentRuleVersionDto, AppError> {
     let mut conn = state.open()?;
-    let (workspace_id, next_version) = get_asset_workspace_and_next_version(&conn, &input.asset_id)?;
+    let (workspace_id, next_version) =
+        get_asset_workspace_and_next_version(&conn, &input.asset_id)?;
     ensure_workspace_exists(&conn, &workspace_id)?;
 
     let now = now_rfc3339();
@@ -249,7 +250,10 @@ pub(super) fn get_asset_workspace_and_next_version(
     .ok_or_else(|| AppError::invalid_argument("规则资产不存在"))
 }
 
-pub(super) fn get_asset_summary(conn: &Connection, asset_id: &str) -> Result<AgentRuleAssetDto, AppError> {
+pub(super) fn get_asset_summary(
+    conn: &Connection,
+    asset_id: &str,
+) -> Result<AgentRuleAssetDto, AppError> {
     let row = conn
         .query_row(
             "SELECT id, workspace_id, name, latest_version, created_at, updated_at

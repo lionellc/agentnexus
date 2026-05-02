@@ -16,7 +16,9 @@ mod prompt_translation;
 mod validation;
 
 pub use config::{translation_config_get, translation_config_update};
-pub use profile::{local_agent_profile_delete, local_agent_profile_list, local_agent_profile_upsert};
+pub use profile::{
+    local_agent_profile_delete, local_agent_profile_list, local_agent_profile_upsert,
+};
 pub use prompt_translation::{
     local_agent_translation_test, prompt_translation_list, prompt_translation_retranslate,
     prompt_translation_run,

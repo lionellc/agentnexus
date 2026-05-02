@@ -131,10 +131,7 @@ pub(super) fn parse_session_file(
             });
 
         for (idx, skill_call) in skill_calls.iter().enumerate() {
-            let search_dirs = agent_search_dirs
-                .get(agent)
-                .cloned()
-                .unwrap_or_default();
+            let search_dirs = agent_search_dirs.get(agent).cloned().unwrap_or_default();
             if search_dirs.is_empty() {
                 failures.push(ParseFailureEvent {
                     workspace_id: matched_workspace.clone(),
@@ -463,7 +460,8 @@ pub(super) fn extract_from_markdown_skill_links(text: &str) -> Vec<ParsedSkillCa
         if let Some(close_paren) = after_bracket.find(')') {
             let target = &after_bracket[..close_paren];
             if target.to_ascii_lowercase().contains("skill.md") {
-                let skill_token = sanitize_skill_token(token).unwrap_or_else(|| token.trim().to_string());
+                let skill_token =
+                    sanitize_skill_token(token).unwrap_or_else(|| token.trim().to_string());
                 calls.push(ParsedSkillCall {
                     skill_token,
                     result_status: RESULT_STATUS_UNKNOWN.to_string(),
@@ -618,7 +616,10 @@ pub(super) fn extract_command_from_arguments(arguments: &str) -> Option<String> 
         .map(str::to_string)
 }
 
-pub(super) fn should_force_full_scan(conn: &Connection, workspace_id: &str) -> Result<bool, AppError> {
+pub(super) fn should_force_full_scan(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<bool, AppError> {
     let count: i64 = conn.query_row(
         "SELECT COUNT(1) FROM skill_call_facts WHERE workspace_id = ?1",
         params![workspace_id],

@@ -83,7 +83,9 @@ pub(super) fn run_batch_action(
     }))
 }
 
-pub(super) fn resolve_update_source_path(preview: &SkillsManagerLinkPreview) -> Result<PathBuf, AppError> {
+pub(super) fn resolve_update_source_path(
+    preview: &SkillsManagerLinkPreview,
+) -> Result<PathBuf, AppError> {
     let target = PathBuf::from(&preview.target_path);
     let metadata = fs::symlink_metadata(&target)
         .map_err(|_| AppError::invalid_argument("目标不存在，无法执行更新后链接"))?;

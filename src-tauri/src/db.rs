@@ -14,6 +14,9 @@ use crate::{
 };
 
 mod schema;
+mod model_usage_migrations;
+
+use model_usage_migrations::run_model_usage_tables_migration_once;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -78,6 +81,7 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     run_local_agent_translation_migration_once(conn)?;
     run_drop_legacy_metrics_tables_once(conn)?;
     run_skill_call_facts_evidence_migration_once(conn)?;
+    run_model_usage_tables_migration_once(conn)?;
 
     Ok(())
 }
@@ -703,7 +707,10 @@ fn run_agent_connection_search_dirs_migration_once(conn: &Connection) -> Result<
         )?;
     }
     if !column_exists(conn, "agent_connections", "detected_at")? {
-        conn.execute("ALTER TABLE agent_connections ADD COLUMN detected_at TEXT", [])?;
+        conn.execute(
+            "ALTER TABLE agent_connections ADD COLUMN detected_at TEXT",
+            [],
+        )?;
     }
 
     conn.execute_batch(
@@ -742,10 +749,20 @@ fn run_agent_connection_search_dirs_migration_once(conn: &Connection) -> Result<
         let (workspace_id, agent_type, root_dir, rule_file) = row?;
         let default_root = default_agent_root_dir(&agent_type);
         let default_rule = default_agent_rule_file(&agent_type);
-        let is_inferred_root = !default_root.trim().is_empty() && root_dir.trim() == default_root.trim();
-        let is_inferred_rule = !default_rule.trim().is_empty() && rule_file.trim() == default_rule.trim();
-        let root_source = if is_inferred_root { "inferred" } else { "manual" };
-        let rule_source = if is_inferred_rule { "inferred" } else { "manual" };
+        let is_inferred_root =
+            !default_root.trim().is_empty() && root_dir.trim() == default_root.trim();
+        let is_inferred_rule =
+            !default_rule.trim().is_empty() && rule_file.trim() == default_rule.trim();
+        let root_source = if is_inferred_root {
+            "inferred"
+        } else {
+            "manual"
+        };
+        let rule_source = if is_inferred_rule {
+            "inferred"
+        } else {
+            "manual"
+        };
         let status = infer_detection_status(&root_dir);
 
         conn.execute(

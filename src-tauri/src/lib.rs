@@ -31,6 +31,11 @@ use control_plane::local_agent_translation::{
     local_agent_translation_test, prompt_translation_list, prompt_translation_retranslate,
     prompt_translation_run, translation_config_get, translation_config_update,
 };
+use control_plane::model_usage::{
+    model_pricing_override_upsert, model_pricing_query, model_pricing_sync_trigger,
+    model_usage_query_dashboard, model_usage_query_request_logs, model_usage_sync_progress,
+    model_usage_sync_start,
+};
 use control_plane::skills_manager::{
     skills_manager_batch_link, skills_manager_batch_unlink, skills_manager_check_external_updates,
     skills_manager_clean, skills_manager_delete, skills_manager_diff_cancel,
@@ -143,6 +148,13 @@ pub fn run() {
             skills_usage_sync_progress,
             skills_usage_query_stats,
             skills_usage_query_calls,
+            model_usage_sync_start,
+            model_usage_sync_progress,
+            model_usage_query_dashboard,
+            model_usage_query_request_logs,
+            model_pricing_sync_trigger,
+            model_pricing_query,
+            model_pricing_override_upsert,
             audit_query,
             security_check_external_source,
         ])
