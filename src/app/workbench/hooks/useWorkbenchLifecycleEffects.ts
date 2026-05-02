@@ -115,6 +115,11 @@ export function useWorkbenchLifecycleEffects(args: any) {
     const root = document.documentElement;
     root.classList.toggle("dark", theme === "dark");
     root.dataset.theme = theme;
+    if (theme === "dark") {
+      document.body.setAttribute("theme-mode", "dark");
+    } else {
+      document.body.removeAttribute("theme-mode");
+    }
   }, [APP_THEME_STORAGE_KEY, theme]);
 
   useEffect(() => {

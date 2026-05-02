@@ -13,9 +13,11 @@ use crate::{
     utils::{now_rfc3339, sha256_hex},
 };
 
-mod schema;
+mod channel_test_migrations;
 mod model_usage_migrations;
+mod schema;
 
+use channel_test_migrations::run_channel_test_tables_migration_once;
 use model_usage_migrations::run_model_usage_tables_migration_once;
 
 #[derive(Clone)]
@@ -82,6 +84,7 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     run_drop_legacy_metrics_tables_once(conn)?;
     run_skill_call_facts_evidence_migration_once(conn)?;
     run_model_usage_tables_migration_once(conn)?;
+    run_channel_test_tables_migration_once(conn)?;
 
     Ok(())
 }

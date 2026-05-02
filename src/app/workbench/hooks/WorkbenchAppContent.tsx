@@ -27,6 +27,7 @@ import { useWorkbenchAppContentState } from "./useWorkbenchAppContentState";
 import { useWorkbenchPromptsController } from "./useWorkbenchPromptsController";
 import { useWorkbenchSettingsController } from "./useWorkbenchSettingsController";
 import { useWorkbenchSkillsController } from "./useWorkbenchSkillsController";
+import { useWorkbenchChannelTestController } from "./useWorkbenchChannelTestController";
 import { useWorkbenchUsageController } from "./useWorkbenchUsageController";
 import { useWorkbenchSkillFileHandlers } from "./useWorkbenchSkillFileHandlers";
 import { createWorkbenchPromptActions } from "./useWorkbenchPromptActions";
@@ -876,6 +877,11 @@ export function WorkbenchAppContent() {
     l,
     activeWorkspaceId,
   });
+  const channelTestModuleController = useWorkbenchChannelTestController({
+    l,
+    language,
+    activeWorkspaceId,
+  });
 
   const center =
     activeModule === "prompts"
@@ -884,6 +890,8 @@ export function WorkbenchAppContent() {
         ? skillsModuleController.module
       : activeModule === "usage"
         ? usageModuleController.module
+      : activeModule === "channelTest"
+        ? channelTestModuleController.module
       : activeModule === "agents"
           ? agentsModuleController.module
           : settingsModuleController.module;

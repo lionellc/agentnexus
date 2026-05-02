@@ -1,6 +1,7 @@
 export { agentConnectionApi } from "./agentConnectionApi";
 export { agentRulesApi } from "./agentRulesApi";
 export {
+  channelApiTestApi,
   runtimeApi,
   securityApi,
   modelUsageApi,
