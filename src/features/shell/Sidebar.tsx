@@ -1,4 +1,4 @@
-import { Bot, ChartColumn, LayoutGrid, Settings, Sparkles, Wrench } from "lucide-react";
+import { Bot, ChartColumn, FlaskConical, LayoutGrid, Settings, Sparkles, Wrench } from "lucide-react";
 
 import { Button, Tag } from "../../shared/ui";
 import type { AppLanguage, MainModule } from "./types";
@@ -27,6 +27,7 @@ export function Sidebar({
     { module: "prompts", label: isZh ? "Prompts" : "Prompts", icon: Sparkles },
     { module: "skills", label: isZh ? "Skills" : "Skills", icon: Wrench },
     { module: "usage", label: isZh ? "模型使用与成本" : "Model Usage & Cost", icon: ChartColumn },
+    { module: "channelTest", label: isZh ? "渠道 API 测试台" : "Channel API Testbench", icon: FlaskConical },
     { module: "agents", label: isZh ? "全局 Agent 规则" : "Global Agent Rules", icon: Bot },
   ];
 

@@ -16,6 +16,10 @@ use control_plane::agent_rules_v2::{
     agent_rule_asset_list, agent_rule_asset_rename, agent_rule_publish_version, agent_rule_refresh,
     agent_rule_retry, agent_rule_rollback, agent_rule_status, agent_rule_versions,
 };
+use control_plane::channel_test::{
+    channel_test_case_delete, channel_test_case_upsert, channel_test_cases_list,
+    channel_test_query_runs, channel_test_run,
+};
 use control_plane::commands::{
     agent_doc_hash, agent_doc_read, agent_doc_save, audit_query, distribution_detect_drift,
     distribution_retry_failed, distribution_run, distribution_status, prompt_create, prompt_delete,
@@ -155,6 +159,11 @@ pub fn run() {
             model_pricing_sync_trigger,
             model_pricing_query,
             model_pricing_override_upsert,
+            channel_test_run,
+            channel_test_query_runs,
+            channel_test_cases_list,
+            channel_test_case_upsert,
+            channel_test_case_delete,
             audit_query,
             security_check_external_source,
         ])

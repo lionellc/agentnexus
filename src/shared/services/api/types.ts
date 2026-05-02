@@ -8,6 +8,7 @@ import type {
   AgentRuleDraft,
   AgentRuleRelease,
   AgentRuleVersion,
+  ChannelApiTestRunsResult,
   DistributionTarget,
   ModelUsageDashboardResult,
   ModelUsageRequestLogsResult,
@@ -39,6 +40,7 @@ export type AgentNexusSkillsUsageStats = SkillsUsageStatsResult;
 export type AgentNexusSkillsUsageCalls = SkillsUsageCallsResult;
 export type AgentNexusModelUsageDashboard = ModelUsageDashboardResult;
 export type AgentNexusModelUsageRequestLogs = ModelUsageRequestLogsResult;
+export type AgentNexusChannelApiTestRuns = ChannelApiTestRunsResult;
 export type AgentNexusAgentRuleDraft = AgentRuleDraft;
 export type AgentNexusAgentRuleRelease = AgentRuleRelease;
 export type AgentNexusAgentRuleDistributionJob = AgentRuleDistributionJob;

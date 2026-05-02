@@ -1,4 +1,12 @@
 import type {
+  ChannelApiTestRunInput,
+  ChannelApiTestRunItem,
+  ChannelApiTestRunsQueryInput,
+  ChannelApiTestRunsResult,
+  ChannelApiTestCase,
+  ChannelApiTestCaseDeleteInput,
+  ChannelApiTestCasesQueryInput,
+  ChannelApiTestCaseUpsertInput,
   ModelPricingOverrideUpsertInput,
   ModelPricingQueryInput,
   ModelPricingQueryResult,
@@ -154,6 +162,19 @@ export const modelUsageApi = {
     invokeCommand("model_pricing_query", { input }),
   upsertPricingOverride: (input: ModelPricingOverrideUpsertInput) =>
     invokeCommand("model_pricing_override_upsert", { input }),
+};
+
+export const channelApiTestApi = {
+  run: (input: ChannelApiTestRunInput): Promise<ChannelApiTestRunItem> =>
+    invokeCommand("channel_test_run", { input }),
+  queryRuns: (input: ChannelApiTestRunsQueryInput): Promise<ChannelApiTestRunsResult> =>
+    invokeCommand("channel_test_query_runs", { input }),
+  listCases: (input: ChannelApiTestCasesQueryInput): Promise<ChannelApiTestCase[]> =>
+    invokeCommand("channel_test_cases_list", { input }),
+  upsertCase: (input: ChannelApiTestCaseUpsertInput): Promise<ChannelApiTestCase> =>
+    invokeCommand("channel_test_case_upsert", { input }),
+  deleteCase: (input: ChannelApiTestCaseDeleteInput): Promise<{ workspaceId: string; caseId: string; deleted: boolean }> =>
+    invokeCommand("channel_test_case_delete", { input }),
 };
 
 export const securityApi = {

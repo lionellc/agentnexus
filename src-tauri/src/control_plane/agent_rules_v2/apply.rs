@@ -27,7 +27,8 @@ pub fn agent_rule_apply(
     ensure_default_agent_connections(&conn, &input.workspace_id)?;
 
     let bundle = get_asset_latest_bundle(&conn, &input.workspace_id, &input.asset_id)?;
-    let targets = list_enabled_connections(&conn, &input.workspace_id, input.agent_types.as_deref())?;
+    let targets =
+        list_enabled_connections(&conn, &input.workspace_id, input.agent_types.as_deref())?;
     if targets.is_empty() {
         return Err(AppError::invalid_argument("未找到可应用的 Agent 连接"));
     }
@@ -373,7 +374,8 @@ fn run_apply_job(
 
     let mut records = Vec::new();
     for target in targets {
-        let resolved = resolve_rule_file_path(&target.root_dir, &target.rule_file, &target.agent_type);
+        let resolved =
+            resolve_rule_file_path(&target.root_dir, &target.rule_file, &target.agent_type);
         let mut record = AgentRuleApplyRecordDto {
             id: Uuid::new_v4().to_string(),
             agent_type: target.agent_type.clone(),
@@ -388,7 +390,8 @@ fn run_apply_job(
         match resolved {
             Ok(path) => {
                 record.resolved_path = path.to_string_lossy().to_string();
-                match distribute_agents(&bundle.content, &bundle.content_hash, &path, "copy", true) {
+                match distribute_agents(&bundle.content, &bundle.content_hash, &path, "copy", true)
+                {
                     Ok(exec) => {
                         record.status = exec.status;
                         record.message = exec.message;
@@ -520,7 +523,10 @@ fn insert_apply_record(
     Ok(())
 }
 
-fn list_apply_records(conn: &Connection, job_id: &str) -> Result<Vec<AgentRuleApplyRecordDto>, AppError> {
+fn list_apply_records(
+    conn: &Connection,
+    job_id: &str,
+) -> Result<Vec<AgentRuleApplyRecordDto>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT id, agent_type, resolved_path, status, message, expected_hash, actual_hash, used_mode
          FROM global_rule_apply_records
@@ -552,7 +558,10 @@ pub(super) fn summarize_apply_status(records: &[AgentRuleApplyRecordDto]) -> Str
         return "failed".to_string();
     }
 
-    let success = records.iter().filter(|record| record.status == "success").count();
+    let success = records
+        .iter()
+        .filter(|record| record.status == "success")
+        .count();
     if success == records.len() {
         return "success".to_string();
     }
@@ -567,9 +576,18 @@ pub(super) fn summarize_refresh_status(records: &[AgentRuleApplyRecordDto]) -> S
         return "failed".to_string();
     }
 
-    let clean = records.iter().filter(|record| record.status == "clean").count();
-    let drifted = records.iter().filter(|record| record.status == "drifted").count();
-    let error = records.iter().filter(|record| record.status == "error").count();
+    let clean = records
+        .iter()
+        .filter(|record| record.status == "clean")
+        .count();
+    let drifted = records
+        .iter()
+        .filter(|record| record.status == "drifted")
+        .count();
+    let error = records
+        .iter()
+        .filter(|record| record.status == "error")
+        .count();
 
     if clean == records.len() {
         return "success".to_string();

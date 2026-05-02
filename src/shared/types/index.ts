@@ -1,4 +1,5 @@
 export * from "./base";
+export * from "./channelApiTest";
 export * from "./workspace";
 export * from "./agentRules";
 export * from "./skills";

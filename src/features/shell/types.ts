@@ -1,4 +1,4 @@
-export type MainModule = "prompts" | "skills" | "usage" | "agents" | "settings";
+export type MainModule = "prompts" | "skills" | "usage" | "channelTest" | "agents" | "settings";
 export type AppLanguage = "zh-CN" | "en-US";
 
 export type PromptViewMode = "list" | "gallery" | "table";

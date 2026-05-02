@@ -49,4 +49,33 @@ describe("Sidebar", () => {
 
     expect(onChangeModule).toHaveBeenCalledWith("agents");
   });
+
+  it("点击渠道 API 测试台会切换到 channelTest 模块", () => {
+    const onChangeModule = vi.fn();
+
+    act(() => {
+      root.render(
+        <Sidebar
+          activeModule="prompts"
+          language="zh-CN"
+          onChangeModule={onChangeModule}
+          promptCount={1}
+          skillCount={2}
+          agentRulesCount={3}
+          onOpenSettings={vi.fn()}
+        />,
+      );
+    });
+
+    const targetButton = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("渠道 API 测试台"),
+    );
+    expect(targetButton).toBeTruthy();
+
+    act(() => {
+      targetButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(onChangeModule).toHaveBeenCalledWith("channelTest");
+  });
 });

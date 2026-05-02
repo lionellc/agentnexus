@@ -33,6 +33,14 @@ import type {
   AgentRuleSaveResult,
   AgentRuleVersion,
   ApiErrorPayload,
+  ChannelApiTestCase,
+  ChannelApiTestCaseDeleteInput,
+  ChannelApiTestCasesQueryInput,
+  ChannelApiTestCaseUpsertInput,
+  ChannelApiTestRunInput,
+  ChannelApiTestRunItem,
+  ChannelApiTestRunsQueryInput,
+  ChannelApiTestRunsResult,
   DistributionTarget,
   LocalAgentProfileDeleteInput,
   LocalAgentProfileDto,
@@ -242,6 +250,17 @@ type CommandMap = {
       updatedAt: string;
       source: string;
     };
+  };
+  channel_test_run: { args: { input: ChannelApiTestRunInput }; result: ChannelApiTestRunItem };
+  channel_test_query_runs: {
+    args: { input: ChannelApiTestRunsQueryInput };
+    result: ChannelApiTestRunsResult;
+  };
+  channel_test_cases_list: { args: { input: ChannelApiTestCasesQueryInput }; result: ChannelApiTestCase[] };
+  channel_test_case_upsert: { args: { input: ChannelApiTestCaseUpsertInput }; result: ChannelApiTestCase };
+  channel_test_case_delete: {
+    args: { input: ChannelApiTestCaseDeleteInput };
+    result: { workspaceId: string; caseId: string; deleted: boolean };
   };
 };
 
