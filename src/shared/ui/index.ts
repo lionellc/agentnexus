@@ -8,6 +8,7 @@ export * from "./fieldset";
 export * from "./input";
 export * from "./sheet";
 export * from "./select";
+export * from "./SemiAppProvider";
 export * from "./tag";
 export * from "./tabs";
 export * from "./textarea";

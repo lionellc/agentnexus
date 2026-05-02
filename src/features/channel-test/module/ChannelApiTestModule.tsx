@@ -1,10 +1,7 @@
-import { Button, LocaleProvider } from "@douyinfe/semi-ui-19";
-import enUS from "@douyinfe/semi-ui-19/lib/es/locale/source/en_US";
-import zhCN from "@douyinfe/semi-ui-19/lib/es/locale/source/zh_CN";
+import { Button } from "@douyinfe/semi-ui-19";
 import { useState } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
-import type { AppLanguage } from "../../shell/types";
 import { ChannelTestCaseManager } from "../components/ChannelTestCaseManager";
 import { ChannelTestForm } from "../components/ChannelTestForm";
 import { ChannelTestResultsTable } from "../components/ChannelTestResultsTable";
@@ -12,28 +9,24 @@ import { useChannelApiTestController } from "../hooks/useChannelApiTestControlle
 
 type ChannelApiTestModuleProps = {
   l: (zh: string, en: string) => string;
-  language: AppLanguage;
   workspaceId: string | null;
 };
 
-export function ChannelApiTestModule({ l, language, workspaceId }: ChannelApiTestModuleProps) {
+export function ChannelApiTestModule({ l, workspaceId }: ChannelApiTestModuleProps) {
   const controller = useChannelApiTestController(workspaceId);
   const [page, setPage] = useState<"testbench" | "cases">("testbench");
-  const locale = language === "zh-CN" ? zhCN : enUS;
 
   if (!workspaceId) {
-    return withLocale(
-      locale,
+    return (
       <EmptyState
         title={l("请先创建并激活工作区", "Create and activate a workspace first")}
         description={l("激活工作区后再运行渠道 API 测试。", "Activate a workspace before running channel API tests.")}
-      />,
+      />
     );
   }
 
   if (page === "cases") {
-    return withLocale(
-      locale,
+    return (
       <ChannelTestCaseManager
         cases={controller.cases}
         loading={controller.casesLoading}
@@ -41,12 +34,11 @@ export function ChannelApiTestModule({ l, language, workspaceId }: ChannelApiTes
         onBack={() => setPage("testbench")}
         onSave={controller.saveCase}
         onDelete={controller.deleteCase}
-      />,
+      />
     );
   }
 
-  return withLocale(
-    locale,
+  return (
     <section className="flex h-full min-h-0 flex-col gap-4 overflow-auto p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -93,10 +85,6 @@ export function ChannelApiTestModule({ l, language, workspaceId }: ChannelApiTes
         l={l}
         onPageChange={controller.loadRuns}
       />
-    </section>,
+    </section>
   );
-}
-
-function withLocale(locale: typeof zhCN, children: React.ReactNode) {
-  return <LocaleProvider locale={locale}>{children}</LocaleProvider>;
 }

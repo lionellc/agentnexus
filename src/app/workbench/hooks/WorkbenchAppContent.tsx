@@ -55,6 +55,7 @@ import {
   waitForUiPaint,
 } from "../utils";
 import {
+  SemiAppProvider,
   useToast,
 } from "../../../shared/ui";
 import { extractTemplateVariables } from "../../../shared/utils/template";
@@ -879,7 +880,6 @@ export function WorkbenchAppContent() {
   });
   const channelTestModuleController = useWorkbenchChannelTestController({
     l,
-    language,
     activeWorkspaceId,
   });
 
@@ -910,7 +910,7 @@ export function WorkbenchAppContent() {
   const detail = <div className="h-full" />;
 
   return (
-    <>
+    <SemiAppProvider language={language} theme={theme}>
       <AppShell
         activeModule={activeModule}
         language={language}
@@ -941,6 +941,6 @@ export function WorkbenchAppContent() {
       {skillsModuleController.linkConfirmDialog}
       {skillsModuleController.usageTimelineDialog}
       {modelTestOutputSheetView}
-    </>
+    </SemiAppProvider>
   );
 }

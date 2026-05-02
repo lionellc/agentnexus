@@ -354,6 +354,11 @@ describe("WorkbenchApp settings interactions", () => {
   let root: Root;
 
   beforeEach(() => {
+    window.localStorage.clear();
+    document.documentElement.lang = "";
+    document.documentElement.classList.remove("dark");
+    document.documentElement.removeAttribute("data-theme");
+    document.body.removeAttribute("theme-mode");
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -371,6 +376,7 @@ describe("WorkbenchApp settings interactions", () => {
       root.unmount();
     });
     container.remove();
+    document.body.removeAttribute("theme-mode");
   });
 
   it("渲染 settings 默认面板（通用设置）", async () => {
@@ -379,6 +385,21 @@ describe("WorkbenchApp settings interactions", () => {
     });
 
     expect(container.textContent).toContain("通用设置");
+  });
+
+  it("按存储语言和主题初始化全局 Semi 适配", async () => {
+    window.localStorage.setItem("agentnexus.app.language", "en-US");
+    window.localStorage.setItem("agentnexus.app.theme", "dark");
+
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    expect(container.textContent).toContain("General");
+    expect(document.documentElement.lang).toBe("en-US");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+    expect(document.body.getAttribute("theme-mode")).toBe("dark");
   });
 
   it("切到基础设置后可见存储位置和 skills 目录配置", async () => {

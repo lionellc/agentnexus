@@ -53,7 +53,7 @@ describe("ChannelApiTestModule", () => {
 
   it("workspace 未激活时展示提示", () => {
     act(() => {
-      root.render(<ChannelApiTestModule l={l} language="zh-CN" workspaceId={null} />);
+      root.render(<ChannelApiTestModule l={l} workspaceId={null} />);
     });
 
     expect(document.body.textContent).toContain("请先创建并激活工作区");
@@ -61,7 +61,7 @@ describe("ChannelApiTestModule", () => {
 
   it("workspace 已激活时展示测试台入口", async () => {
     await act(async () => {
-      root.render(<ChannelApiTestModule l={l} language="zh-CN" workspaceId="workspace-1" />);
+      root.render(<ChannelApiTestModule l={l} workspaceId="workspace-1" />);
     });
 
     expect(document.body.textContent).toContain("渠道 API 测试台");
@@ -73,7 +73,7 @@ describe("ChannelApiTestModule", () => {
 
   it("点击题库管理进入二级页面", async () => {
     await act(async () => {
-      root.render(<ChannelApiTestModule l={l} language="zh-CN" workspaceId="workspace-1" />);
+      root.render(<ChannelApiTestModule l={l} workspaceId="workspace-1" />);
     });
 
     const button = Array.from(document.body.querySelectorAll("button")).find((item) =>
