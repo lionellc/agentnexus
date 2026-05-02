@@ -1,5 +1,5 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
+import { SideSheet } from "@douyinfe/semi-ui-19";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "lucide-react";
 
@@ -114,14 +114,11 @@ function SheetClose({ children }: SheetCloseProps) {
 }
 
 function SheetPortal({ children }: { children: React.ReactNode }) {
-  if (typeof document === "undefined") {
-    return null;
-  }
-  return createPortal(children, document.body);
+  return <>{children}</>;
 }
 
 const SheetOverlay = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("fixed inset-0 z-50 overlay-backdrop animate-fade-in", className)} {...props} />
+  <div ref={ref} className={cn("overlay-backdrop", className)} {...props} />
 ));
 SheetOverlay.displayName = "SheetOverlay";
 
@@ -144,6 +141,19 @@ const sheetVariants = cva(
 
 interface SheetContentProps extends React.HTMLAttributes<HTMLDivElement>, VariantProps<typeof sheetVariants> {}
 
+function resolveSheetWidth(side: SheetContentProps["side"], className?: string) {
+  if (side === "top" || side === "bottom") {
+    return undefined;
+  }
+  if (className?.includes("560px")) {
+    return "min(94vw, 560px)";
+  }
+  if (className?.includes("92vw")) {
+    return "92vw";
+  }
+  return "min(75vw, 384px)";
+}
+
 const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(({ side, className, children, ...props }, ref) => {
   const { open, setOpen } = useSheetContext();
 
@@ -152,9 +162,19 @@ const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(({ side
   }
 
   return (
-    <SheetPortal>
-      <SheetOverlay onClick={() => setOpen(false)} />
-      <div ref={ref} data-state="open" className={cn(sheetVariants({ side }), className)} {...props}>
+    <SideSheet
+      visible={open}
+      placement={side ?? "right"}
+      title={null}
+      footer={null}
+      closable={false}
+      maskClosable
+      width={resolveSheetWidth(side, className)}
+      className={cn(sheetVariants({ side }), className)}
+      bodyStyle={{ height: "100%", padding: 0 }}
+      onCancel={() => setOpen(false)}
+    >
+      <div ref={ref} data-state="open" className="relative h-full bg-background p-6 text-foreground" {...props}>
         {children}
         <button
           type="button"
@@ -165,7 +185,7 @@ const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(({ side
           <X className="h-4 w-4" />
         </button>
       </div>
-    </SheetPortal>
+    </SideSheet>
   );
 });
 SheetContent.displayName = "SheetContent";

@@ -1,5 +1,6 @@
 import * as React from "react";
-import { cva, type VariantProps } from "class-variance-authority";
+import { Button as SemiButton } from "@douyinfe/semi-ui-19";
+import { cva } from "class-variance-authority";
 
 import { cn } from "../lib/cn";
 
@@ -29,12 +30,52 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {}
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> {
+  variant?: "default" | "secondary" | "outline" | "ghost" | "destructive";
+  size?: "default" | "sm" | "lg" | "icon";
+  type?: "button" | "submit" | "reset";
+  loading?: boolean;
+}
+
+function mapSemiButtonProps(variant: ButtonProps["variant"]) {
+  if (variant === "outline") {
+    return { theme: "light" as const, type: "tertiary" as const };
+  }
+  if (variant === "ghost") {
+    return { theme: "borderless" as const, type: "tertiary" as const };
+  }
+  if (variant === "destructive") {
+    return { theme: "solid" as const, type: "danger" as const };
+  }
+  if (variant === "secondary") {
+    return { theme: "light" as const, type: "secondary" as const };
+  }
+  return { theme: "solid" as const, type: "primary" as const };
+}
+
+function mapSemiButtonSize(size: ButtonProps["size"]) {
+  if (size === "sm") {
+    return "small" as const;
+  }
+  if (size === "lg") {
+    return "large" as const;
+  }
+  return "default" as const;
+}
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, ...props }, ref) => {
-    return <button className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+  ({ className, variant = "default", size = "default", type = "button", ...props }, ref) => {
+    const semiProps = mapSemiButtonProps(variant);
+    return (
+      <SemiButton
+        className={cn(buttonVariants({ variant, size }), className)}
+        htmlType={type}
+        size={mapSemiButtonSize(size)}
+        {...semiProps}
+        {...props}
+        ref={ref as any}
+      />
+    );
   },
 );
 Button.displayName = "Button";

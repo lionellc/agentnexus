@@ -1,12 +1,16 @@
 import * as React from "react";
+import { Input as SemiInput } from "@douyinfe/semi-ui-19";
 
 import { cn } from "../lib/cn";
 
-export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {}
+export interface InputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size" | "prefix" | "onChange"> {
+  mode?: "password";
+  onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+}
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, type = "text", ...props }, ref) => {
+const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, type = "text", onChange, ...props }, ref) => {
   return (
-    <input
+    <SemiInput
       type={type}
       className={cn(
         "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
@@ -15,7 +19,8 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className, type 
         className,
       )}
       ref={ref}
-      {...props}
+      {...(props as any)}
+      onChange={(_, event) => onChange?.(event)}
     />
   );
 });
