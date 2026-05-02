@@ -36,13 +36,13 @@ export function AboutPanel({
           <CardTitle>{l("关于", "About")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-800 dark:bg-slate-900">
             <span className="text-slate-500">{l("应用版本", "App Version")}</span>
-            <code className="text-slate-800">{appVersion}</code>
+            <code className="text-slate-800 dark:text-slate-100">{appVersion}</code>
           </div>
-          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3">
+          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 dark:border-slate-800 dark:bg-slate-900">
             <div className="text-xs text-slate-500">{l("应用更新", "App Updates")}</div>
-            <div className={`text-sm ${appUpdateStage === "error" ? "text-red-600" : "text-slate-700"}`}>
+            <div className={`text-sm ${appUpdateStage === "error" ? "text-red-600" : "text-slate-700 dark:text-slate-200"}`}>
               {appUpdateStatusText}
             </div>
             {appUpdateStage === "error" && appUpdateError ? (

@@ -156,6 +156,7 @@ function resolveSheetWidth(side: SheetContentProps["side"], className?: string) 
 
 const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(({ side, className, children, ...props }, ref) => {
   const { open, setOpen } = useSheetContext();
+  const noPadding = className?.split(/\s+/).includes("p-0") ?? false;
 
   if (!open) {
     return null;
@@ -174,7 +175,12 @@ const SheetContent = React.forwardRef<HTMLDivElement, SheetContentProps>(({ side
       bodyStyle={{ height: "100%", padding: 0 }}
       onCancel={() => setOpen(false)}
     >
-      <div ref={ref} data-state="open" className="relative h-full bg-background p-6 text-foreground" {...props}>
+      <div
+        ref={ref}
+        data-state="open"
+        className={cn("relative h-full bg-background text-foreground", noPadding ? "p-0" : "p-6")}
+        {...props}
+      >
         {children}
         <button
           type="button"

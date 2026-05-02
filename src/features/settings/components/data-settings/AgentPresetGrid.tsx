@@ -169,7 +169,7 @@ export function AgentPresetGrid({
           <Badge variant="secondary">{enabledRows.length}</Badge>
         </div>
         {enabledRows.length === 0 ? (
-          <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500">
+          <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500 dark:border-slate-700">
             {l("暂无已启用平台，可从下方添加。", "No enabled platforms. Add one below.")}
           </div>
         ) : (
