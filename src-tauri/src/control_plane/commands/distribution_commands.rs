@@ -24,8 +24,9 @@ use super::{
 };
 
 #[tauri::command]
-pub fn agent_doc_read(state: State<'_, AppState>, workspace_id: String) -> Result<Value, AppError> {
+pub fn agent_doc_read(state: State<'_, AppState>) -> Result<Value, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     get_workspace(&conn, &workspace_id)?;
 
     let draft = conn
@@ -52,7 +53,7 @@ pub fn agent_doc_save(
     input: AgentDocSaveInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace(&conn, &input.workspace_id)?;
+    get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let hash = sha256_hex(&input.content);
     let now = now_rfc3339();
@@ -64,19 +65,25 @@ pub fn agent_doc_save(
             content = excluded.content,
             content_hash = excluded.content_hash,
             updated_at = excluded.updated_at",
-        params![input.workspace_id, input.content, hash, now],
+        params![
+            crate::domain::models::APP_SCOPE_ID.to_string(),
+            input.content,
+            hash,
+            now
+        ],
     )?;
 
     Ok(json!({
-        "workspaceId": input.workspace_id,
+        "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
         "contentHash": hash,
         "updatedAt": now,
     }))
 }
 
 #[tauri::command]
-pub fn agent_doc_hash(state: State<'_, AppState>, workspace_id: String) -> Result<Value, AppError> {
+pub fn agent_doc_hash(state: State<'_, AppState>) -> Result<Value, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     let hash = conn
         .query_row(
             "SELECT content_hash FROM agent_doc WHERE workspace_id = ?1",
@@ -97,12 +104,12 @@ pub fn release_create(
     let mut conn = state.open()?;
     let tx = conn.transaction()?;
 
-    get_workspace(&tx, &input.workspace_id)?;
+    get_workspace(&tx, crate::domain::models::APP_SCOPE_ID)?;
 
     let (content, content_hash) = tx
         .query_row(
             "SELECT content, content_hash FROM agent_doc WHERE workspace_id = ?1",
-            params![input.workspace_id],
+            params![crate::domain::models::APP_SCOPE_ID.to_string()],
             |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
         )
         .optional()?
@@ -110,14 +117,14 @@ pub fn release_create(
 
     tx.execute(
         "UPDATE agent_doc_versions SET active = 0 WHERE workspace_id = ?1",
-        params![input.workspace_id],
+        params![crate::domain::models::APP_SCOPE_ID.to_string()],
     )?;
 
-    let version = next_release_version(&tx, &input.workspace_id)?;
+    let version = next_release_version(&tx, crate::domain::models::APP_SCOPE_ID)?;
     let now = now_rfc3339();
     let release = AgentDocRelease {
         id: Uuid::new_v4().to_string(),
-        workspace_id: input.workspace_id,
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         version: version.clone(),
         title: input.title,
         notes: input.notes.unwrap_or_default(),
@@ -160,11 +167,9 @@ pub fn release_create(
 }
 
 #[tauri::command]
-pub fn release_list(
-    state: State<'_, AppState>,
-    workspace_id: String,
-) -> Result<Vec<AgentDocRelease>, AppError> {
+pub fn release_list(state: State<'_, AppState>) -> Result<Vec<AgentDocRelease>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     get_workspace(&conn, &workspace_id)?;
 
     let mut stmt = conn.prepare(
@@ -204,14 +209,17 @@ pub fn release_rollback(
     let mut conn = state.open()?;
     let tx = conn.transaction()?;
 
-    get_workspace(&tx, &input.workspace_id)?;
+    get_workspace(&tx, crate::domain::models::APP_SCOPE_ID)?;
 
     let (content, content_hash, title) = tx
         .query_row(
             "SELECT content, content_hash, title
              FROM agent_doc_versions
              WHERE workspace_id = ?1 AND version = ?2",
-            params![input.workspace_id, input.release_version],
+            params![
+                crate::domain::models::APP_SCOPE_ID.to_string(),
+                input.release_version
+            ],
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
@@ -225,15 +233,15 @@ pub fn release_rollback(
 
     tx.execute(
         "UPDATE agent_doc_versions SET active = 0 WHERE workspace_id = ?1",
-        params![input.workspace_id],
+        params![crate::domain::models::APP_SCOPE_ID.to_string()],
     )?;
 
-    let next_version = next_release_version(&tx, &input.workspace_id)?;
+    let next_version = next_release_version(&tx, crate::domain::models::APP_SCOPE_ID)?;
     let now = now_rfc3339();
     let operator = input.operator.unwrap_or_else(|| "system".to_string());
     let release = AgentDocRelease {
         id: Uuid::new_v4().to_string(),
-        workspace_id: input.workspace_id,
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         version: next_version,
         title: format!("rollback:{}", title),
         notes: format!("rollback from {}", input.release_version),
@@ -289,7 +297,7 @@ pub fn distribution_run(
     input: DistributionRunInput,
 ) -> Result<DistributionJobResult, AppError> {
     let conn = state.open()?;
-    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let workspace = get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let release = get_release_with_content(&conn, &workspace.id, &input.release_version)?;
 
     if input.release_version.trim().is_empty() {
@@ -317,10 +325,10 @@ pub fn distribution_run(
 #[tauri::command]
 pub fn distribution_status(
     state: State<'_, AppState>,
-    workspace_id: String,
     limit: Option<i64>,
 ) -> Result<Vec<DistributionJobResult>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     get_workspace(&conn, &workspace_id)?;
 
     let max = limit.unwrap_or(20).clamp(1, 200);
@@ -415,7 +423,7 @@ pub fn distribution_detect_drift(
     input: DriftDetectInput,
 ) -> Result<DistributionJobResult, AppError> {
     let conn = state.open()?;
-    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let workspace = get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let release = get_active_release_with_content(&conn, &workspace.id)?;
     let targets = list_targets(&conn, &workspace.id, input.target_ids.as_deref())?;
 

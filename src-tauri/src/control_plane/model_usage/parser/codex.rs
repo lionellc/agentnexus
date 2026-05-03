@@ -35,7 +35,8 @@ pub(super) fn extract_session_usage_event(
             None
         }
         Some("turn_context") => {
-            if let Some(model) = find_first_string(value, &["payload.model", "payload.info.model"]) {
+            if let Some(model) = find_first_string(value, &["payload.model", "payload.info.model"])
+            {
                 state.current_model = normalize_model(&model);
             }
             None
@@ -60,8 +61,8 @@ fn extract_token_count_event(
         return None;
     }
 
-    if let Some(model) =
-        find_first_string(info, &["model", "model_name"]).or_else(|| find_first_string(payload, &["model"]))
+    if let Some(model) = find_first_string(info, &["model", "model_name"])
+        .or_else(|| find_first_string(payload, &["model"]))
     {
         state.current_model = normalize_model(&model);
     }
@@ -115,12 +116,21 @@ fn parse_cumulative_tokens(value: &Value) -> Option<CumulativeTokens> {
         return None;
     }
     Some(CumulativeTokens {
-        input_tokens: value.get("input_tokens").and_then(parse_non_negative_i64).unwrap_or(0),
-        output_tokens: value.get("output_tokens").and_then(parse_non_negative_i64).unwrap_or(0),
+        input_tokens: value
+            .get("input_tokens")
+            .and_then(parse_non_negative_i64)
+            .unwrap_or(0),
+        output_tokens: value
+            .get("output_tokens")
+            .and_then(parse_non_negative_i64)
+            .unwrap_or(0),
     })
 }
 
-fn compute_delta(prev_total: Option<&CumulativeTokens>, current: &CumulativeTokens) -> CumulativeTokens {
+fn compute_delta(
+    prev_total: Option<&CumulativeTokens>,
+    current: &CumulativeTokens,
+) -> CumulativeTokens {
     match prev_total {
         None => current.clone(),
         Some(previous) => CumulativeTokens {

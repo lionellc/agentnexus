@@ -42,14 +42,13 @@ function mapAgentConnection(row: Record<string, unknown>): AgentConnection {
 }
 
 export const agentConnectionApi = {
-  list: async (workspaceId: string): Promise<AgentConnection[]> => {
-    const rows = await invokeRaw<Array<Record<string, unknown>>>("agent_connection_list", { workspaceId });
+  list: async (_workspaceId?: string): Promise<AgentConnection[]> => {
+    const rows = await invokeRaw<Array<Record<string, unknown>>>("agent_connection_list");
     return (rows ?? []).map(mapAgentConnection);
   },
   upsert: async (input: AgentConnectionUpsertInput): Promise<AgentConnection> => {
     const row = await invokeRaw<Record<string, unknown>>("agent_connection_upsert", {
       input: {
-        workspaceId: input.workspaceId,
         agentType: input.platform,
         rootDir: input.rootDir,
         ruleFile: input.ruleFile ?? "",
@@ -70,7 +69,6 @@ export const agentConnectionApi = {
   toggle: async (input: AgentConnectionToggleInput): Promise<AgentConnection> => {
     const row = await invokeRaw<Record<string, unknown>>("agent_connection_toggle", {
       input: {
-        workspaceId: input.workspaceId,
         agentType: input.platform,
         enabled: input.enabled,
       },
@@ -80,7 +78,6 @@ export const agentConnectionApi = {
   delete: async (input: AgentConnectionDeleteInput): Promise<AgentConnection[]> => {
     const rows = await invokeRaw<Array<Record<string, unknown>>>("agent_connection_delete", {
       input: {
-        workspaceId: input.workspaceId,
         agentType: input.platform,
       },
     });
@@ -89,7 +86,6 @@ export const agentConnectionApi = {
   redetect: async (input: AgentConnectionPresetActionInput): Promise<AgentConnection> => {
     const row = await invokeRaw<Record<string, unknown>>("agent_connection_redetect", {
       input: {
-        workspaceId: input.workspaceId,
         agentType: input.platform,
       },
     });
@@ -98,7 +94,6 @@ export const agentConnectionApi = {
   restoreDefaults: async (input: AgentConnectionPresetActionInput): Promise<AgentConnection> => {
     const row = await invokeRaw<Record<string, unknown>>("agent_connection_restore_defaults", {
       input: {
-        workspaceId: input.workspaceId,
         agentType: input.platform,
       },
     });
@@ -107,14 +102,13 @@ export const agentConnectionApi = {
   preview: async (input: AgentRuleFilePreviewInput): Promise<AgentRuleFilePreviewResult> => {
     const row = await invokeRaw<Record<string, unknown>>("agent_connection_preview", {
       input: {
-        workspaceId: input.workspaceId,
         agentType: input.platform,
       },
     });
     const status = String(row.status ?? "");
     const content = typeof row.content === "string" ? row.content : "";
     return {
-      workspaceId: input.workspaceId,
+      workspaceId: "",
       platform: input.platform,
       rootDir: "",
       resolvedPath: String(row.resolvedPath ?? row.resolved_path ?? ""),

@@ -1,8 +1,9 @@
+import { Input } from "@douyinfe/semi-ui-19";
 import { Copy, Pencil, Star, Trash2 } from "lucide-react";
 
 import { DataTable } from "../../common/components/DataTable";
 import { EmptyState } from "../../common/components/EmptyState";
-import { Button, Card, CardContent, CardHeader, CardTitle, DeleteIconButton, Input } from "../../../shared/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, DeleteIconButton } from "../../../shared/ui";
 import type { PromptAsset } from "../../../shared/types/prompts";
 import type { PromptBrowseScope } from "../utils/promptBrowseContext";
 
@@ -290,7 +291,7 @@ export function PromptResults({
             <div className="flex items-center gap-2">
               <Input
                 value={promptBatchCategory}
-                onChange={(event) => setPromptBatchCategory(event.currentTarget.value)}
+                onChange={(value) => setPromptBatchCategory(value)}
                 placeholder={l("目标分类", "Target category")}
                 className="h-9 w-40"
               />

@@ -21,7 +21,13 @@ pub(super) fn build_facts_query(
         SqlValue::Text(start_at.to_string()),
         SqlValue::Text(end_at.to_string()),
     ];
-    append_fact_filters(&mut sql, &mut params, agent_filter, model_filter, status_filter);
+    append_fact_filters(
+        &mut sql,
+        &mut params,
+        agent_filter,
+        model_filter,
+        status_filter,
+    );
     if let Some((_, Some((cursor_ts, cursor_id)))) = page.as_ref() {
         sql.push_str(" AND (called_at < ? OR (called_at = ? AND id < ?))");
         params.push(SqlValue::Text(cursor_ts.clone()));
@@ -54,7 +60,13 @@ pub(super) fn build_facts_count_query(
         SqlValue::Text(start_at.to_string()),
         SqlValue::Text(end_at.to_string()),
     ];
-    append_fact_filters(&mut sql, &mut params, agent_filter, model_filter, status_filter);
+    append_fact_filters(
+        &mut sql,
+        &mut params,
+        agent_filter,
+        model_filter,
+        status_filter,
+    );
     (sql, params)
 }
 
@@ -79,7 +91,10 @@ fn append_fact_filters(
     }
 }
 
-pub(super) fn query_source_coverage(conn: &Connection, workspace_id: &str) -> Result<Vec<Value>, AppError> {
+pub(super) fn query_source_coverage(
+    conn: &Connection,
+    workspace_id: &str,
+) -> Result<Vec<Value>, AppError> {
     let mut stmt = conn.prepare(
         "SELECT source, status, COUNT(1), MAX(updated_at)
          FROM model_call_source_status

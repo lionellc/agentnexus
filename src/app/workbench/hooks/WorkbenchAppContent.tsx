@@ -2,9 +2,7 @@ import { useMemo } from "react";
 
 import { AppShell } from "../../../features/shell/AppShell";
 import type { SettingsCategory } from "../../../features/shell/types";
-import {
-  PROMPT_CATEGORY_ALL_KEY,
-} from "../../../features/prompts/utils/promptCategory";
+import { PROMPT_CATEGORY_ALL_KEY } from "../../../features/prompts/utils/promptCategory";
 import { usePromptBrowse } from "../../../features/prompts/hooks/usePromptBrowse";
 import { usePromptVersionCompare } from "../../../features/prompts/hooks/usePromptVersionCompare";
 import { usePromptRun } from "../../../features/prompts/hooks/usePromptRun";
@@ -41,10 +39,8 @@ import { buildWorkbenchPromptAndSettingsViews } from "./useWorkbenchPromptAndSet
 import { SkillOpenModeStatusBar } from "./SkillOpenModeStatusBar";
 import {
   createRequestId,
-  defaultAgentRuleFile,
   extractStdoutPreviewFromErrorMessage,
   formatBytes,
-  joinRuleFilePath,
   normalizeDirectoryInput,
   parseArgsTemplateInput,
   parseTags,
@@ -54,58 +50,235 @@ import {
   unknownToMessage,
   waitForUiPaint,
 } from "../utils";
-import {
-  useToast,
-} from "../../../shared/ui";
+import { SemiAppProvider, useToast } from "../../../shared/ui";
 import { extractTemplateVariables } from "../../../shared/utils/template";
 
 export function WorkbenchAppContent() {
   const { toast } = useToast();
   const {
-    APP_LANGUAGE_STORAGE_KEY, APP_THEME_STORAGE_KEY, AUTO_CHECK_APP_UPDATES, SKILL_OPEN_MODE_STORAGE_KEY,
+    APP_LANGUAGE_STORAGE_KEY,
+    APP_THEME_STORAGE_KEY,
+    AUTO_CHECK_APP_UPDATES,
+    SKILL_OPEN_MODE_STORAGE_KEY,
     TRANSLATION_TARGET_LANGUAGE_STORAGE_KEY,
-    activeModule, setActiveModule, promptViewMode, setPromptViewMode, skillDetailTab, setSkillDetailTab,
-    skillsHubSortMode, setSkillsHubSortMode, setAgentPlatformOrder, activeWorkspaceAgentOrder,
-    settingsCategory, setSettingsCategory, sidebarOpen, setSidebarOpen, mobileDetailOpen, setMobileDetailOpen,
-    prompts: promptList, promptsLoading, promptVersions, fetchPrompts, selectPrompt, deletePrompt,
-    createPrompt, updatePrompt, fetchPromptVersions, restorePromptVersion, promptSelectedIds, setPromptSelection,
-    clearPromptSelection, batchFavorite, batchMove, batchDelete, promptBatchResult,
-    skills: skillList, skillsLoading, selectedSkillId, fetchSkills, scanSkills, selectSkill, managerState,
-    managerLoading, managerCalibrating, managerMode, managerExpandedSkillId, managerMatrixFilter, managerRowHints,
-    usageAgentFilter, usageSourceFilter, usageEvidenceSourceFilter, usageStatsBySkillId, usageStatsLoading, usageStatsError, usageListSyncJob, usageDetailSyncJob,
-    usageDetailCalls, usageDetailCallsTotal, usageDetailCallsLoading, usageDetailCallsError, getManagerOperationsRows,
-    loadManagerState, managerBatchLink, managerBatchUnlink, setManagerMode, setManagerExpandedSkillId,
-    setManagerMatrixFilter, clearManagerRowHint, setUsageFilters, refreshUsageStats, startListUsageSync,
-    dismissListUsageSyncJob, startDetailUsageSync, loadUsageCalls, clearUsageDetail,
-    agentAssets, agentTagsByAsset, agentVersionsByAsset, agentConnections, agentRulesError, selectedAssetId,
-    setSelectedAssetId, clearAgentRulesError, loadAgentModuleData, loadAgentConnectionsStore: loadAgentConnections,
-    loadAgentVersions, createAgentAsset, renameAgentAsset, deleteAgentAsset, publishAgentVersion,
-    rollbackAgentRuleVersion, refreshAgentAsset, runAgentDistribution,
-    activeWorkspaceId, settingsTargets, settingsConnections, dirty, settingsLoading, loadAllSettings,
-    loadSettingsConnections, upsertTarget, deleteTarget, upsertConnection, toggleConnection,
-    redetectConnection, restoreConnectionDefaults, setDirty,
-    language, setLanguage, theme, setTheme, appVersion, setAppVersion, appUpdateStage, setAppUpdateStage,
-    appUpdateVersion, setAppUpdateVersion, appUpdateError, setAppUpdateError, appUpdateProgress, setAppUpdateProgress,
-    appUpdateRef, appUpdateAutoCheckedRef, skillOpenMenuRef, showSkillOpenModeInStatusBar, isZh, l,
-    projectBootingMessage, markdownModeLabels, skillOpenModeOptions, createPromptOpen, setCreatePromptOpen,
-    versionModalOpen, setVersionModalOpen, promptPage, setPromptPage, newPromptName, setNewPromptName,
-    newPromptContent, setNewPromptContent, promptQuery, setPromptQuery, promptBrowseScope, setPromptBrowseScope,
-    promptBrowseCategory, setPromptBrowseCategory, promptAllCategoryFilter, setPromptAllCategoryFilter,
-    promptBatchJumpSuggestion, setPromptBatchJumpSuggestion, skillQuery, setSkillQuery, promptDetailView,
-    setPromptDetailView, skillDetailView, setSkillDetailView, skillOpenMode, setSkillOpenMode, skillOpenMenuOpen,
-    setSkillOpenMenuOpen, promptBatchCategory, setPromptBatchCategory, homePath, selectedSkillScanDirectories,
-    detailName, setDetailName, detailCategory, setDetailCategory, detailTagsInput, setDetailTagsInput, detailContent,
-    setDetailContent, detailFavorite, setDetailFavorite, modelLoading, setModelLoading, modelSaving, setModelSaving,
-    localAgentProfiles, setLocalAgentProfiles, selectedModelProfileKey, setSelectedModelProfileKey, modelProfileName,
-    setModelProfileName, modelExecutable, setModelExecutable, modelArgsTemplateText, setModelArgsTemplateText,
-    newModelProfileName, setNewModelProfileName, translationPromptTemplate, setTranslationPromptTemplate,
-    translationDefaultProfileKey, setTranslationDefaultProfileKey, modelTestSourceText, setModelTestSourceText,
-    translationTargetLanguage, setTranslationTargetLanguage, modelScenarioSettingsOpen, setModelScenarioSettingsOpen,
-    modelScenarioTestOpen, setModelScenarioTestOpen, modelTestOutputSheet, translationTargetLanguageOptions,
-    compareLeftVersion, setCompareLeftVersion, compareRightVersion, setCompareRightVersion, promptVersionPreview,
-    setPromptVersionPreview, promptVersionCompareMode, setPromptVersionCompareMode, selectedPrompt,
-    selectedModelProfile, modelTestRunning, modelTestResult, selectedSkill, activeWorkspace,
-    operationsScanDirectories, settingCategories,
+    activeModule,
+    setActiveModule,
+    promptViewMode,
+    setPromptViewMode,
+    skillDetailTab,
+    setSkillDetailTab,
+    skillsHubSortMode,
+    setSkillsHubSortMode,
+    setAgentPlatformOrder,
+    activeWorkspaceAgentOrder,
+    settingsCategory,
+    setSettingsCategory,
+    sidebarOpen,
+    setSidebarOpen,
+    mobileDetailOpen,
+    setMobileDetailOpen,
+    prompts: promptList,
+    promptsLoading,
+    promptVersions,
+    fetchPrompts,
+    selectPrompt,
+    deletePrompt,
+    createPrompt,
+    updatePrompt,
+    fetchPromptVersions,
+    restorePromptVersion,
+    promptSelectedIds,
+    setPromptSelection,
+    clearPromptSelection,
+    batchFavorite,
+    batchMove,
+    batchDelete,
+    promptBatchResult,
+    skills: skillList,
+    skillsLoading,
+    selectedSkillId,
+    fetchSkills,
+    scanSkills,
+    selectSkill,
+    managerState,
+    managerLoading,
+    managerCalibrating,
+    managerMode,
+    managerExpandedSkillId,
+    managerMatrixFilter,
+    managerRowHints,
+    usageAgentFilter,
+    usageSourceFilter,
+    usageEvidenceSourceFilter,
+    usageStatsBySkillId,
+    usageStatsLoading,
+    usageStatsError,
+    usageListSyncJob,
+    usageDetailSyncJob,
+    usageDetailCalls,
+    usageDetailCallsTotal,
+    usageDetailCallsLoading,
+    usageDetailCallsError,
+    getManagerOperationsRows,
+    loadManagerState,
+    managerBatchLink,
+    managerBatchUnlink,
+    setManagerMode,
+    setManagerExpandedSkillId,
+    setManagerMatrixFilter,
+    clearManagerRowHint,
+    setUsageFilters,
+    refreshUsageStats,
+    startListUsageSync,
+    dismissListUsageSyncJob,
+    startDetailUsageSync,
+    loadUsageCalls,
+    clearUsageDetail,
+    agentAssets,
+    agentTagsByAsset,
+    agentVersionsByAsset,
+    agentConnections,
+    agentRulesError,
+    selectedAssetId,
+    setSelectedAssetId,
+    clearAgentRulesError,
+    loadAgentModuleData,
+    loadAgentConnectionsStore: loadAgentConnections,
+    loadAgentVersions,
+    createAgentAsset,
+    renameAgentAsset,
+    deleteAgentAsset,
+    publishAgentVersion,
+    rollbackAgentRuleVersion,
+    refreshAgentAsset,
+    runAgentDistribution,
+    activeWorkspaceId,
+    settingsTargets,
+    settingsConnections,
+    dirty,
+    settingsLoading,
+    loadAllSettings,
+    loadSettingsConnections,
+    upsertTarget,
+    deleteTarget,
+    upsertConnection,
+    toggleConnection,
+    redetectConnection,
+    restoreConnectionDefaults,
+    setDirty,
+    language,
+    setLanguage,
+    theme,
+    setTheme,
+    appVersion,
+    setAppVersion,
+    appUpdateStage,
+    setAppUpdateStage,
+    appUpdateVersion,
+    setAppUpdateVersion,
+    appUpdateError,
+    setAppUpdateError,
+    appUpdateProgress,
+    setAppUpdateProgress,
+    appUpdateRef,
+    appUpdateAutoCheckedRef,
+    skillOpenMenuRef,
+    showSkillOpenModeInStatusBar,
+    isZh,
+    l,
+    projectBootingMessage,
+    markdownModeLabels,
+    skillOpenModeOptions,
+    createPromptOpen,
+    setCreatePromptOpen,
+    versionModalOpen,
+    setVersionModalOpen,
+    promptPage,
+    setPromptPage,
+    newPromptName,
+    setNewPromptName,
+    newPromptContent,
+    setNewPromptContent,
+    promptQuery,
+    setPromptQuery,
+    promptBrowseScope,
+    setPromptBrowseScope,
+    promptBrowseCategory,
+    setPromptBrowseCategory,
+    promptAllCategoryFilter,
+    setPromptAllCategoryFilter,
+    promptBatchJumpSuggestion,
+    setPromptBatchJumpSuggestion,
+    skillQuery,
+    setSkillQuery,
+    promptDetailView,
+    setPromptDetailView,
+    skillDetailView,
+    setSkillDetailView,
+    skillOpenMode,
+    setSkillOpenMode,
+    skillOpenMenuOpen,
+    setSkillOpenMenuOpen,
+    promptBatchCategory,
+    setPromptBatchCategory,
+    homePath,
+    selectedSkillScanDirectories,
+    detailName,
+    setDetailName,
+    detailCategory,
+    setDetailCategory,
+    detailTagsInput,
+    setDetailTagsInput,
+    detailContent,
+    setDetailContent,
+    detailFavorite,
+    setDetailFavorite,
+    modelLoading,
+    setModelLoading,
+    modelSaving,
+    setModelSaving,
+    localAgentProfiles,
+    setLocalAgentProfiles,
+    selectedModelProfileKey,
+    setSelectedModelProfileKey,
+    modelProfileName,
+    setModelProfileName,
+    modelExecutable,
+    setModelExecutable,
+    modelArgsTemplateText,
+    setModelArgsTemplateText,
+    newModelProfileName,
+    setNewModelProfileName,
+    translationPromptTemplate,
+    setTranslationPromptTemplate,
+    translationDefaultProfileKey,
+    setTranslationDefaultProfileKey,
+    modelTestSourceText,
+    setModelTestSourceText,
+    translationTargetLanguage,
+    setTranslationTargetLanguage,
+    modelScenarioSettingsOpen,
+    setModelScenarioSettingsOpen,
+    modelScenarioTestOpen,
+    setModelScenarioTestOpen,
+    modelTestOutputSheet,
+    translationTargetLanguageOptions,
+    compareLeftVersion,
+    setCompareLeftVersion,
+    compareRightVersion,
+    setCompareRightVersion,
+    promptVersionPreview,
+    setPromptVersionPreview,
+    promptVersionCompareMode,
+    setPromptVersionCompareMode,
+    selectedPrompt,
+    selectedModelProfile,
+    modelTestRunning,
+    modelTestResult,
+    selectedSkill,
+    activeWorkspace,
+    operationsScanDirectories,
+    settingCategories,
   } = useWorkbenchAppContentState();
   const {
     appUpdateStatusText,
@@ -269,10 +442,13 @@ export function WorkbenchAppContent() {
     compareRightVersion,
   });
 
-  const selectedSkillOpenModeOption = skillOpenModeOptions.find((item) => item.value === skillOpenMode) ?? skillOpenModeOptions[0];
+  const selectedSkillOpenModeOption =
+    skillOpenModeOptions.find((item) => item.value === skillOpenMode) ??
+    skillOpenModeOptions[0];
   const skillOpenModeLabel = selectedSkillOpenModeOption?.label ?? "VS Code";
   const promptTableColumnSettingsKey = useMemo(
-    () => `${PROMPT_TABLE_COLUMN_SETTINGS_KEY}:${activeWorkspaceId ?? "default"}`,
+    () =>
+      `${PROMPT_TABLE_COLUMN_SETTINGS_KEY}:${activeWorkspaceId ?? "default"}`,
     [activeWorkspaceId],
   );
   const promptRun = usePromptRun({
@@ -505,7 +681,12 @@ export function WorkbenchAppContent() {
 
   function handleChangeSettingsCategory(next: SettingsCategory) {
     if (dirty[settingsCategory]) {
-      const confirmed = window.confirm(l("当前分类有未保存改动，是否继续切换？", "Unsaved changes exist in this category. Continue switching?"));
+      const confirmed = window.confirm(
+        l(
+          "当前分类有未保存改动，是否继续切换？",
+          "Unsaved changes exist in this category. Continue switching?",
+        ),
+      );
       if (!confirmed) {
         return;
       }
@@ -800,17 +981,20 @@ export function WorkbenchAppContent() {
       skillOpenMode,
       setSkillOpenMode,
       skillOpenModeOptions,
-      onSkillOpen: (skillId, relativePath) => void handleSkillOpen(skillId, relativePath),
+      onSkillOpen: (skillId, relativePath) =>
+        void handleSkillOpen(skillId, relativePath),
       onBackToSkillList: handleLeaveSkillDetail,
       selectedSkill,
       skillDetailTab,
       setSkillDetailTab,
-      onReadSkillFile: (skillId, relativePath) => void handleReadSkillFile(skillId, relativePath),
+      onReadSkillFile: (skillId, relativePath) =>
+        void handleReadSkillFile(skillId, relativePath),
       skillFileReadLoading,
       selectedSkillOverviewRead,
       selectedSkillTree,
       skillTreeLoading,
-      onLoadSkillTree: (skillId, force) => void handleLoadSkillTree(skillId, force),
+      onLoadSkillTree: (skillId, force) =>
+        void handleLoadSkillTree(skillId, force),
       renderSkillTreeNodes,
       selectedSkillFilePath,
       selectedSkillFileRead,
@@ -858,8 +1042,6 @@ export function WorkbenchAppContent() {
     setTranslationTargetLanguage,
     handleRunModelTranslationTest,
     toLocalTime,
-    defaultAgentRuleFile,
-    joinRuleFilePath,
   });
 
   const settingsModuleController = useWorkbenchSettingsController({
@@ -875,11 +1057,9 @@ export function WorkbenchAppContent() {
   });
   const usageModuleController = useWorkbenchUsageController({
     l,
-    activeWorkspaceId,
   });
   const channelTestModuleController = useWorkbenchChannelTestController({
     l,
-    language,
     activeWorkspaceId,
   });
 
@@ -888,13 +1068,13 @@ export function WorkbenchAppContent() {
       ? promptsModuleController.module
       : activeModule === "skills"
         ? skillsModuleController.module
-      : activeModule === "usage"
-        ? usageModuleController.module
-      : activeModule === "channelTest"
-        ? channelTestModuleController.module
-      : activeModule === "agents"
-          ? agentsModuleController.module
-          : settingsModuleController.module;
+        : activeModule === "usage"
+          ? usageModuleController.module
+          : activeModule === "channelTest"
+            ? channelTestModuleController.module
+            : activeModule === "agents"
+              ? agentsModuleController.module
+              : settingsModuleController.module;
   const skillOpenModeStatusBar = showSkillOpenModeInStatusBar ? (
     <SkillOpenModeStatusBar
       skillOpenMenuRef={skillOpenMenuRef}
@@ -910,7 +1090,7 @@ export function WorkbenchAppContent() {
   const detail = <div className="h-full" />;
 
   return (
-    <>
+    <SemiAppProvider language={language} theme={theme}>
       <AppShell
         activeModule={activeModule}
         language={language}
@@ -941,6 +1121,6 @@ export function WorkbenchAppContent() {
       {skillsModuleController.linkConfirmDialog}
       {skillsModuleController.usageTimelineDialog}
       {modelTestOutputSheetView}
-    </>
+    </SemiAppProvider>
   );
 }

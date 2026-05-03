@@ -1,12 +1,22 @@
 import * as React from "react";
+import { TextArea as SemiTextArea } from "@douyinfe/semi-ui-19";
 
 import { cn } from "../lib/cn";
 
-export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {}
+export interface TextareaProps extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange"> {
+  onChange?: (event: React.ChangeEvent<HTMLTextAreaElement>) => void;
+}
 
-const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, ...props }, ref) => {
+function createTextareaChangeEvent(value: string): React.ChangeEvent<HTMLTextAreaElement> {
+  return {
+    currentTarget: { value },
+    target: { value },
+  } as React.ChangeEvent<HTMLTextAreaElement>;
+}
+
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className, onChange, ...props }, ref) => {
   return (
-    <textarea
+    <SemiTextArea
       className={cn(
         "flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
         "placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-0",
@@ -14,7 +24,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ classNa
         className,
       )}
       ref={ref}
-      {...props}
+      {...(props as any)}
+      onChange={(value) => onChange?.(createTextareaChangeEvent(value))}
     />
   );
 });

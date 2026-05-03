@@ -1,3 +1,4 @@
+import { Table } from "@douyinfe/semi-ui-19";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 export type Column<T> = {
@@ -99,7 +100,6 @@ export function DataTable<T>({
     const orderedColumns = columnSettings.order.map((key) => byKey.get(key)).filter((column): column is Column<T> => Boolean(column));
     return orderedColumns.filter((column) => !hiddenSet.has(column.key));
   }, [columnSettings.hiddenKeys, columnSettings.order, columns]);
-
   const allRowKeys = useMemo(() => rows.map((row) => rowKey(row)), [rowKey, rows]);
   const selectedRowKeysSet = useMemo(() => new Set(rowSelection?.selectedRowKeys ?? []), [rowSelection?.selectedRowKeys]);
   const selectedVisibleCount = useMemo(
@@ -172,6 +172,61 @@ export function DataTable<T>({
     rowSelection.onChange(Array.from(nextKeys));
   };
 
+  const tableColumns = useMemo(() => {
+    const selectionColumn: SemiColumn<T>[] = rowSelection
+      ? [
+          {
+            key: "__selection",
+            title: (
+              <input
+                ref={headerCheckboxRef}
+                type="checkbox"
+                aria-label="全选"
+                checked={isAllSelected}
+                onChange={(event) => handleToggleAllRows(event.target.checked)}
+              />
+            ),
+            dataIndex: "__selection",
+            width: 48,
+            render: (_value, row) => {
+              const currentRowKey = rowKey(row);
+              return (
+                <input
+                  type="checkbox"
+                  aria-label={`选择-${currentRowKey}`}
+                  checked={selectedRowKeysSet.has(currentRowKey)}
+                  onClick={(event) => event.stopPropagation()}
+                  onChange={(event) => handleToggleSingleRow(currentRowKey, event.target.checked)}
+                />
+              );
+            },
+          },
+        ]
+      : [];
+    const dataColumns = visibleColumns.map((column): SemiColumn<T> => ({
+      key: column.key,
+      title: column.title,
+      dataIndex: column.key,
+      className: column.className,
+      render: (_value, row) => column.render(row),
+    }));
+    const actionColumn: SemiColumn<T>[] = renderRowActions
+      ? [
+          {
+            key: "__actions",
+            title: "操作",
+            dataIndex: "__actions",
+            render: (_value, row) => (
+              <div onClick={(event) => event.stopPropagation()}>
+                {renderRowActions(row)}
+              </div>
+            ),
+          },
+        ]
+      : [];
+    return [...selectionColumn, ...dataColumns, ...actionColumn];
+  }, [isAllSelected, renderRowActions, rowKey, rowSelection, selectedRowKeysSet, visibleColumns]);
+
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
       {columnSettingsKey ? (
@@ -234,62 +289,27 @@ export function DataTable<T>({
           ) : null}
         </div>
       ) : null}
-      <div className="overflow-auto">
-        <table className="min-w-full border-collapse text-left text-sm">
-          <thead className="bg-muted text-muted-foreground">
-            <tr>
-              {rowSelection ? (
-                <th className="border-b border-border px-3 py-2 font-semibold">
-                  <input
-                    ref={headerCheckboxRef}
-                    type="checkbox"
-                    aria-label="全选"
-                    checked={isAllSelected}
-                    onChange={(event) => handleToggleAllRows(event.target.checked)}
-                  />
-                </th>
-              ) : null}
-              {visibleColumns.map((column) => (
-                <th key={column.key} className={`border-b border-border px-3 py-2 font-semibold ${column.className ?? ""}`}>
-                  {column.title}
-                </th>
-              ))}
-              {renderRowActions ? <th className="border-b border-border px-3 py-2 font-semibold">操作</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr
-                key={rowKey(row)}
-                className={`group hover:bg-muted/60 ${onRowClick ? "cursor-pointer" : ""}`}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-              >
-                {rowSelection ? (
-                  <td className="border-b border-border px-3 py-2 align-top">
-                    <input
-                      type="checkbox"
-                      aria-label={`选择-${rowKey(row)}`}
-                      checked={selectedRowKeysSet.has(rowKey(row))}
-                      onClick={(event) => event.stopPropagation()}
-                      onChange={(event) => handleToggleSingleRow(rowKey(row), event.target.checked)}
-                    />
-                  </td>
-                ) : null}
-                {visibleColumns.map((column) => (
-                  <td key={`${rowKey(row)}-${column.key}`} className={`border-b border-border px-3 py-2 align-top ${column.className ?? ""}`}>
-                    {column.render(row)}
-                  </td>
-                ))}
-                {renderRowActions ? (
-                  <td className="border-b border-border px-3 py-2 align-top" onClick={(event) => event.stopPropagation()}>
-                    {renderRowActions(row)}
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <Table
+        rowKey={(row) => rowKey(row as T)}
+        columns={tableColumns as any[]}
+        dataSource={rows as any[]}
+        pagination={false}
+        scroll={{ x: "100%" }}
+        size="small"
+        onRow={(row) => ({
+          className: `group hover:bg-muted/60 ${onRowClick ? "cursor-pointer" : ""}`,
+          onClick: onRowClick && row ? () => onRowClick(row as T) : undefined,
+        })}
+      />
     </div>
   );
 }
+
+type SemiColumn<T> = {
+  key: string;
+  title: ReactNode;
+  dataIndex: string;
+  width?: number;
+  className?: string;
+  render?: (_value: unknown, row: T) => ReactNode;
+};

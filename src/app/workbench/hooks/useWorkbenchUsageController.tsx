@@ -4,13 +4,12 @@ import { UsageModule } from "../../../features/usage/module/UsageModule";
 
 type UseWorkbenchUsageControllerInput = {
   l: (zh: string, en: string) => string;
-  activeWorkspaceId: string | null;
 };
 
-export function useWorkbenchUsageController({ l, activeWorkspaceId }: UseWorkbenchUsageControllerInput) {
+export function useWorkbenchUsageController({ l }: UseWorkbenchUsageControllerInput) {
   const module = useMemo(
-    () => <UsageModule l={l} workspaceId={activeWorkspaceId} />,
-    [activeWorkspaceId, l],
+    () => <UsageModule l={l} />,
+    [l],
   );
 
   return { module };

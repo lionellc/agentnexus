@@ -19,7 +19,6 @@ import type {
   SkillsBatchResult,
   SkillsUsageCallsResult,
   SkillsUsageStatsResult,
-  Workspace,
 } from "../../types";
 
 export type PromptVersion = {
@@ -29,7 +28,6 @@ export type PromptVersion = {
   createdAt: string;
 };
 
-export type AgentNexusWorkspace = Workspace;
 export type AgentNexusPrompt = PromptAsset;
 export type AgentNexusSkill = SkillAsset;
 export type AgentNexusSkillDetail = SkillsAssetDetail;

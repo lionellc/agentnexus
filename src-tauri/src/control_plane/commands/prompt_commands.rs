@@ -25,7 +25,7 @@ pub fn prompt_create(
     let mut conn = state.open()?;
     let tx = conn.transaction()?;
 
-    get_workspace(&tx, &input.workspace_id)?;
+    get_workspace(&tx, crate::domain::models::APP_SCOPE_ID)?;
 
     let now = now_rfc3339();
     let prompt_id = Uuid::new_v4().to_string();
@@ -38,7 +38,7 @@ pub fn prompt_create(
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8)",
         params![
             prompt_id,
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             input.name,
             serde_json::to_string(&tags).map_err(|err| AppError::internal(err.to_string()))?,
             category,
@@ -146,11 +146,9 @@ pub fn prompt_delete(
 }
 
 #[tauri::command]
-pub fn prompt_list(
-    state: State<'_, AppState>,
-    workspace_id: String,
-) -> Result<Vec<Value>, AppError> {
+pub fn prompt_list(state: State<'_, AppState>) -> Result<Vec<Value>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     get_workspace(&conn, &workspace_id)?;
 
     let mut stmt = conn.prepare(
@@ -270,7 +268,7 @@ pub fn prompt_search(
     state: State<'_, AppState>,
     input: PromptSearchInput,
 ) -> Result<Vec<Value>, AppError> {
-    let list = prompt_list(state, input.workspace_id)?;
+    let list = prompt_list(state)?;
 
     let keyword = input.keyword.unwrap_or_default().to_lowercase();
     let category = input.category.unwrap_or_default();

@@ -1,9 +1,22 @@
+import { Input } from "@douyinfe/semi-ui-19";
 import { AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
 
 import { SectionTitle } from "../../common/components/SectionTitle";
-import { Button, Card, CardContent, Input, Tag, type TagProps } from "../../../shared/ui";
+import {
+  Button,
+  Card,
+  CardContent,
+  Tag,
+  type TagProps,
+} from "../../../shared/ui";
 
-type AgentTagStatus = "drifted" | "clean" | "synced" | "success" | "error" | string;
+type AgentTagStatus =
+  | "drifted"
+  | "clean"
+  | "synced"
+  | "success"
+  | "error"
+  | string;
 
 function agentTagTone(status: AgentTagStatus): NonNullable<TagProps["tone"]> {
   if (status === "drifted") {
@@ -31,6 +44,7 @@ export type AgentAssetListItem = {
 export type AgentConnectionListItem = {
   id: string;
   agentType: string;
+  enabled?: boolean;
   rootDir?: string | null;
   ruleFile?: string | null;
   resolvedPath?: string | null;
@@ -56,8 +70,13 @@ export type AgentsCenterProps = {
   setCreatingAgentAsset: (value: boolean) => void;
   setAgentDistributionModalOpen: (open: boolean) => void;
   deleteConfirmAssetId: string | null;
-  setDeleteConfirmAssetId: (updater: string | null | ((prev: string | null) => string | null)) => void;
-  handleDeleteAgentRuleAsset: (assetId: string, assetName: string) => Promise<void> | void;
+  setDeleteConfirmAssetId: (
+    updater: string | null | ((prev: string | null) => string | null),
+  ) => void;
+  handleDeleteAgentRuleAsset: (
+    assetId: string,
+    assetName: string,
+  ) => Promise<void> | void;
   toLocalTime: (value: string | null | undefined) => string;
   agentRulesPage: number;
   setAgentRulesPage: (updater: number | ((prev: number) => number)) => void;
@@ -93,24 +112,37 @@ export function AgentsCenter({
   totalAgentPages,
   agentRulesPageSize,
 }: AgentsCenterProps) {
+  const enabledAgentCount = agentConnections.filter(
+    (agent) => agent.enabled !== false,
+  ).length;
+
   return (
     <div className="space-y-4">
       <SectionTitle
         title={l("全局 Agent 规则管理", "Global Agent Rules")}
-        subtitle={l(`规则文件 ${agentAssets.length} 个 · 已接入 Agent ${agentConnections.length} 个`, `${agentAssets.length} rule files · ${agentConnections.length} connected agents`)}
+        subtitle={l(
+          `规则文件 ${agentAssets.length} 个 · 已启用 Agent ${enabledAgentCount} 个`,
+          `${agentAssets.length} rule files · ${enabledAgentCount} enabled agents`,
+        )}
         action={
           <div className="flex flex-wrap gap-2">
             <Input
               value={agentQuery}
-              onChange={(event) => setAgentQuery(event.currentTarget.value)}
+              onChange={(value) => setAgentQuery(value)}
               placeholder={l("搜索规则文件...", "Search rule files...")}
               className="w-56"
             />
-            <Button variant="outline" onClick={() => void handleRefreshAgentModule()}>
+            <Button
+              variant="outline"
+              onClick={() => void handleRefreshAgentModule()}
+            >
               <RefreshCw className="mr-1 h-4 w-4" />
               {l("刷新", "Refresh")}
             </Button>
-            <Button onClick={() => handleCreateNewAgentAsset()} disabled={!activeWorkspaceId}>
+            <Button
+              onClick={() => handleCreateNewAgentAsset()}
+              disabled={!activeWorkspaceId}
+            >
               {l("新建规则文件", "New Rule File")}
             </Button>
           </div>
@@ -124,7 +156,11 @@ export function AgentsCenter({
               <AlertTriangle className="h-4 w-4" />
               {agentRulesError}
             </span>
-            <Button size="sm" variant="outline" onClick={() => clearAgentRulesError()}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => clearAgentRulesError()}
+            >
               {l("清除", "Clear")}
             </Button>
           </CardContent>
@@ -134,7 +170,12 @@ export function AgentsCenter({
       <Card>
         <CardContent className="space-y-3 py-6 text-sm">
           {filteredAgentAssets.length === 0 ? (
-            <div className="text-slate-500">{l("暂无规则文件，点击“新建规则文件”开始。", "No rule files yet. Click \"New Rule File\" to start.")}</div>
+            <div className="text-slate-500">
+              {l(
+                "暂无规则文件，点击“新建规则文件”开始。",
+                'No rule files yet. Click "New Rule File" to start.',
+              )}
+            </div>
           ) : (
             pagedAgentAssets.map((asset) => {
               const tags = agentTagsByAsset[asset.id] ?? asset.tags ?? [];
@@ -148,9 +189,12 @@ export function AgentsCenter({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-semibold text-slate-900">{asset.name}</span>
+                      <span className="font-semibold text-slate-900">
+                        {asset.name}
+                      </span>
                       <span className="text-xs text-slate-500">
-                        {l("版本", "Version")} v{asset.latestVersion ?? "-"} · {toLocalTime(asset.updatedAt)}
+                        {l("版本", "Version")} v{asset.latestVersion ?? "-"} ·{" "}
+                        {toLocalTime(asset.updatedAt)}
                       </span>
                     </div>
                     <div className="flex gap-2 opacity-0 pointer-events-none transition-opacity group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 group-focus-within:pointer-events-auto">
@@ -172,7 +216,7 @@ export function AgentsCenter({
                           setCreatingAgentAsset(false);
                           setAgentDistributionModalOpen(true);
                         }}
-                        disabled={agentConnections.length === 0}
+                        disabled={enabledAgentCount === 0}
                       >
                         {l("应用", "Apply")}
                       </Button>
@@ -197,7 +241,10 @@ export function AgentsCenter({
                             onClick={(event) => event.stopPropagation()}
                           >
                             <div className="text-slate-700">
-                              {l(`确认彻底删除「${asset.name}」？`, `Delete "${asset.name}" permanently?`)}
+                              {l(
+                                `确认彻底删除「${asset.name}」？`,
+                                `Delete "${asset.name}" permanently?`,
+                              )}
                             </div>
                             <div className="mt-2 flex justify-end gap-2">
                               <Button
@@ -215,7 +262,10 @@ export function AgentsCenter({
                                 variant="outline"
                                 onClick={(event) => {
                                   event.stopPropagation();
-                                  void handleDeleteAgentRuleAsset(asset.id, asset.name);
+                                  void handleDeleteAgentRuleAsset(
+                                    asset.id,
+                                    asset.name,
+                                  );
                                 }}
                               >
                                 <Trash2 className="mr-1 h-4 w-4 text-red-600" />
@@ -229,7 +279,9 @@ export function AgentsCenter({
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {tags.length === 0 ? (
-                      <span className="text-xs text-slate-400">{l("暂无 Agent 标签", "No agent tags")}</span>
+                      <span className="text-xs text-slate-400">
+                        {l("暂无 Agent 标签", "No agent tags")}
+                      </span>
                     ) : (
                       tags.map((tag) => {
                         const status = String(
@@ -243,7 +295,11 @@ export function AgentsCenter({
                             "unknown",
                         );
                         return (
-                          <Tag key={`${asset.id}-${agentType}`} tone={agentTagTone(status)} className="px-2 py-1">
+                          <Tag
+                            key={`${asset.id}-${agentType}`}
+                            tone={agentTagTone(status)}
+                            className="px-2 py-1"
+                          >
                             {agentType}
                             {status === "drifted" ? " · drifted" : ""}
                           </Tag>
@@ -268,7 +324,9 @@ export function AgentsCenter({
                   size="sm"
                   variant="outline"
                   disabled={agentRulesPage <= 1}
-                  onClick={() => setAgentRulesPage((prev) => Math.max(1, prev - 1))}
+                  onClick={() =>
+                    setAgentRulesPage((prev) => Math.max(1, prev - 1))
+                  }
                 >
                   {l("上一页", "Prev")}
                 </Button>
@@ -279,7 +337,11 @@ export function AgentsCenter({
                   size="sm"
                   variant="outline"
                   disabled={agentRulesPage >= totalAgentPages}
-                  onClick={() => setAgentRulesPage((prev) => Math.min(totalAgentPages, prev + 1))}
+                  onClick={() =>
+                    setAgentRulesPage((prev) =>
+                      Math.min(totalAgentPages, prev + 1),
+                    )
+                  }
                 >
                   {l("下一页", "Next")}
                 </Button>

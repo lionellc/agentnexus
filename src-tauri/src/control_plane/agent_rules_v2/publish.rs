@@ -19,9 +19,9 @@ use super::{
 #[tauri::command]
 pub fn agent_rule_asset_list(
     state: State<'_, AppState>,
-    workspace_id: String,
 ) -> Result<Vec<AgentRuleAssetDto>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     ensure_workspace_exists(&conn, &workspace_id)?;
     ensure_default_agent_connections(&conn, &workspace_id)?;
 
@@ -76,7 +76,7 @@ pub fn agent_rule_asset_create(
     input: AgentRuleAssetCreateInput,
 ) -> Result<AgentRuleAssetDto, AppError> {
     let mut conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let name = input.name.trim();
     if name.is_empty() {
@@ -92,7 +92,7 @@ pub fn agent_rule_asset_create(
     tx.execute(
         "INSERT INTO global_rule_assets(id, workspace_id, name, latest_version, created_at, updated_at)
          VALUES (?1, ?2, ?3, 1, ?4, ?5)",
-        params![asset_id, input.workspace_id, name, now, now],
+        params![asset_id, crate::domain::models::APP_SCOPE_ID.to_string(), name, now, now],
     )?;
 
     tx.execute(
@@ -118,12 +118,15 @@ pub fn agent_rule_asset_delete(
     input: AgentRuleAssetDeleteInput,
 ) -> Result<(), AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    get_asset_latest_bundle(&conn, &input.workspace_id, &input.asset_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    get_asset_latest_bundle(&conn, crate::domain::models::APP_SCOPE_ID, &input.asset_id)?;
 
     conn.execute(
         "DELETE FROM global_rule_assets WHERE id = ?1 AND workspace_id = ?2",
-        params![input.asset_id, input.workspace_id],
+        params![
+            input.asset_id,
+            crate::domain::models::APP_SCOPE_ID.to_string()
+        ],
     )?;
     Ok(())
 }
@@ -134,8 +137,8 @@ pub fn agent_rule_asset_rename(
     input: AgentRuleAssetRenameInput,
 ) -> Result<AgentRuleAssetDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    get_asset_latest_bundle(&conn, &input.workspace_id, &input.asset_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    get_asset_latest_bundle(&conn, crate::domain::models::APP_SCOPE_ID, &input.asset_id)?;
     let name = input.name.trim();
     if name.is_empty() {
         return Err(AppError::invalid_argument("规则名称不能为空"));
@@ -145,7 +148,12 @@ pub fn agent_rule_asset_rename(
         "UPDATE global_rule_assets
          SET name = ?3, updated_at = ?4
          WHERE id = ?1 AND workspace_id = ?2",
-        params![input.asset_id, input.workspace_id, name, now],
+        params![
+            input.asset_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
+            name,
+            now
+        ],
     )?;
     get_asset_summary(&conn, &input.asset_id)
 }

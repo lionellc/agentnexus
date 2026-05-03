@@ -39,7 +39,7 @@ pub fn skills_scan(
     input: SkillsScanInput,
 ) -> Result<Vec<SkillAsset>, AppError> {
     let conn = state.open()?;
-    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let workspace = get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let workspace_root = PathBuf::from(&workspace.root_path);
 
     let directories: Vec<PathBuf> = if let Some(input_dirs) = input.directories {
@@ -290,7 +290,7 @@ pub fn skills_distribute(
     input: SkillsBatchInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let workspace = get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let targets = list_targets(&conn, &workspace.id, Some(input.target_ids.as_slice()))?;
     if targets.is_empty() {
         return Err(AppError::invalid_argument("分发目标为空"));
@@ -365,7 +365,7 @@ pub fn skills_uninstall(
     input: SkillsBatchInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace = get_workspace(&conn, &input.workspace_id)?;
+    let workspace = get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let targets = list_targets(&conn, &workspace.id, Some(input.target_ids.as_slice()))?;
     if targets.is_empty() {
         return Err(AppError::invalid_argument("分发目标为空"));

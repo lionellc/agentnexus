@@ -1,6 +1,5 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { Modal } from "@douyinfe/semi-ui-19";
 
 import { cn } from "../lib/cn";
 
@@ -113,23 +112,21 @@ function DialogClose({ children }: DialogCloseProps) {
 }
 
 function DialogPortal({ children }: { children: React.ReactNode }) {
-  if (typeof document === "undefined") {
-    return null;
-  }
-  return createPortal(children, document.body);
+  return <>{children}</>;
 }
 
 const DialogOverlay = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn("fixed inset-0 z-50 overlay-backdrop animate-fade-in", className)} {...props} />
+  <div ref={ref} className={cn("overlay-backdrop", className)} {...props} />
 ));
 DialogOverlay.displayName = "DialogOverlay";
 
 interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   overlayClassName?: string;
+  size?: "small" | "medium" | "large" | "full-width";
 }
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, children, overlayClassName, ...props }, ref) => {
+  ({ className, children, overlayClassName: _overlayClassName, size = "medium", ...props }, ref) => {
     const { open, setOpen } = useDialogContext();
 
     if (!open) {
@@ -137,30 +134,27 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
     }
 
     return (
-      <DialogPortal>
-        <DialogOverlay className={overlayClassName} onClick={() => setOpen(false)} />
+      <Modal
+        visible={open}
+        title={null}
+        footer={null}
+        closable
+        maskClosable
+        size={size}
+        onCancel={() => setOpen(false)}
+        className={cn("bg-background text-foreground", className)}
+        bodyStyle={{ padding: 0 }}
+      >
         <div
           ref={ref}
           role="dialog"
           aria-modal="true"
-          className={cn(
-            "fixed left-1/2 top-1/2 z-50 w-full max-w-lg -translate-x-1/2 -translate-y-1/2",
-            "rounded-lg border bg-background p-6 shadow-lg animate-fade-in",
-            className,
-          )}
+          className="relative p-6"
           {...props}
         >
           {children}
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100"
-            onClick={() => setOpen(false)}
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
-      </DialogPortal>
+      </Modal>
     );
   },
 );

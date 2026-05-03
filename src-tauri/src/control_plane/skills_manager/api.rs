@@ -6,9 +6,14 @@ pub fn skills_manager_state(
     input: SkillsManagerStateInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let config = load_skills_manager_config(&conn, &input.workspace_id)?;
-    build_manager_snapshot(&workspace_root, &conn, &config, &input.workspace_id)
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    build_manager_snapshot(
+        &workspace_root,
+        &conn,
+        &config,
+        crate::domain::models::APP_SCOPE_ID,
+    )
 }
 
 #[tauri::command]
@@ -17,9 +22,9 @@ pub fn skills_manager_sync(
     input: SkillsManagerActionInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let config = load_skills_manager_config(&conn, &input.workspace_id)?;
-    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let tools = list_tool_targets(&conn, crate::domain::models::APP_SCOPE_ID)?;
     if tools.is_empty() {
         return Err(AppError::invalid_argument("当前 workspace 未配置分发目标"));
     }
@@ -170,11 +175,11 @@ pub fn skills_manager_sync(
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_sync",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "created": created,
             "skipped": skipped,
             "blocked": blocked,
@@ -202,8 +207,8 @@ pub fn skills_manager_clean(
     input: SkillsManagerActionInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let tools = list_tool_targets(&conn, crate::domain::models::APP_SCOPE_ID)?;
     if tools.is_empty() {
         return Err(AppError::invalid_argument("当前 workspace 未配置分发目标"));
     }
@@ -265,11 +270,11 @@ pub fn skills_manager_clean(
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_clean",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "cleaned": cleaned,
             "warned": warned,
         }),
@@ -307,9 +312,9 @@ pub fn skills_manager_delete(
     input: SkillsManagerDeleteInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let mut config = load_skills_manager_config(&conn, &input.workspace_id)?;
-    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let mut config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let tools = list_tool_targets(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let skills = list_skills(&conn)?;
     let skill = skills
         .iter()
@@ -339,15 +344,15 @@ pub fn skills_manager_delete(
         }
     }
 
-    save_skills_manager_config(&conn, &input.workspace_id, &config)?;
+    save_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID, &config)?;
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_delete",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "skillId": input.skill_id,
             "skillName": skill.name,
             "removedTools": removed,
@@ -370,9 +375,9 @@ pub fn skills_manager_purge(
     input: SkillsManagerDeleteInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let mut config = load_skills_manager_config(&conn, &input.workspace_id)?;
-    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let mut config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let tools = list_tool_targets(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let skills = list_skills(&conn)?;
     let skill = skills
         .iter()
@@ -407,15 +412,15 @@ pub fn skills_manager_purge(
 
     config.manual_unlinks.remove(&skill.name);
     config.deleted_skills.retain(|name| name != &skill.name);
-    save_skills_manager_config(&conn, &input.workspace_id, &config)?;
+    save_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID, &config)?;
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_purge",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "skillId": input.skill_id,
             "skillName": skill.name,
             "removedTools": removed_tools,
@@ -438,20 +443,20 @@ pub fn skills_manager_restore(
     input: SkillsManagerRestoreInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_root(&conn, &input.workspace_id)?;
-    let mut config = load_skills_manager_config(&conn, &input.workspace_id)?;
+    get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let mut config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
     config
         .deleted_skills
         .retain(|name| name != &input.skill_name);
-    save_skills_manager_config(&conn, &input.workspace_id, &config)?;
+    save_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID, &config)?;
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_restore",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "skillName": input.skill_name,
             "deletedCount": config.deleted_skills.len(),
         }),
@@ -470,8 +475,8 @@ pub fn skills_manager_rules_update(
     input: SkillsManagerRulesUpdateInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_root(&conn, &input.workspace_id)?;
-    let mut config = load_skills_manager_config(&conn, &input.workspace_id)?;
+    get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let mut config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     if let Some(rules) = input.rules {
         config.rules = sanitize_rule_map(rules)?;
@@ -483,15 +488,15 @@ pub fn skills_manager_rules_update(
         config.tool_rules = sanitize_tool_rule_map(tool_rules)?;
     }
 
-    save_skills_manager_config(&conn, &input.workspace_id, &config)?;
+    save_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID, &config)?;
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_rules_update",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "rules": config.rules.len(),
             "groupRules": config.group_rules.len(),
             "toolRules": config.tool_rules.len(),
@@ -512,7 +517,7 @@ pub fn skills_manager_diff_start(
     input: SkillsManagerDiffStartInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_root(&conn, &input.workspace_id)?;
+    get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let skills = list_skills(&conn)?;
 
     let left = skills
@@ -534,7 +539,7 @@ pub fn skills_manager_diff_start(
     let job_id = Uuid::new_v4().to_string();
     let state_arc = Arc::new(Mutex::new(SkillsManagerDiffJobState {
         job_id: job_id.clone(),
-        workspace_id: input.workspace_id.clone(),
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         left_skill_id: left.id.clone(),
         right_skill_id: right.id.clone(),
         left_skill_name: left.name.clone(),
@@ -571,11 +576,11 @@ pub fn skills_manager_diff_start(
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_diff_start",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "jobId": job_id,
             "leftSkillId": left.id,
             "rightSkillId": right.id,
@@ -584,7 +589,7 @@ pub fn skills_manager_diff_start(
         }),
     )?;
 
-    let snapshot = diff_job_snapshot(&job_id, &input.workspace_id)?;
+    let snapshot = diff_job_snapshot(&job_id, crate::domain::models::APP_SCOPE_ID)?;
     Ok(snapshot)
 }
 
@@ -593,7 +598,7 @@ pub fn skills_manager_diff_progress(
     _state: State<'_, AppState>,
     input: SkillsManagerDiffJobInput,
 ) -> Result<Value, AppError> {
-    diff_job_snapshot(&input.job_id, &input.workspace_id)
+    diff_job_snapshot(&input.job_id, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -611,7 +616,7 @@ pub fn skills_manager_diff_cancel(
             .state
             .lock()
             .map_err(|_| AppError::internal("diff job 状态锁异常"))?;
-        if job.workspace_id != input.workspace_id {
+        if job.workspace_id != crate::domain::models::APP_SCOPE_ID.to_string() {
             return Err(AppError::invalid_argument("workspace 不匹配"));
         }
         if job.status == DIFF_STATUS_RUNNING {
@@ -625,16 +630,16 @@ pub fn skills_manager_diff_cancel(
     let conn = state.open()?;
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_diff_cancel",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "jobId": input.job_id,
         }),
     )?;
 
-    diff_job_snapshot(&input.job_id, &input.workspace_id)
+    diff_job_snapshot(&input.job_id, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -643,9 +648,9 @@ pub fn skills_manager_link_preview(
     input: SkillsManagerLinkPreviewInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let config = load_skills_manager_config(&conn, &input.workspace_id)?;
-    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let tools = list_tool_targets(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let skills = list_skills(&conn)?;
     let deleted: HashSet<String> = config.deleted_skills.iter().cloned().collect();
 
@@ -666,7 +671,7 @@ pub fn skills_manager_link_preview(
     let max_entries = input.max_entries.unwrap_or(24).min(200);
     let preview = build_link_preview(
         &workspace_root,
-        &input.workspace_id,
+        crate::domain::models::APP_SCOPE_ID,
         &skill,
         &tool,
         &config,
@@ -681,9 +686,9 @@ pub fn skills_manager_update_then_link(
     input: SkillsManagerUpdateThenLinkInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let mut config = load_skills_manager_config(&conn, &input.workspace_id)?;
-    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let mut config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let tools = list_tool_targets(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let skills = list_skills(&conn)?;
     let deleted: HashSet<String> = config.deleted_skills.iter().cloned().collect();
 
@@ -708,7 +713,7 @@ pub fn skills_manager_update_then_link(
 
     let preview = build_link_preview(
         &workspace_root,
-        &input.workspace_id,
+        crate::domain::models::APP_SCOPE_ID,
         skill,
         tool,
         &config,
@@ -739,14 +744,14 @@ pub fn skills_manager_update_then_link(
         return Err(AppError::invalid_argument(link_result.message));
     }
 
-    save_skills_manager_config(&conn, &input.workspace_id, &config)?;
+    save_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID, &config)?;
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_update_then_link",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "skillId": input.skill_id,
             "tool": input.tool,
             "updated": updated,

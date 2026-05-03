@@ -12,8 +12,8 @@ import type {
 import { invokeCommand } from "./tauriClient";
 
 export const promptService = {
-  list(workspaceId: string): Promise<PromptAsset[]> {
-    return invokeCommand("prompt_list", { workspaceId });
+  list(_workspaceId?: string): Promise<PromptAsset[]> {
+    return invokeCommand("prompt_list");
   },
 
   create(input: PromptCreateInput): Promise<PromptAsset> {

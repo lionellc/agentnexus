@@ -87,6 +87,7 @@ npm run test:run -- src/features/prompts/utils/promptCategory.test.ts src/featur
 说明：以上命令是“本次重构的最小验证基线”，用于快速防回归；涉及更大范围改动时，建议补充 `build` 或更广测试集。
 
 ## Related
+- `docs/solutions/best-practices/semi-ui-page-standardization-2026-05-02.md`
 - `docs/plans/2026-04-14-002-refactor-workbenchapp-modularization-completion-plan.md`
 - `docs/plans/2026-04-14-001-refactor-workbench-prompts-module-extraction-plan.md`
 - `docs/plans/2026-04-11-002-feat-prompts-category-favorites-browsing-plan.md`

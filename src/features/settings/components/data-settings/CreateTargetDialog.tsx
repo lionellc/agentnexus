@@ -1,3 +1,5 @@
+import { Input } from "@douyinfe/semi-ui-19";
+
 import {
   Button,
   Dialog,
@@ -9,7 +11,6 @@ import {
   FormField,
   FormFieldset,
   FormLabel,
-  Input,
   Select,
 } from "../../../../shared/ui";
 
@@ -47,7 +48,7 @@ export function CreateTargetDialog({
             <FormLabel>{l("名称", "Name")}</FormLabel>
             <Input
               value={draft.platform}
-              onChange={(event) => onDraftChange("platform", event.currentTarget.value)}
+              onChange={(value) => onDraftChange("platform", value)}
               placeholder=".codex"
             />
           </FormField>

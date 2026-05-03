@@ -78,7 +78,6 @@ pub struct TranslationExecutionResult {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAgentProfileUpsertInput {
-    pub workspace_id: String,
     pub profile_key: Option<String>,
     pub name: String,
     pub executable: String,
@@ -89,14 +88,12 @@ pub struct LocalAgentProfileUpsertInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAgentProfileDeleteInput {
-    pub workspace_id: String,
     pub profile_key: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TranslationConfigUpdateInput {
-    pub workspace_id: String,
     pub default_profile_key: String,
     pub prompt_template: String,
 }
@@ -104,7 +101,6 @@ pub struct TranslationConfigUpdateInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LocalAgentTranslationTestInput {
-    pub workspace_id: String,
     pub profile_key: String,
     pub source_text: String,
     pub target_language: String,
@@ -115,7 +111,6 @@ pub struct LocalAgentTranslationTestInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptTranslationListInput {
-    pub workspace_id: String,
     pub prompt_id: String,
     pub prompt_version: Option<i64>,
     pub target_language: Option<String>,
@@ -125,7 +120,6 @@ pub struct PromptTranslationListInput {
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptTranslationRunInput {
-    pub workspace_id: String,
     pub prompt_id: String,
     pub prompt_version: Option<i64>,
     pub source_text: Option<String>,
@@ -140,7 +134,6 @@ pub struct PromptTranslationRunInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptTranslationRetranslateInput {
-    pub workspace_id: String,
     pub translation_id: String,
     pub source_text: Option<String>,
     pub profile_key: Option<String>,

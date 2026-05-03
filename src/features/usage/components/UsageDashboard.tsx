@@ -1,3 +1,5 @@
+import { Table } from "@douyinfe/semi-ui-19";
+import type { ReactNode } from "react";
 import { useState } from "react";
 
 import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
@@ -18,10 +20,9 @@ import { TokenTrendChart } from "./charts/TokenTrendChart";
 
 type UsageDashboardProps = {
   l: (zh: string, en: string) => string;
-  workspaceId: string | null;
 };
 
-export function UsageDashboard({ l, workspaceId }: UsageDashboardProps) {
+export function UsageDashboard({ l }: UsageDashboardProps) {
   const [hiddenSyncKey, setHiddenSyncKey] = useState("");
   const {
     days,
@@ -57,15 +58,7 @@ export function UsageDashboard({ l, workspaceId }: UsageDashboardProps) {
     savePricingOverride,
     loadNextLogsPage,
     loadPreviousLogsPage,
-  } = useUsageDashboardController({ workspaceId });
-
-  if (!workspaceId) {
-    return (
-      <div className="rounded-lg border border-dashed border-border p-4 text-sm text-slate-500">
-        {l("请先创建并激活工作区后再查看模型使用看板。", "Create and activate a workspace first.")}
-      </div>
-    );
-  }
+  } = useUsageDashboardController();
 
   const syncKey = syncJob ? `${syncJob.jobId}:${syncJob.status}` : "";
 
@@ -161,7 +154,7 @@ export function UsageDashboard({ l, workspaceId }: UsageDashboardProps) {
           />
         </>
       ) : (
-        <div className="rounded-lg border border-border bg-card p-4 text-sm text-slate-600">
+        <div className="rounded-lg border border-border bg-card p-4 text-sm text-slate-600 dark:text-slate-300">
           {loading ? l("正在加载看板数据...", "Loading dashboard...") : l("暂无可展示的数据。", "No data available yet.")}
         </div>
       )}
@@ -193,10 +186,10 @@ function UsageOverview({ l, currency, days, dashboard, loading, refreshing, sync
     : l("记录完整", "Complete records");
 
   return (
-    <div className="rounded-xl border border-border bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm">
+    <div className="rounded-xl border border-border bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:from-slate-950 dark:to-slate-900 dark:shadow-none">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <span>{formatUsageRange(days, l)}</span>
             <span>·</span>
             <span>{currency}</span>
@@ -205,16 +198,16 @@ function UsageOverview({ l, currency, days, dashboard, loading, refreshing, sync
           </div>
           <div className="flex flex-wrap items-end gap-x-6 gap-y-2">
             <div>
-              <p className="text-xs text-slate-500">{l("当前范围成本", "Current range cost")}</p>
-              <p className="text-3xl font-semibold tracking-tight text-slate-950">
+              <p className="text-xs text-slate-500 dark:text-slate-400">{l("当前范围成本", "Current range cost")}</p>
+              <p className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-slate-50">
                 {formatCurrency(dashboard.summary.displayCost, dashboard.summary.displayCurrency)}
               </p>
             </div>
-            <div className="pb-1 text-sm text-slate-600">
+            <div className="pb-1 text-sm text-slate-600 dark:text-slate-300">
               {formatInteger(dashboard.summary.requestCount)} {l("次请求", "requests")} · {formatInteger(dashboard.summary.totalTokens)} Token · {failedText}
             </div>
           </div>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             {incompleteText} · {dashboard.summary.fxStale ? l("汇率过期，使用最近快照", "Stale FX, using latest snapshot") : l("汇率快照可用", "FX snapshot fresh")}
             {lastRefreshSucceededAt ? ` · ${l("页面刷新成功", "Page refreshed")}: ${formatTimestamp(lastRefreshSucceededAt)}` : ""}
             {latestCallAt ? ` · ${l("最新调用时间", "Latest call")}: ${formatTimestamp(latestCallAt)}` : ""}
@@ -236,7 +229,7 @@ function UsageOverview({ l, currency, days, dashboard, loading, refreshing, sync
 function SyncFeedback({ l, job, onDismiss }: { l: (zh: string, en: string) => string; job: ModelUsageSyncJobSnapshot; onDismiss: () => void }) {
   const isFailed = job.status === "failed" || job.status === "completed_with_errors";
   return (
-    <div className={`rounded-md border px-3 py-2 text-xs ${isFailed ? "border-amber-200 bg-amber-50 text-amber-800" : "border-border bg-card text-slate-600"}`}>
+    <div className={`rounded-md border px-3 py-2 text-xs ${isFailed ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/60 dark:bg-amber-500/15 dark:text-amber-200" : "border-border bg-card text-slate-600 dark:text-slate-300"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span>
           {getSyncStatusLabel(job.status, l)} · {job.processedFiles}/{job.totalFiles}
@@ -271,29 +264,37 @@ function ModelRankingTable({
       />
     );
   }
+  const columns: ModelRankingColumn[] = [
+    { title: "model", dataIndex: "model", render: (_value, item) => item.model || "-" },
+    { title: l("请求", "Requests"), dataIndex: "requests", width: 120, render: (_value, item) => formatInteger(item.requests) },
+    { title: "Token", dataIndex: "tokens", width: 140, render: (_value, item) => formatInteger(item.tokens) },
+    {
+      title: l("成本", "Cost"),
+      dataIndex: "cost",
+      width: 140,
+      render: (_value, item) => formatCurrency(currency === "CNY" ? item.costCny : item.costUsd, currency),
+    },
+  ];
 
   return (
-    <div className="overflow-auto rounded-lg border border-border bg-card p-3">
-      <table className="min-w-full text-left text-xs">
-        <thead>
-          <tr className="border-b border-border text-slate-500">
-            <th className="py-2 pr-3">model</th>
-            <th className="py-2 pr-3">{l("请求", "Requests")}</th>
-            <th className="py-2 pr-3">Token</th>
-            <th className="py-2 pr-3">{l("成本", "Cost")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((item) => (
-            <tr key={item.model} className="border-b border-border/60">
-              <td className="py-2 pr-3">{item.model || "-"}</td>
-              <td className="py-2 pr-3">{formatInteger(item.requests)}</td>
-              <td className="py-2 pr-3">{formatInteger(item.tokens)}</td>
-              <td className="py-2 pr-3">{formatCurrency(currency === "CNY" ? item.costCny : item.costUsd, currency)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="rounded-lg border border-border bg-card p-3">
+      <Table
+        rowKey="model"
+        columns={columns}
+        dataSource={rows}
+        pagination={false}
+        scroll={{ x: 640 }}
+        size="small"
+      />
     </div>
   );
 }
+
+type ModelRankingRow = ModelUsageDashboardResult["trends"]["modelCostDistribution"][number];
+
+type ModelRankingColumn = {
+  title: string;
+  dataIndex: string;
+  width?: number;
+  render?: (_value: unknown, record: ModelRankingRow) => ReactNode;
+};

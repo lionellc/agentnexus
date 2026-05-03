@@ -1,3 +1,5 @@
+import { Input } from "@douyinfe/semi-ui-19";
+
 import { MarkdownEditor, type MarkdownMode } from "../../common/components/MarkdownEditor";
 import {
   Button,
@@ -10,7 +12,6 @@ import {
   FormField,
   FormFieldset,
   FormLabel,
-  Input,
 } from "../../../shared/ui";
 
 export type CreatePromptDialogProps = {
@@ -54,7 +55,7 @@ export function CreatePromptDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-4xl" size="large">
         <DialogHeader>
           <DialogTitle>{isZh ? "新建 Prompt" : "New Prompt"}</DialogTitle>
           <DialogDescription>
@@ -64,7 +65,7 @@ export function CreatePromptDialog({
         <FormFieldset>
           <FormField>
             <FormLabel>{isZh ? "名称" : "Name"}</FormLabel>
-            <Input value={name} onChange={(event) => onNameChange(event.currentTarget.value)} />
+            <Input value={name} onChange={(value) => onNameChange(value)} />
           </FormField>
           <FormField>
             <FormLabel>{isZh ? "内容（Markdown）" : "Content (Markdown)"}</FormLabel>

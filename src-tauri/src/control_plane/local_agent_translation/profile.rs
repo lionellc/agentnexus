@@ -16,9 +16,9 @@ use super::{
 #[tauri::command]
 pub fn local_agent_profile_list(
     state: State<'_, AppState>,
-    workspace_id: String,
 ) -> Result<Vec<LocalAgentProfileDto>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     ensure_workspace_exists(&conn, &workspace_id)?;
     ensure_default_profiles(&conn, &workspace_id)?;
     list_profiles(&conn, &workspace_id)
@@ -30,8 +30,8 @@ pub fn local_agent_profile_upsert(
     input: LocalAgentProfileUpsertInput,
 ) -> Result<LocalAgentProfileDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_profiles(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_profiles(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let normalized_key =
         normalize_profile_key(input.profile_key.as_deref().unwrap_or(input.name.as_str()))?;
@@ -46,7 +46,10 @@ pub fn local_agent_profile_upsert(
     let existing_id = conn
         .query_row(
             "SELECT id FROM local_agent_profiles WHERE workspace_id = ?1 AND profile_key = ?2",
-            params![input.workspace_id, normalized_key],
+            params![
+                crate::domain::models::APP_SCOPE_ID.to_string(),
+                normalized_key
+            ],
             |row| row.get::<_, String>(0),
         )
         .optional()?;
@@ -64,7 +67,7 @@ pub fn local_agent_profile_upsert(
             updated_at = excluded.updated_at",
         params![
             profile_id,
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             normalized_key,
             input.name.trim(),
             input.executable.trim(),
@@ -77,7 +80,7 @@ pub fn local_agent_profile_upsert(
         ],
     )?;
 
-    profile_by_key(&conn, &input.workspace_id, &normalized_key)
+    profile_by_key(&conn, crate::domain::models::APP_SCOPE_ID, &normalized_key)
 }
 
 #[tauri::command]
@@ -86,7 +89,7 @@ pub fn local_agent_profile_delete(
     input: LocalAgentProfileDeleteInput,
 ) -> Result<Vec<LocalAgentProfileDto>, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let profile_key = normalize_profile_key(&input.profile_key)?;
     if matches!(profile_key.as_str(), BUILTIN_CODEX | BUILTIN_CLAUDE) {
@@ -97,14 +100,14 @@ pub fn local_agent_profile_delete(
 
     let affected = conn.execute(
         "DELETE FROM local_agent_profiles WHERE workspace_id = ?1 AND profile_key = ?2",
-        params![input.workspace_id, profile_key],
+        params![crate::domain::models::APP_SCOPE_ID.to_string(), profile_key],
     )?;
 
     if affected == 0 {
         return Err(AppError::invalid_argument("profile 不存在"));
     }
 
-    list_profiles(&conn, &input.workspace_id)
+    list_profiles(&conn, crate::domain::models::APP_SCOPE_ID)
 }
 
 pub(super) fn ensure_workspace_exists(

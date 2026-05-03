@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Checkbox, Tag } from "@douyinfe/semi-ui-19";
 
 import {
   Button,
@@ -12,8 +13,6 @@ import {
   FormField,
   FormFieldset,
   FormLegend,
-  Tag,
-  type TagProps,
 } from "../../../shared/ui";
 
 type SkillDistributionTarget = {
@@ -47,14 +46,14 @@ export type SkillDistributionDialogProps = {
 
 type Step = "select" | "preview";
 
-function kindTagTone(kind: SkillDistributionPreviewItem["kind"]): NonNullable<TagProps["tone"]> {
+function kindTagColor(kind: SkillDistributionPreviewItem["kind"]): "green" | "orange" | "red" {
   if (kind === "safe") {
-    return "success";
+    return "green";
   }
   if (kind === "conflict") {
-    return "warning";
+    return "orange";
   }
-  return "danger";
+  return "red";
 }
 
 function kindLabel(kind: SkillDistributionPreviewItem["kind"], l: (zh: string, en: string) => string): string {
@@ -135,10 +134,9 @@ export function SkillDistributionDialog({
                 return (
                   <FormField key={target.id} className="space-y-0">
                     <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         checked={checked}
-                        onChange={(event) => toggleTarget(target.id, event.currentTarget.checked)}
+                        onChange={(event) => toggleTarget(target.id, Boolean(event.target.checked))}
                       />
                       <span>{target.label}</span>
                     </label>
@@ -172,7 +170,7 @@ export function SkillDistributionDialog({
                   <div key={item.id} className="rounded-md border border-slate-200 px-3 py-2">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm text-slate-900">{item.label}</span>
-                      <Tag tone={kindTagTone(item.kind)}>
+                      <Tag color={kindTagColor(item.kind)} type="light">
                         {kindLabel(item.kind, l)}
                       </Tag>
                     </div>

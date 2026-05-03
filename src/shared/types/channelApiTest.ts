@@ -32,12 +32,9 @@ export interface ChannelApiTestCase {
   updatedAt?: string;
 }
 
-export interface ChannelApiTestCasesQueryInput {
-  workspaceId: string;
-}
+export type ChannelApiTestCasesQueryInput = Record<string, never>;
 
 export interface ChannelApiTestCaseUpsertInput {
-  workspaceId: string;
   id?: string;
   category: ChannelApiTestCategory;
   label: string;
@@ -46,12 +43,10 @@ export interface ChannelApiTestCaseUpsertInput {
 }
 
 export interface ChannelApiTestCaseDeleteInput {
-  workspaceId: string;
   caseId: string;
 }
 
 export interface ChannelApiTestRunInput {
-  workspaceId: string;
   protocol: ChannelApiTestProtocol;
   model: string;
   baseUrl: string;
@@ -65,7 +60,6 @@ export interface ChannelApiTestRunInput {
 }
 
 export interface ChannelApiTestRunsQueryInput {
-  workspaceId: string;
   page: number;
   pageSize: number;
 }

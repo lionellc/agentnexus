@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Input } from "@douyinfe/semi-ui-19";
 import { RefreshCw, X } from "lucide-react";
 
-import { Button, Input } from "../../../../shared/ui";
+import { Button } from "../../../../shared/ui";
 import type { SkillsUsageSyncJobSnapshot } from "../../../../shared/types";
 
 import { usageProgressPercent } from "./helpers";
@@ -115,7 +116,7 @@ export function UsageFilters({
         <div className="flex flex-wrap items-center gap-2">
           <Input
             value={skillQuery}
-            onChange={(event) => onSkillQueryChange(event.currentTarget.value)}
+            onChange={(value) => onSkillQueryChange(value)}
             placeholder={l("搜索 Skill...", "Search skills...")}
             className="w-56"
           />
@@ -145,17 +146,18 @@ export function UsageFilters({
             {sortMenuOpen ? (
               <div className="absolute right-0 top-10 z-20 min-w-44 rounded-md border border-slate-200 bg-white p-1 shadow-md">
                 {sortOptions.map((option) => (
-                  <button
+                  <Button
                     key={option.value}
                     type="button"
-                    className="block w-full rounded px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                    variant="ghost"
+                    className="h-auto w-full justify-start px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                     onClick={() => {
                       onSortModeChange(option.value);
                       setSortMenuOpen(false);
                     }}
                   >
                     {sortMode === option.value ? `✓ ${option.label}` : option.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             ) : null}
@@ -173,9 +175,10 @@ export function UsageFilters({
             </Button>
             {toolsMenuOpen ? (
               <div className="absolute right-0 top-10 z-20 min-w-44 rounded-md border border-slate-200 bg-white p-1 shadow-md">
-                <button
+                <Button
                   type="button"
-                  className="block w-full rounded px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  variant="ghost"
+                  className="h-auto w-full justify-start px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={usageSyncRunning}
                   onClick={() => {
                     void onUsageRefresh();
@@ -183,11 +186,12 @@ export function UsageFilters({
                   }}
                 >
                   {usageSyncRunning ? l("调用次数分析中...", "Calls Analysis Running...") : l("调用次数分析", "Calls Analysis")}
-                </button>
+                </Button>
                 {onBulkLink ? (
-                  <button
+                  <Button
                     type="button"
-                    className="block w-full rounded px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    variant="ghost"
+                    className="h-auto w-full justify-start px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={runningDistribution || bulkLinking || !bulkLinkEnabled}
                     onClick={() => {
                       void onBulkLink();
@@ -195,7 +199,7 @@ export function UsageFilters({
                     }}
                   >
                     {bulkLinking ? l("批量 Link 中...", "Bulk Linking...") : l("批量Link", "Bulk Link")}
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             ) : null}
@@ -210,15 +214,17 @@ export function UsageFilters({
                 {l("状态", "Status")}：{usageSyncJob.status}
               </span>
               {onDismissUsageSyncJob ? (
-                <button
+                <Button
                   type="button"
-                  className="inline-flex h-5 w-5 items-center justify-center rounded text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+                  size="icon"
+                  variant="ghost"
+                  className="h-5 w-5 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
                   onClick={onDismissUsageSyncJob}
                   aria-label={l("关闭状态", "Close Status")}
                   title={l("关闭状态", "Close Status")}
                 >
                   <X className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               ) : null}
             </div>
             <span>

@@ -57,6 +57,7 @@ fn setup_conn() -> Connection {
             updated_at TEXT NOT NULL
         );
         INSERT INTO workspaces(id, root_path) VALUES ('workspace-1', '/tmp/ws');
+        INSERT INTO workspaces(id, root_path) VALUES ('global', '/tmp/global');
         "#,
     )
     .expect("schema");
@@ -103,7 +104,6 @@ fn query_runs_returns_descending_page() {
 fn custom_case_can_be_upserted_and_queried() {
     let conn = setup_conn();
     let input = ChannelApiTestCaseUpsertInput {
-        workspace_id: "workspace-1".to_string(),
         id: None,
         category: CATEGORY_SMALL.to_string(),
         label: "我的短答题".to_string(),
@@ -116,7 +116,8 @@ fn custom_case_can_be_upserted_and_queried() {
 
     let saved = persistence::upsert_custom_case(&conn, &input).expect("upsert");
     let saved_id = saved.get("id").and_then(Value::as_str).expect("id");
-    let result = persistence::query_custom_cases(&conn, "workspace-1").expect("query");
+    let result =
+        persistence::query_custom_cases(&conn, crate::domain::models::APP_SCOPE_ID).expect("query");
     let items = result.as_array().expect("items");
 
     assert_eq!(items.len(), 1);
@@ -347,7 +348,6 @@ fn sanitize_text_masks_api_key_and_auth_labels() {
 
 fn test_input(model: &str) -> ChannelApiTestRunInput {
     ChannelApiTestRunInput {
-        workspace_id: "workspace-1".to_string(),
         protocol: PROTOCOL_OPENAI.to_string(),
         model: model.to_string(),
         base_url: "https://api.openai.com".to_string(),

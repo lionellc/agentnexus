@@ -86,11 +86,11 @@ pub fn skills_manager_check_external_updates(
 
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "skills_manager_check_external_updates",
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "skillIds": input.skill_ids,
             "summary": summary,
         }),

@@ -7,13 +7,13 @@ pub fn skills_usage_sync_start(
     input: SkillsUsageSyncStartInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let job_id = Uuid::new_v4().to_string();
     let now = now_rfc3339();
     let state_arc = Arc::new(Mutex::new(SkillsUsageSyncJobState {
         job_id: job_id.clone(),
-        workspace_id: input.workspace_id.clone(),
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         status: JOB_STATUS_RUNNING.to_string(),
         total_files: 0,
         processed_files: 0,
@@ -39,7 +39,7 @@ pub fn skills_usage_sync_start(
     }
 
     let app_state = state.inner().clone();
-    let workspace_id = input.workspace_id.clone();
+    let workspace_id = crate::domain::models::APP_SCOPE_ID.to_string();
     std::thread::spawn(move || {
         if let Err(err) = run_sync_job(app_state, &workspace_id, state_arc.clone()) {
             if let Ok(mut job) = state_arc.lock() {
@@ -50,7 +50,7 @@ pub fn skills_usage_sync_start(
         }
     });
 
-    usage_job_snapshot(&job_id, &input.workspace_id)
+    usage_job_snapshot(&job_id, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -58,7 +58,7 @@ pub fn skills_usage_sync_progress(
     _state: State<'_, AppState>,
     input: SkillsUsageSyncProgressInput,
 ) -> Result<Value, AppError> {
-    usage_job_snapshot(&input.job_id, &input.workspace_id)
+    usage_job_snapshot(&input.job_id, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -67,7 +67,7 @@ pub fn skills_usage_query_stats(
     input: SkillsUsageStatsQueryInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let from_7d = (Utc::now() - Duration::days(7)).to_rfc3339();
     let agent_filter = normalize_filter_value(input.agent.as_deref());
@@ -86,7 +86,7 @@ pub fn skills_usage_query_stats(
 
     for skill in skills {
         let (skill_id, _skill_name) = skill?;
-        let workspace_id = input.workspace_id.as_str();
+        let workspace_id = crate::domain::models::APP_SCOPE_ID;
         let skill_id_ref = skill_id.as_str();
         let (total_calls, last_7d_calls, last_called_at) = query_skill_stats(
             &conn,
@@ -115,14 +115,14 @@ pub fn skills_usage_query_calls(
     input: SkillsUsageCallsQueryInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let limit = input.limit.unwrap_or(80).clamp(1, 500);
     let offset = input.offset.unwrap_or(0).max(0);
     let agent_filter = normalize_filter_value(input.agent.as_deref());
     let source_filter = normalize_filter_value(input.source.as_deref());
     let evidence_source_filter = normalize_filter_value(input.evidence_source.as_deref());
-    let workspace_id = input.workspace_id.as_str();
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     let skill_id = input.skill_id.as_str();
     let mut rows = Vec::new();
     let (list_sql, list_params) = build_calls_query(

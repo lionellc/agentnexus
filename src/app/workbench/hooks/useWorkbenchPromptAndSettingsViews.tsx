@@ -216,7 +216,6 @@ export function buildWorkbenchPromptAndSettingsViews(args: any) {
       promptQuery={promptQuery}
       setPromptQuery={(value) => setPromptQuery(value)}
       promptBrowseScope={promptBrowseScope}
-      selectBaseClass={SELECT_BASE_CLASS}
       promptAllCategoryFilter={promptAllCategoryFilter}
       setPromptAllCategoryFilter={(value) => setPromptAllCategoryFilter(value)}
       promptCategoryOptions={promptCategoryOptions}

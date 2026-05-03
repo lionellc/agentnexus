@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Tag as SemiTag } from "@douyinfe/semi-ui-19";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "../lib/cn";
@@ -32,8 +33,32 @@ const tagVariants = cva(
 
 export interface TagProps extends React.HTMLAttributes<HTMLSpanElement>, VariantProps<typeof tagVariants> {}
 
+function toneToColor(tone: TagProps["tone"]) {
+  if (tone === "info") {
+    return "blue" as const;
+  }
+  if (tone === "success") {
+    return "green" as const;
+  }
+  if (tone === "warning") {
+    return "orange" as const;
+  }
+  if (tone === "danger") {
+    return "red" as const;
+  }
+  return "grey" as const;
+}
+
 function Tag({ className, tone, size, ...props }: TagProps) {
-  return <span className={cn(tagVariants({ tone, size }), className)} {...props} />;
+  return (
+    <SemiTag
+      color={toneToColor(tone)}
+      size={size === "sm" ? "small" : "default"}
+      type="light"
+      className={cn(tagVariants({ tone, size }), className)}
+      {...(props as any)}
+    />
+  );
 }
 
 export { Tag, tagVariants };

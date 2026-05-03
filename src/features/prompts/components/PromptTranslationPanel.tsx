@@ -1,6 +1,7 @@
+import { Input } from "@douyinfe/semi-ui-19";
 import { RefreshCw } from "lucide-react";
 
-import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "../../../shared/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle } from "../../../shared/ui";
 
 export type PromptTranslationItem = {
   id: string;
@@ -65,7 +66,7 @@ export function PromptTranslationPanel({
           {isZh ? "目标语言" : "Target Language"}
           <Input
             value={targetLanguage}
-            onChange={(event) => onTargetLanguageChange(event.currentTarget.value)}
+            onChange={(value) => onTargetLanguageChange(value)}
             placeholder={isZh ? "例如：英文 / 日文" : "e.g. English / Japanese"}
           />
         </label>
@@ -103,10 +104,11 @@ export function PromptTranslationPanel({
               {translations.map((item) => {
                 const active = item.id === selectedTranslationId;
                 return (
-                  <button
+                  <Button
                     key={item.id}
                     type="button"
-                    className={`w-full rounded-md border px-2 py-2 text-left text-xs transition-colors ${
+                    variant="outline"
+                    className={`h-auto w-full justify-start px-2 py-2 text-left text-xs ${
                       active
                         ? "border-blue-300 bg-blue-50 text-blue-700"
                         : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
@@ -115,7 +117,7 @@ export function PromptTranslationPanel({
                   >
                     <div className="font-medium">{item.variantLabel}</div>
                     <div className="mt-1 text-[11px] text-slate-500">{item.updatedAt}</div>
-                  </button>
+                  </Button>
                 );
               })}
             </div>

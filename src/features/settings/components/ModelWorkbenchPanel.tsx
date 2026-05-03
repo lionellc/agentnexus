@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Input } from "@douyinfe/semi-ui-19";
 
 import {
   Button,
@@ -15,7 +16,6 @@ import {
   FormField,
   FormFieldset,
   FormLabel,
-  Input,
   Select,
   Textarea,
 } from "../../../shared/ui";
@@ -223,7 +223,7 @@ export function ModelWorkbenchPanel({
               <FormLabel>{isZh ? "名称" : "Name"}</FormLabel>
               <Input
                 value={newProfileName}
-                onChange={(event) => onNewProfileNameChange(event.currentTarget.value)}
+                onChange={(value) => onNewProfileNameChange(value)}
                 placeholder={isZh ? "新模型名称" : "New model name"}
               />
             </FormField>
@@ -279,13 +279,13 @@ export function ModelWorkbenchPanel({
             ) : null}
             <FormField>
               <FormLabel>{isZh ? "名称" : "Name"}</FormLabel>
-              <Input value={profileName} onChange={(event) => onProfileNameChange(event.currentTarget.value)} />
+              <Input value={profileName} onChange={(value) => onProfileNameChange(value)} />
             </FormField>
             <FormField>
               <FormLabel>{isZh ? "可执行程序" : "Executable"}</FormLabel>
               <Input
                 value={executable}
-                onChange={(event) => onExecutableChange(event.currentTarget.value)}
+                onChange={(value) => onExecutableChange(value)}
                 placeholder="codex / claude / custom-cli"
               />
             </FormField>

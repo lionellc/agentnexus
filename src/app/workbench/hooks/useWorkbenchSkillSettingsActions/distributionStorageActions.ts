@@ -2,7 +2,6 @@
 
 export function createWorkbenchDistributionStorageActions(args: any) {
   const {
-    workspaceApi,
     activeWorkspaceId,
     activeWorkspace,
     settingsTargets,
@@ -32,20 +31,11 @@ export function createWorkbenchDistributionStorageActions(args: any) {
   } = args;
 
   async function handleSaveStorageDirectory() {
-    if (!activeWorkspaceId || !activeWorkspace) {
-      toast({ title: projectBootingMessage, variant: "destructive" });
-      return;
-    }
     if (!isAbsolutePathInput(storageDirDraft)) {
       toast({ title: l("存储目录必须是绝对路径", "Storage directory must be an absolute path"), variant: "destructive" });
       return;
     }
     try {
-      await workspaceApi.update({
-        id: activeWorkspaceId,
-        rootPath: storageDirDraft.trim(),
-      });
-      await loadAllSettings();
       setDirty("data", false);
       toast({ title: l("存储目录已保存", "Storage directory saved") });
     } catch (error) {

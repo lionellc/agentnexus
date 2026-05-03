@@ -12,9 +12,9 @@ use super::{
 #[tauri::command]
 pub fn translation_config_get(
     state: State<'_, AppState>,
-    workspace_id: String,
 ) -> Result<TranslationConfigDto, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     ensure_workspace_exists(&conn, &workspace_id)?;
     ensure_default_profiles(&conn, &workspace_id)?;
     ensure_default_translation_config(&conn, &workspace_id)?;
@@ -27,12 +27,12 @@ pub fn translation_config_update(
     input: TranslationConfigUpdateInput,
 ) -> Result<TranslationConfigDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_profiles(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_profiles(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let profile_key = normalize_profile_key(&input.default_profile_key)?;
     validate_translation_template(&input.prompt_template)?;
-    profile_by_key(&conn, &input.workspace_id, &profile_key)?;
+    profile_by_key(&conn, crate::domain::models::APP_SCOPE_ID, &profile_key)?;
 
     let now = now_rfc3339();
     conn.execute(
@@ -43,14 +43,14 @@ pub fn translation_config_update(
             prompt_template = excluded.prompt_template,
             updated_at = excluded.updated_at",
         params![
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             profile_key,
             input.prompt_template.trim(),
             now,
         ],
     )?;
 
-    get_translation_config(&conn, &input.workspace_id)
+    get_translation_config(&conn, crate::domain::models::APP_SCOPE_ID)
 }
 
 fn default_prompt_template() -> String {

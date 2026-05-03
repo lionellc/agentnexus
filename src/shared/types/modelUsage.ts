@@ -8,17 +8,13 @@ export type ModelUsageSyncStatus =
 export type ModelUsageStatus = "success" | "failed" | "unknown" | string;
 export type ModelUsageCurrency = "USD" | "CNY" | string;
 
-export interface ModelUsageSyncStartInput {
-  workspaceId: string;
-}
+export type ModelUsageSyncStartInput = Record<string, never>;
 
 export interface ModelUsageSyncProgressInput {
-  workspaceId: string;
   jobId: string;
 }
 
 export interface ModelUsageDashboardQueryInput {
-  workspaceId: string;
   days?: number;
   startAt?: string;
   endAt?: string;
@@ -29,7 +25,6 @@ export interface ModelUsageDashboardQueryInput {
 }
 
 export interface ModelUsageRequestLogsQueryInput {
-  workspaceId: string;
   days?: number;
   startAt?: string;
   endAt?: string;
@@ -42,9 +37,7 @@ export interface ModelUsageRequestLogsQueryInput {
   cursorId?: string;
 }
 
-export interface ModelPricingSyncInput {
-  workspaceId: string;
-}
+export type ModelPricingSyncInput = Record<string, never>;
 
 export interface ModelPricingSyncResult {
   workspaceId: string;
@@ -60,12 +53,10 @@ export interface ModelPricingSyncResult {
 }
 
 export interface ModelPricingQueryInput {
-  workspaceId: string;
   currency?: ModelUsageCurrency;
 }
 
 export interface ModelPricingOverrideUpsertInput {
-  workspaceId: string;
   provider: string;
   model: string;
   currency?: ModelUsageCurrency;

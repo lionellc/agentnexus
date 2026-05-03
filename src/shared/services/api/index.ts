@@ -9,7 +9,6 @@ export {
   skillsManagerApi,
   skillsUsageApi,
   targetApi,
-  workspaceApi,
 } from "./coreApi";
 export { promptApi, translationApi } from "./promptTranslationApi";
 export { loadWebDavConfig, saveWebDavConfig } from "./webdavConfig";
@@ -34,6 +33,5 @@ export type {
   AgentNexusSkillsUsageCalls,
   AgentNexusSkillsUsageStats,
   AgentNexusTargets,
-  AgentNexusWorkspace,
   PromptVersion,
 } from "./types";

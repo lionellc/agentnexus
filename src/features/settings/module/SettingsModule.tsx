@@ -50,12 +50,14 @@ export function SettingsModule({
         <SectionTitle title={l("设置", "Settings")} subtitle={l("数据目录与 Agent 管理", "Data directory and agent management")} />
         <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
           <div className="h-fit lg:sticky lg:top-4">
-            <div className="space-y-2">
+            <div className="space-y-2" role="tablist" aria-label={l("设置分类", "Settings categories")}>
               {settingCategories.map((category) => (
                 <Button
                   key={category.key}
                   variant={settingsCategory === category.key ? "default" : "outline"}
                   className="min-h-11 w-full justify-start"
+                  role="tab"
+                  aria-selected={settingsCategory === category.key}
                   onClick={() => onChangeSettingsCategory(category.key)}
                 >
                   {category.label}

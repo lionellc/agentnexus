@@ -1,3 +1,5 @@
+import { Input } from "@douyinfe/semi-ui-19";
+
 import {
   Button,
   Dialog,
@@ -9,7 +11,6 @@ import {
   FormField,
   FormFieldset,
   FormLabel,
-  Input,
 } from "../../../../shared/ui";
 
 import type { AgentConnectionDraft, Translator } from "./types";
@@ -46,7 +47,7 @@ export function CreateAgentDialog({
             <FormLabel>{l("名称", "Name")}</FormLabel>
             <Input
               value={draft.platform}
-              onChange={(event) => onDraftChange("platform", event.currentTarget.value)}
+              onChange={(value) => onDraftChange("platform", value)}
               placeholder="cursor"
             />
           </FormField>
@@ -63,7 +64,7 @@ export function CreateAgentDialog({
             <FormLabel>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</FormLabel>
             <Input
               value={draft.ruleFile}
-              onChange={(event) => onDraftChange("ruleFile", event.currentTarget.value)}
+              onChange={(value) => onDraftChange("ruleFile", value)}
               placeholder="AGENTS.md"
             />
           </FormField>

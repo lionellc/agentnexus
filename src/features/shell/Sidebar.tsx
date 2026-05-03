@@ -59,21 +59,34 @@ export function Sidebar({
               key={item.module}
               type="button"
               variant={active ? "default" : "ghost"}
-              className="min-h-11 w-full justify-between"
+              className="min-h-11 w-full justify-start"
+              aria-current={active ? "page" : undefined}
               onClick={() => onChangeModule(item.module)}
             >
-              <span className="flex items-center gap-2">
-                <Icon className="h-4 w-4" />
-                {item.label}
+              <span className="flex min-w-0 items-center gap-2">
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+                {count !== undefined ? (
+                  <Tag tone={active ? "info" : "neutral"} size="sm" className="ml-1 shrink-0">
+                    {count}
+                  </Tag>
+                ) : null}
               </span>
-              {count !== undefined ? <Tag tone={active ? "info" : "neutral"}>{count}</Tag> : null}
             </Button>
           );
         })}
       </nav>
 
       <div className="mt-auto border-t border-border pt-3">
-        <Button variant={activeModule === "settings" ? "default" : "outline"} size="icon" className="w-full" onClick={onOpenSettings}>
+        <Button
+          variant={activeModule === "settings" ? "default" : "outline"}
+          size="icon"
+          className="w-full"
+          aria-current={activeModule === "settings" ? "page" : undefined}
+          aria-label={isZh ? "打开设置" : "Open settings"}
+          title={isZh ? "设置" : "Settings"}
+          onClick={onOpenSettings}
+        >
           <Settings className="h-4 w-4" />
         </Button>
       </div>

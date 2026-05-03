@@ -8,7 +8,7 @@ use crate::{
     control_plane::agent_presets::{
         all_builtin_agent_presets, default_agent_enabled as preset_default_agent_enabled,
     },
-    domain::models::RuntimeFlags,
+    domain::models::{RuntimeFlags, APP_SCOPE_ID},
     error::AppError,
     utils::{now_rfc3339, sha256_hex},
 };
@@ -67,6 +67,7 @@ pub fn load_runtime_flags(conn: &Connection) -> Result<RuntimeFlags, AppError> {
 
 fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     conn.execute_batch(schema::INITIAL_SCHEMA_SQL)?;
+    seed_app_scope(conn)?;
 
     conn.execute(
         "INSERT INTO migration_meta(key, value, updated_at) VALUES (?1, ?2, ?3)
@@ -87,6 +88,24 @@ fn bootstrap(conn: &Connection) -> Result<(), AppError> {
     run_channel_test_tables_migration_once(conn)?;
 
     Ok(())
+}
+
+fn seed_app_scope(conn: &Connection) -> Result<(), AppError> {
+    let now = now_rfc3339();
+    conn.execute(
+        "INSERT OR IGNORE INTO workspaces(
+            id, name, root_path, install_mode, platform_overrides, active, created_at, updated_at
+         ) VALUES (?1, 'AgentNexus', ?2, 'copy', '{}', 1, ?3, ?4)",
+        params![APP_SCOPE_ID, default_app_scope_root(), now, now],
+    )?;
+    Ok(())
+}
+
+fn default_app_scope_root() -> String {
+    env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .to_string_lossy()
+        .to_string()
 }
 
 fn seed_runtime_flags(conn: &Connection) -> Result<(), AppError> {

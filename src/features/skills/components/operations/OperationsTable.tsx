@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Tag } from "@douyinfe/semi-ui-19";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { EmptyState } from "../../../common/components/EmptyState";
-import { cn } from "../../../../shared/lib/cn";
-import { Button, Card, CardContent, Tag, tagVariants } from "../../../../shared/ui";
+import { Button, Card, CardContent } from "../../../../shared/ui";
 import type {
   SkillsManagerMatrixFilter,
   SkillsManagerMatrixSummary,
@@ -14,7 +14,8 @@ import {
   OPERATIONS_PAGE_SIZE,
   formatLastCalled,
   statusLabel,
-  statusTagTone,
+  statusTagColor,
+  type SkillStatusTagColor,
 } from "./helpers";
 
 type OperationsTableProps = {
@@ -35,6 +36,28 @@ type OperationsTableProps = {
 };
 
 const AGENT_BOARD_COLLAPSE_LIMIT = 6;
+
+function ClickableTag({
+  color,
+  children,
+  onClick,
+}: {
+  color: SkillStatusTagColor;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="appearance-none rounded border-0 bg-transparent p-0 text-left leading-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onClick={onClick}
+    >
+      <Tag color={color} type="light" size="small" className="cursor-pointer">
+        {children}
+      </Tag>
+    </button>
+  );
+}
 
 export function OperationsTable({
   l,
@@ -86,48 +109,38 @@ export function OperationsTable({
               <Card key={summary.tool} className="border-slate-200">
                 <CardContent className="space-y-2 p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <button
+                    <Button
                       type="button"
-                      className="text-left text-sm font-semibold text-slate-900"
+                      variant="ghost"
+                      size="sm"
+                      className="h-auto px-0 py-0 text-left text-sm font-semibold text-slate-900"
                       onClick={() => onMatrixFilterChange({ tool: active ? null : summary.tool, status: "all" })}
                     >
                       {summary.tool}
-                    </button>
+                    </Button>
                     <span className="text-xs text-slate-500">
                       {summary.linked}/{summary.total} {l("已链接", "linked")}
                     </span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-xs">
-                    <button
-                      type="button"
-                      className={cn(
-                        tagVariants({ tone: statusTagTone("linked") }),
-                        "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      )}
+                    <ClickableTag
+                      color={statusTagColor("linked")}
                       onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "linked" })}
                     >
                       {statusLabel("linked", l)} {summary.linked}
-                    </button>
-                    <button
-                      type="button"
-                      className={cn(
-                        tagVariants({ tone: statusTagTone("missing") }),
-                        "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      )}
+                    </ClickableTag>
+                    <ClickableTag
+                      color={statusTagColor("missing")}
                       onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "missing" })}
                     >
                       {statusLabel("missing", l)} {summary.missing}
-                    </button>
-                    <button
-                      type="button"
-                      className={cn(
-                        tagVariants({ tone: statusTagTone("wrong") }),
-                        "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                      )}
+                    </ClickableTag>
+                    <ClickableTag
+                      color={statusTagColor("wrong")}
                       onClick={() => onMatrixFilterChange({ tool: summary.tool, status: "wrong" })}
                     >
                       {statusLabel("wrong", l)} {summary.wrong + summary.directory}
-                    </button>
+                    </ClickableTag>
                   </div>
                 </CardContent>
               </Card>
@@ -190,9 +203,9 @@ export function OperationsTable({
                       <div className="min-w-0 space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-slate-900">{row.name}</span>
-                          {row.sourceMissing ? <Tag tone="danger">{l("源目录缺失", "Source Missing")}</Tag> : null}
-                          {row.conflict ? <Tag tone="warning">{l("命名冲突", "Conflict")}</Tag> : null}
-                          {row.rowHint ? <Tag tone="warning">{row.rowHint}</Tag> : null}
+                          {row.sourceMissing ? <Tag color="red" type="light">{l("源目录缺失", "Source Missing")}</Tag> : null}
+                          {row.conflict ? <Tag color="orange" type="light">{l("命名冲突", "Conflict")}</Tag> : null}
+                          {row.rowHint ? <Tag color="orange" type="light">{row.rowHint}</Tag> : null}
                         </div>
                         <div className="text-xs text-slate-500">
                           {row.linkedCount}/{row.totalCount} {l("已链接", "linked")} · {row.issueCount} {l("异常", "issues")} ·{" "}
@@ -228,17 +241,13 @@ export function OperationsTable({
 
                     <div className="flex flex-wrap items-center gap-2">
                       {statusRows.map((cell) => (
-                        <button
+                        <ClickableTag
                           key={`${row.id}:${expanded ? "expanded" : "preview"}:${cell.tool}`}
-                          type="button"
-                          className={cn(
-                            tagVariants({ tone: statusTagTone(cell.status) }),
-                            "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                          )}
+                          color={statusTagColor(cell.status)}
                           onClick={() => onOpenStatus(row, cell.tool, cell.status)}
                         >
                           {cell.tool}: {statusLabel(cell.status, l)}
-                        </button>
+                        </ClickableTag>
                       ))}
                       {row.hiddenStatusCount > 0 ? (
                         <Button size="sm" variant="ghost" className="px-2 text-slate-600" onClick={() => onToggleExpanded(row.id)}>

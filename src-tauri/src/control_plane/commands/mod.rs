@@ -22,7 +22,4 @@ pub use skills_commands::{
     skills_open, skills_scan, skills_uninstall,
 };
 pub use target_commands::{target_delete, target_list, target_upsert};
-pub use workspace_commands::{
-    runtime_flags_get, runtime_flags_update, workspace_activate, workspace_create, workspace_list,
-    workspace_update,
-};
+pub use workspace_commands::{runtime_flags_get, runtime_flags_update};

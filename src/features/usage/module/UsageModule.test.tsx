@@ -23,10 +23,10 @@ describe("UsageModule", () => {
     container.remove();
   });
 
-  it("workspace 未激活时展示提示", () => {
+  it("不需要工作区即可渲染模块内容", () => {
     act(() => {
-      root.render(<UsageModule l={l} workspaceId={null} />);
+      root.render(<UsageModule l={l} dashboard={<div>usage dashboard</div>} />);
     });
-    expect(document.body.textContent).toContain("请先创建并激活工作区后再查看模型使用看板");
+    expect(document.body.textContent).toContain("usage dashboard");
   });
 });

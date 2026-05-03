@@ -317,7 +317,7 @@ pub(super) fn upsert_custom_case(
     let created_at = conn
         .query_row(
             "SELECT created_at FROM channel_api_test_cases WHERE id = ?1 AND workspace_id = ?2",
-            params![id, input.workspace_id],
+            params![id, crate::domain::models::APP_SCOPE_ID.to_string()],
             |row| row.get::<_, String>(0),
         )
         .optional()?
@@ -338,7 +338,7 @@ pub(super) fn upsert_custom_case(
         WHERE workspace_id = excluded.workspace_id",
         params![
             id,
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             input.category,
             input.label.trim(),
             serde_json::to_string(&messages).map_err(|err| AppError::internal(err.to_string()))?,
@@ -350,7 +350,7 @@ pub(super) fn upsert_custom_case(
 
     Ok(json!({
         "id": id,
-        "workspaceId": input.workspace_id,
+        "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
         "category": input.category,
         "label": input.label.trim(),
         "messages": messages,

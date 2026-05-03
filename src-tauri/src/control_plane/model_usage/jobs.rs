@@ -17,7 +17,8 @@ pub(super) fn run_sync_job(
 
     let (mut files, discover_issues) = discover_session_files(&workspace_scope, &agent_root_dirs);
     let source_status = list_source_status_updated_at(&conn, &workspace_scope.id)?;
-    let first_sync = source_status.is_empty() && latest_model_call_at(&conn, &workspace_scope.id)?.is_none();
+    let first_sync =
+        source_status.is_empty() && latest_model_call_at(&conn, &workspace_scope.id)?.is_none();
     if !first_sync {
         files.retain(|file| should_parse_incremental_file(file, &source_status));
     }
@@ -127,7 +128,10 @@ pub(super) fn run_sync_job(
     Ok(())
 }
 
-pub(super) fn should_parse_incremental_file(file: &SessionFile, source_status: &HashMap<String, String>) -> bool {
+pub(super) fn should_parse_incremental_file(
+    file: &SessionFile,
+    source_status: &HashMap<String, String>,
+) -> bool {
     let Some(last_processed_at) = source_status.get(&file.path) else {
         return true;
     };

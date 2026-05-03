@@ -92,7 +92,7 @@ describe("PromptRunDialog", () => {
 
     clickByText("复制预览内容");
     clickByText("取消");
-    const closeButton = document.querySelector('button[aria-label="Close"]') as HTMLButtonElement;
+    const closeButton = document.querySelector('button[aria-label="close"]') as HTMLButtonElement;
     expect(closeButton).toBeTruthy();
     act(() => {
       closeButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));

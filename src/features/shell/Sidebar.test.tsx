@@ -78,4 +78,24 @@ describe("Sidebar", () => {
 
     expect(onChangeModule).toHaveBeenCalledWith("channelTest");
   });
+
+  it("标记当前模块并给设置按钮提供可访问名称", () => {
+    act(() => {
+      root.render(
+        <Sidebar
+          activeModule="settings"
+          language="zh-CN"
+          onChangeModule={vi.fn()}
+          promptCount={1}
+          skillCount={2}
+          agentRulesCount={3}
+          onOpenSettings={vi.fn()}
+        />,
+      );
+    });
+
+    const settingsButton = container.querySelector('button[aria-label="打开设置"]');
+    expect(settingsButton).toBeTruthy();
+    expect(settingsButton?.getAttribute("aria-current")).toBe("page");
+  });
 });

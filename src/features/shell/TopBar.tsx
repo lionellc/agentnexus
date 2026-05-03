@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
+import { Input } from "@douyinfe/semi-ui-19";
 import { Menu, Moon, Plus, Search, Sun } from "lucide-react";
 
-import { Button, Input } from "../../shared/ui";
+import { Button } from "../../shared/ui";
 import type { GlobalSearchHit } from "../../shared/stores";
 
 type TopBarLanguage = "zh" | "en";
@@ -55,7 +56,7 @@ export function TopBar({
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input
             value={query}
-            onChange={(event) => onQueryChange(event.currentTarget.value)}
+            onChange={(value) => onQueryChange(value)}
             placeholder={effectiveLabels.searchPlaceholder}
             className="pl-9"
             onKeyDown={(event) => {

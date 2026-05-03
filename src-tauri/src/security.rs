@@ -7,20 +7,6 @@ use url::Url;
 
 use crate::error::AppError;
 
-pub fn validate_workspace_root(root_path: &str) -> Result<PathBuf, AppError> {
-    let path = PathBuf::from(root_path);
-    if !path.exists() {
-        return Err(AppError::invalid_argument("workspace 路径不存在"));
-    }
-    if !path.is_dir() {
-        return Err(AppError::invalid_argument("workspace 路径必须是目录"));
-    }
-    let canonical = path
-        .canonicalize()
-        .map_err(|err| AppError::invalid_argument(err.to_string()))?;
-    Ok(canonical)
-}
-
 pub fn validate_absolute_root_dir(root_dir: &str) -> Result<PathBuf, AppError> {
     let trimmed = root_dir.trim();
     if trimmed.is_empty() {

@@ -47,6 +47,8 @@ describe("SettingsModule", () => {
     expect(container.textContent).not.toContain("data-panel");
     expect(container.textContent).not.toContain("model-panel");
     expect(container.textContent).not.toContain("about-panel");
+    const selectedTab = container.querySelector('button[role="tab"][aria-selected="true"]');
+    expect(selectedTab?.textContent).toContain("通用设置");
   });
 
   it("根据 settingsCategory 渲染 data / model panel", () => {

@@ -21,6 +21,7 @@ import type {
 type AgentRuleDistributionActions = Pick<
   AgentRulesState,
   | "runApply"
+  | "checkAccess"
   | "retryFailed"
   | "refreshAsset"
   | "loadConnections"
@@ -40,11 +41,14 @@ export function createAgentRuleDistributionActions(
       set({ lastActionError: null });
       try {
         const job = normalizeApplyJob(
-          (await callAgentApi<Record<string, unknown>>(["runApply", "applyRun"], {
-            workspaceId,
-            assetId,
-            agentTypes,
-          })) ?? {},
+          (await callAgentApi<Record<string, unknown>>(
+            ["runApply", "applyRun"],
+            {
+              workspaceId,
+              assetId,
+              agentTypes,
+            },
+          )) ?? {},
         );
         set((state) => {
           const applyJobs = upsertJob(state.applyJobs, job);
@@ -60,13 +64,33 @@ export function createAgentRuleDistributionActions(
       }
     },
 
+    checkAccess: async (workspaceId, agentTypes) => {
+      set({ checkingAccess: true, lastActionError: null });
+      try {
+        const accessCheck = await agentRulesApi.checkAccess({
+          workspaceId,
+          agentTypes,
+        });
+        set({ accessCheck });
+        return accessCheck;
+      } catch (error) {
+        set({ lastActionError: toErrorMessage(error) });
+        throw error;
+      } finally {
+        set({ checkingAccess: false });
+      }
+    },
+
     retryFailed: async (jobId) => {
       set({ lastActionError: null });
       try {
         const job = normalizeApplyJob(
-          (await callAgentApi<Record<string, unknown>>(["retryFailed", "applyRetryFailed"], {
-            jobId,
-          })) ?? {},
+          (await callAgentApi<Record<string, unknown>>(
+            ["retryFailed", "applyRetryFailed"],
+            {
+              jobId,
+            },
+          )) ?? {},
         );
         set((state) => {
           const applyJobs = upsertJob(state.applyJobs, job);
@@ -96,13 +120,21 @@ export function createAgentRuleDistributionActions(
         const result = Array.isArray(response)
           ? ({ tags: response } as Record<string, unknown>)
           : response;
-        const tagsInput = Array.isArray(result.tags) ? (result.tags as AgentRuleTag[]) : [];
+        const tagsInput = Array.isArray(result.tags)
+          ? (result.tags as AgentRuleTag[])
+          : [];
         const tags = tagsInput.map((tag) => ({
           ...tag,
           agentType: String(tag.agentType ?? tag.agent_type ?? ""),
-          status: String(tag.status ?? tag.driftStatus ?? tag.drift_status ?? "unknown"),
-          filePath: String(tag.filePath ?? tag.resolvedPath ?? tag.resolved_path ?? ""),
-          updatedAt: String(tag.updatedAt ?? tag.lastCheckedAt ?? tag.last_checked_at ?? ""),
+          status: String(
+            tag.status ?? tag.driftStatus ?? tag.drift_status ?? "unknown",
+          ),
+          filePath: String(
+            tag.filePath ?? tag.resolvedPath ?? tag.resolved_path ?? "",
+          ),
+          updatedAt: String(
+            tag.updatedAt ?? tag.lastCheckedAt ?? tag.last_checked_at ?? "",
+          ),
         }));
         let job: AgentRuleApplyJob | null = null;
         if (result.id) {
@@ -131,14 +163,19 @@ export function createAgentRuleDistributionActions(
     loadConnections: async (workspaceId) => {
       set({ loadingConnections: true, lastActionError: null });
       try {
-        const list = await callAgentApi<unknown[]>(["listConnections", "connectionList"], workspaceId);
+        const list = await callAgentApi<unknown[]>(
+          ["listConnections", "connectionList"],
+          workspaceId,
+        );
         const connections = (Array.isArray(list) ? list : []).map((item) => {
           const row = (item ?? {}) as Record<string, unknown>;
           return {
             ...row,
             id: String(row.id ?? ""),
             workspaceId: String(row.workspaceId ?? row.workspace_id ?? ""),
-            agentType: String(row.agentType ?? row.agent_type ?? row.platform ?? ""),
+            agentType: String(
+              row.agentType ?? row.agent_type ?? row.platform ?? "",
+            ),
             rootDir: String(row.rootDir ?? row.root_dir ?? ""),
             ruleFile: String(row.ruleFile ?? row.rule_file ?? ""),
             enabled: Boolean(row.enabled ?? true),
@@ -159,7 +196,11 @@ export function createAgentRuleDistributionActions(
     },
 
     loadDistributionJobs: async (workspaceId, limit = 20) => {
-      set({ loadingJobs: true, loadingDistribution: true, lastActionError: null });
+      set({
+        loadingJobs: true,
+        loadingDistribution: true,
+        lastActionError: null,
+      });
       try {
         const list = await callAgentApi<unknown[]>(
           ["listApplyJobs", "applyStatus", "distribution_status"],
@@ -183,7 +224,11 @@ export function createAgentRuleDistributionActions(
     runDistribution: async (input) => {
       const selectedAssetId = get().selectedAssetId;
       const assetId = selectedAssetId || input.releaseVersion;
-      const job = await get().runApply(input.workspaceId, assetId, input.targetIds);
+      const job = await get().runApply(
+        input.workspaceId,
+        assetId,
+        input.targetIds,
+      );
       return jobToDistributionJob(job);
     },
 
@@ -222,7 +267,9 @@ export function createAgentRuleDistributionActions(
             limit?: number;
           }) => Promise<AgentRulesState["audits"]>;
         };
-        const audits = api.queryAudit ? await api.queryAudit({ workspaceId, limit }) : [];
+        const audits = api.queryAudit
+          ? await api.queryAudit({ workspaceId, limit })
+          : [];
         set({ audits });
       } catch (error) {
         set({ lastActionError: toErrorMessage(error) });

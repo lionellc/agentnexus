@@ -33,12 +33,12 @@ pub async fn local_agent_translation_test(
     let app_state = state.inner().clone();
     let (profile_key, profile, target_language, payload) = {
         let conn = app_state.open()?;
-        ensure_workspace_exists(&conn, &input.workspace_id)?;
-        ensure_default_profiles(&conn, &input.workspace_id)?;
-        ensure_default_translation_config(&conn, &input.workspace_id)?;
+        ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+        ensure_default_profiles(&conn, crate::domain::models::APP_SCOPE_ID)?;
+        ensure_default_translation_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
         let profile_key = normalize_profile_key(&input.profile_key)?;
-        let profile = profile_by_key(&conn, &input.workspace_id, &profile_key)?;
+        let profile = profile_by_key(&conn, crate::domain::models::APP_SCOPE_ID, &profile_key)?;
         if !profile.enabled {
             return Err(AppError::new(
                 "AGENT_UNAVAILABLE",
@@ -48,7 +48,7 @@ pub async fn local_agent_translation_test(
 
         let target_language = normalize_target_language(&input.target_language)?;
         let source_text = normalize_source_text(&input.source_text)?;
-        let config = get_translation_config(&conn, &input.workspace_id)?;
+        let config = get_translation_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
         let payload =
             build_translation_payload(&config.prompt_template, &source_text, &target_language);
@@ -72,7 +72,7 @@ pub async fn local_agent_translation_test(
     let conn = app_state.open()?;
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         "local_agent_translation_test",
         "system",
         json!({
@@ -100,7 +100,7 @@ pub fn prompt_translation_list(
     input: PromptTranslationListInput,
 ) -> Result<Vec<PromptTranslationDto>, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
     ensure_prompt_exists(&conn, &input.prompt_id)?;
 
     let mut sql = String::from(
@@ -111,7 +111,7 @@ pub fn prompt_translation_list(
     );
 
     let mut params_vec: Vec<Value> = vec![
-        Value::String(input.workspace_id.clone()),
+        Value::String(crate::domain::models::APP_SCOPE_ID.to_string()),
         Value::String(input.prompt_id.clone()),
     ];
 
@@ -178,7 +178,10 @@ pub fn prompt_translation_retranslate(
             "SELECT prompt_id, prompt_version, target_language
              FROM prompt_translations
              WHERE workspace_id = ?1 AND id = ?2",
-            params![input.workspace_id, input.translation_id],
+            params![
+                crate::domain::models::APP_SCOPE_ID.to_string(),
+                input.translation_id
+            ],
             |row| {
                 Ok((
                     row.get::<_, String>(0)?,
@@ -191,7 +194,6 @@ pub fn prompt_translation_retranslate(
         .ok_or_else(|| AppError::invalid_argument("译文记录不存在"))?;
 
     let run_input = PromptTranslationRunInput {
-        workspace_id: input.workspace_id,
         prompt_id: base.0,
         prompt_version: Some(base.1),
         source_text: input.source_text,
@@ -212,9 +214,9 @@ fn run_prompt_translation(
     input: &PromptTranslationRunInput,
     stream_sink: Option<&StreamSink>,
 ) -> Result<PromptTranslationDto, AppError> {
-    ensure_workspace_exists(conn, &input.workspace_id)?;
-    ensure_default_profiles(conn, &input.workspace_id)?;
-    ensure_default_translation_config(conn, &input.workspace_id)?;
+    ensure_workspace_exists(conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_profiles(conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_translation_config(conn, crate::domain::models::APP_SCOPE_ID)?;
     ensure_prompt_exists(conn, &input.prompt_id)?;
 
     let prompt_version = resolve_prompt_version(conn, &input.prompt_id, input.prompt_version)?;
@@ -226,13 +228,13 @@ fn run_prompt_translation(
     )?;
     let target_language = normalize_target_language(&input.target_language)?;
 
-    let config = get_translation_config(conn, &input.workspace_id)?;
+    let config = get_translation_config(conn, crate::domain::models::APP_SCOPE_ID)?;
     let profile_key = if let Some(value) = input.profile_key.as_ref() {
         normalize_profile_key(value)?
     } else {
         config.default_profile_key.clone()
     };
-    let profile = profile_by_key(conn, &input.workspace_id, &profile_key)?;
+    let profile = profile_by_key(conn, crate::domain::models::APP_SCOPE_ID, &profile_key)?;
     if !profile.enabled {
         return Err(AppError::new(
             "AGENT_UNAVAILABLE",
@@ -256,7 +258,7 @@ fn run_prompt_translation(
 
     let existing = list_prompt_translations_by_identity(
         conn,
-        &input.workspace_id,
+        crate::domain::models::APP_SCOPE_ID,
         &input.prompt_id,
         prompt_version,
         &target_language,
@@ -277,7 +279,7 @@ fn run_prompt_translation(
             conn,
             PromptTranslationInsert {
                 id: Uuid::new_v4().to_string(),
-                workspace_id: input.workspace_id.clone(),
+                workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
                 prompt_id: input.prompt_id.clone(),
                 prompt_version,
                 target_language: target_language.clone(),
@@ -327,7 +329,7 @@ fn run_prompt_translation(
                     conn,
                     PromptTranslationInsert {
                         id: Uuid::new_v4().to_string(),
-                        workspace_id: input.workspace_id.clone(),
+                        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
                         prompt_id: input.prompt_id.clone(),
                         prompt_version,
                         target_language: target_language.clone(),
@@ -355,7 +357,7 @@ fn run_prompt_translation(
 
     append_audit_event(
         conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         event_type,
         "system",
         json!({
@@ -432,7 +434,7 @@ fn insert_prompt_translation(
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
         params![
             input.id,
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             input.prompt_id,
             input.prompt_version,
             input.target_language,

@@ -1,5 +1,5 @@
 import type { AppLanguage } from "../../shell/types";
-import { Card, CardContent, CardHeader, CardTitle, Select } from "../../../shared/ui";
+import { Card, CardContent, CardHeader, CardTitle, FormField, FormLabel, Select } from "../../../shared/ui";
 
 export type GeneralSettingsPanelTheme = "light" | "dark";
 
@@ -27,8 +27,8 @@ export function GeneralSettingsPanel({
           <CardTitle>{l("通用设置", "General")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <label className="block text-xs text-slate-500">
-            {l("主题", "Theme")}
+          <FormField>
+            <FormLabel>{l("主题", "Theme")}</FormLabel>
             <Select
               className="mt-1"
               buttonClassName={selectBaseClass}
@@ -39,9 +39,9 @@ export function GeneralSettingsPanel({
                 { value: "dark", label: l("夜间模式", "Night Mode") },
               ]}
             />
-          </label>
-          <label className="block text-xs text-slate-500">
-            {l("语言", "Language")}
+          </FormField>
+          <FormField>
+            <FormLabel>{l("语言", "Language")}</FormLabel>
             <Select
               className="mt-1"
               buttonClassName={selectBaseClass}
@@ -52,7 +52,7 @@ export function GeneralSettingsPanel({
                 { value: "en-US", label: "English" },
               ]}
             />
-          </label>
+          </FormField>
           <div className="text-xs text-slate-500">{l("切换后立即生效。", "Changes apply immediately.")}</div>
         </CardContent>
       </Card>

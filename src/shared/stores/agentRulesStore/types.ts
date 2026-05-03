@@ -1,6 +1,7 @@
 import type { StoreApi } from "zustand";
 
 import type {
+  AgentRuleAccessCheck,
   AgentRuleAuditEvent,
   AgentRuleDistributionJob,
   AgentRuleDistributionRunInput,
@@ -72,6 +73,7 @@ export type AgentRulesState = {
   tagsByAsset: Record<string, AgentRuleTag[]>;
   versionsByAsset: Record<string, AgentRuleVersion[]>;
   applyJobs: AgentRuleApplyJob[];
+  accessCheck: AgentRuleAccessCheck | null;
   connections: AgentRuleConnection[];
   draft: AgentRuleDraft;
   releases: AgentRuleRelease[];
@@ -81,6 +83,7 @@ export type AgentRulesState = {
   loadingAssets: boolean;
   loadingVersions: boolean;
   loadingJobs: boolean;
+  checkingAccess: boolean;
   loadingConnections: boolean;
   loadingDraft: boolean;
   loadingReleases: boolean;
@@ -91,15 +94,40 @@ export type AgentRulesState = {
   selectedReleaseVersion: string | null;
   loadModuleData: (workspaceId: string) => Promise<void>;
   loadAssets: (workspaceId: string) => Promise<void>;
-  createAsset: (workspaceId: string, name: string, content: string) => Promise<AgentRuleAsset>;
-  renameAsset: (workspaceId: string, assetId: string, name: string) => Promise<AgentRuleAsset>;
+  createAsset: (
+    workspaceId: string,
+    name: string,
+    content: string,
+  ) => Promise<AgentRuleAsset>;
+  renameAsset: (
+    workspaceId: string,
+    assetId: string,
+    name: string,
+  ) => Promise<AgentRuleAsset>;
   deleteAsset: (workspaceId: string, assetId: string) => Promise<void>;
-  publishVersion: (assetId: string, content: string) => Promise<AgentRuleVersion>;
+  publishVersion: (
+    assetId: string,
+    content: string,
+  ) => Promise<AgentRuleVersion>;
   loadVersions: (assetId: string) => Promise<void>;
-  rollbackVersion: (assetId: string, version: string) => Promise<AgentRuleVersion>;
-  runApply: (workspaceId: string, assetId: string, agentTypes?: string[]) => Promise<AgentRuleApplyJob>;
+  rollbackVersion: (
+    assetId: string,
+    version: string,
+  ) => Promise<AgentRuleVersion>;
+  runApply: (
+    workspaceId: string,
+    assetId: string,
+    agentTypes?: string[],
+  ) => Promise<AgentRuleApplyJob>;
+  checkAccess: (
+    workspaceId: string,
+    agentTypes?: string[],
+  ) => Promise<AgentRuleAccessCheck>;
   retryFailed: (jobId: string) => Promise<AgentRuleApplyJob>;
-  refreshAsset: (workspaceId: string, assetId: string) => Promise<AgentRuleApplyJob | null>;
+  refreshAsset: (
+    workspaceId: string,
+    assetId: string,
+  ) => Promise<AgentRuleApplyJob | null>;
   loadConnections: (workspaceId: string) => Promise<void>;
   loadDraft: (workspaceId: string) => Promise<void>;
   saveDraft: (workspaceId: string, content: string) => Promise<void>;
@@ -114,8 +142,12 @@ export type AgentRulesState = {
     releaseVersion: string;
   }) => Promise<AgentRuleRelease>;
   loadDistributionJobs: (workspaceId: string, limit?: number) => Promise<void>;
-  runDistribution: (input: AgentRuleDistributionRunInput) => Promise<AgentRuleDistributionJob>;
-  retryFailedTargets: (input: { jobId: string }) => Promise<AgentRuleDistributionJob>;
+  runDistribution: (
+    input: AgentRuleDistributionRunInput,
+  ) => Promise<AgentRuleDistributionJob>;
+  retryFailedTargets: (input: {
+    jobId: string;
+  }) => Promise<AgentRuleDistributionJob>;
   detectDrift: (input: {
     workspaceId: string;
     targetIds?: string[];

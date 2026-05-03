@@ -44,14 +44,11 @@ struct ChannelApiTestRoundInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ChannelApiTestCasesQueryInput {
-    workspace_id: String,
-}
+pub struct ChannelApiTestCasesQueryInput {}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelApiTestCaseUpsertInput {
-    workspace_id: String,
     id: Option<String>,
     category: String,
     label: String,
@@ -62,14 +59,12 @@ pub struct ChannelApiTestCaseUpsertInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelApiTestCaseDeleteInput {
-    workspace_id: String,
     case_id: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelApiTestRunInput {
-    workspace_id: String,
     protocol: String,
     model: String,
     base_url: String,
@@ -85,7 +80,6 @@ pub struct ChannelApiTestRunInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChannelApiTestRunsQueryInput {
-    workspace_id: String,
     page: i64,
     page_size: i64,
 }

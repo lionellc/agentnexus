@@ -8,6 +8,7 @@ const { agentRulesApi } = vi.hoisted(() => ({
     listVersions: vi.fn(),
     rollbackVersion: vi.fn(),
     runApply: vi.fn(),
+    checkAccess: vi.fn(),
     retryFailed: vi.fn(),
     refreshAsset: vi.fn(),
     listConnections: vi.fn(),
@@ -34,6 +35,7 @@ function resetStore() {
     tagsByAsset: {},
     versionsByAsset: {},
     applyJobs: [],
+    accessCheck: null,
     connections: [],
     draft: EMPTY_DRAFT,
     releases: [],
@@ -43,6 +45,7 @@ function resetStore() {
     loadingAssets: false,
     loadingVersions: false,
     loadingJobs: false,
+    checkingAccess: false,
     loadingConnections: false,
     loadingDraft: false,
     loadingReleases: false,
@@ -100,7 +103,9 @@ describe("useAgentRulesStore", () => {
   it("loadAssets 失败时写入错误并抛出", async () => {
     agentRulesApi.listAssets.mockRejectedValueOnce(new Error("assets failed"));
 
-    await expect(useAgentRulesStore.getState().loadAssets("w1")).rejects.toThrow("assets failed");
+    await expect(
+      useAgentRulesStore.getState().loadAssets("w1"),
+    ).rejects.toThrow("assets failed");
 
     expect(useAgentRulesStore.getState().lastActionError).toBe("assets failed");
     expect(useAgentRulesStore.getState().loadingAssets).toBe(false);
@@ -163,8 +168,56 @@ describe("useAgentRulesStore", () => {
     await useAgentRulesStore.getState().refreshAsset("w1", "asset-a");
 
     const state = useAgentRulesStore.getState();
-    expect(state.applyJobs.map((item) => item.id)).toEqual(["job3", "job2", "job1"]);
-    expect(state.distributionJobs.map((item) => item.id)).toEqual(["job3", "job2", "job1"]);
+    expect(state.applyJobs.map((item) => item.id)).toEqual([
+      "job3",
+      "job2",
+      "job1",
+    ]);
+    expect(state.distributionJobs.map((item) => item.id)).toEqual([
+      "job3",
+      "job2",
+      "job1",
+    ]);
+  });
+
+  it("checkAccess 会更新权限预检状态", async () => {
+    agentRulesApi.checkAccess.mockResolvedValueOnce({
+      ok: false,
+      checkedAt: "2026-05-03T00:00:00Z",
+      summary: "1 个 Agent 规则目录需要处理",
+      targets: [
+        {
+          agentType: "codex",
+          rootDir: "/tmp/.codex",
+          ruleFile: "AGENTS.md",
+          resolvedPath: "/tmp/.codex/AGENTS.md",
+          parentDir: "/tmp/.codex",
+          rootDirExists: false,
+          parentDirExists: false,
+          hiddenPath: true,
+          preparedDir: false,
+          canCreateFile: false,
+          fileWritable: false,
+          status: "needs_user_action",
+          message: "规则目录不可写",
+          advice: "可复制命令：mkdir -p '/tmp/.codex'",
+        },
+      ],
+    });
+
+    const result = await useAgentRulesStore
+      .getState()
+      .checkAccess("w1", ["codex"]);
+
+    expect(agentRulesApi.checkAccess).toHaveBeenCalledWith({
+      workspaceId: "w1",
+      agentTypes: ["codex"],
+    });
+    expect(result.ok).toBe(false);
+    expect(
+      useAgentRulesStore.getState().accessCheck?.targets[0]?.agentType,
+    ).toBe("codex");
+    expect(useAgentRulesStore.getState().checkingAccess).toBe(false);
   });
 
   it("refreshAsset 会刷新标签状态", async () => {
@@ -248,7 +301,9 @@ describe("useAgentRulesStore", () => {
     const state = useAgentRulesStore.getState();
     expect(state.tagsByAsset["asset-a"][0]?.status).toBe("drifted");
     expect(state.assets[0]?.tags?.[0]?.status).toBe("drifted");
-    expect(state.tagsByAsset["asset-a"][0]?.filePath).toBe("/tmp/.codex/AGENTS.md");
+    expect(state.tagsByAsset["asset-a"][0]?.filePath).toBe(
+      "/tmp/.codex/AGENTS.md",
+    );
   });
 
   it("refreshAsset 会将 driftStatus/resolvedPath 规范化为 status/filePath", async () => {
