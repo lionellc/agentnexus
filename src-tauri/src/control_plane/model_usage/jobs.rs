@@ -6,12 +6,11 @@ pub(super) fn run_sync_job(
     app_state: AppState,
     workspace_id: &str,
     job_state: Arc<Mutex<ModelUsageSyncJobState>>,
+    force_full: bool,
 ) -> Result<(), AppError> {
     let mut conn = app_state.open()?;
     let workspace_scope = get_workspace_scope(&conn, workspace_id)?;
     let agent_root_dirs = list_enabled_agent_root_dirs(&conn, workspace_id)?;
-    ensure_pricing_seed(&conn, workspace_id)?;
-    ensure_fx_seed(&conn)?;
     let _ = cleanup_legacy_codex_session_rows(&conn, &workspace_scope.id)?;
     let mut failure_reason_counts: HashMap<String, u64> = HashMap::new();
 
@@ -19,7 +18,7 @@ pub(super) fn run_sync_job(
     let source_status = list_source_status_updated_at(&conn, &workspace_scope.id)?;
     let first_sync =
         source_status.is_empty() && latest_model_call_at(&conn, &workspace_scope.id)?.is_none();
-    if !first_sync {
+    if !first_sync && !force_full {
         files.retain(|file| should_parse_incremental_file(file, &source_status));
     }
     files.sort_by(|left, right| left.path.cmp(&right.path));

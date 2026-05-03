@@ -6,9 +6,10 @@ export type ModelUsageSyncStatus =
   | string;
 
 export type ModelUsageStatus = "success" | "failed" | "unknown" | string;
-export type ModelUsageCurrency = "USD" | "CNY" | string;
 
-export type ModelUsageSyncStartInput = Record<string, never>;
+export interface ModelUsageSyncStartInput {
+  forceFull?: boolean;
+}
 
 export interface ModelUsageSyncProgressInput {
   jobId: string;
@@ -21,7 +22,7 @@ export interface ModelUsageDashboardQueryInput {
   agent?: string;
   model?: string;
   status?: ModelUsageStatus;
-  currency?: ModelUsageCurrency;
+  timezoneOffsetMinutes?: number;
 }
 
 export interface ModelUsageRequestLogsQueryInput {
@@ -31,37 +32,9 @@ export interface ModelUsageRequestLogsQueryInput {
   agent?: string;
   model?: string;
   status?: ModelUsageStatus;
-  currency?: ModelUsageCurrency;
   limit?: number;
   cursorTimestamp?: string;
   cursorId?: string;
-}
-
-export type ModelPricingSyncInput = Record<string, never>;
-
-export interface ModelPricingSyncResult {
-  workspaceId: string;
-  syncedAt: string;
-  pricingRows: number;
-  source: string;
-  fx: {
-    rate: number;
-    stale: boolean;
-    fetchedAt: string;
-    source: string;
-  };
-}
-
-export interface ModelPricingQueryInput {
-  currency?: ModelUsageCurrency;
-}
-
-export interface ModelPricingOverrideUpsertInput {
-  provider: string;
-  model: string;
-  currency?: ModelUsageCurrency;
-  inputCostPerMillion: number;
-  outputCostPerMillion: number;
 }
 
 export interface ModelUsageSyncJobSnapshot {
@@ -82,19 +55,15 @@ export interface ModelUsageSyncJobSnapshot {
 
 export interface ModelUsageDashboardSummary {
   requestCount: number;
-  billableRequestCount: number;
+  completeRequestCount: number;
   incompleteCount: number;
   totalInputTokens: number;
   totalOutputTokens: number;
   totalTokens: number;
-  totalCostUsd: number;
-  totalCostCny: number;
-  displayCurrency: ModelUsageCurrency;
-  displayCost: number;
-  fxRateUsdCny: number;
-  fxStale: boolean;
-  fxFetchedAt: string;
-  fxSource: string;
+  avgDurationMs?: number | null;
+  durationSampleCount: number;
+  avgFirstTokenMs?: number | null;
+  firstTokenSampleCount: number;
 }
 
 export interface ModelUsageDashboardResult {
@@ -102,15 +71,10 @@ export interface ModelUsageDashboardResult {
     startAt: string;
     endAt: string;
     days: number;
+    timezoneOffsetMinutes: number;
   };
   summary: ModelUsageDashboardSummary;
   trends: {
-    dailyCost: Array<{
-      date: string;
-      usd: number;
-      cny: number;
-      display: number;
-    }>;
     dailyTokens: Array<{
       date: string;
       inputTokens: number;
@@ -125,13 +89,12 @@ export interface ModelUsageDashboardResult {
       model: string;
       count: number;
     }>;
-    modelCostDistribution: Array<{
+    modelTokenDistribution: Array<{
       model: string;
       requests: number;
+      inputTokens: number;
+      outputTokens: number;
       tokens: number;
-      costUsd: number;
-      costCny: number;
-      displayCost: number;
     }>;
   };
   sourceCoverage: Array<{
@@ -140,9 +103,6 @@ export interface ModelUsageDashboardResult {
     count: number;
     updatedAt?: string | null;
   }>;
-  pricing: {
-    rows: ModelPricingItem[];
-  };
 }
 
 export interface ModelUsageRequestLogItem {
@@ -160,10 +120,8 @@ export interface ModelUsageRequestLogItem {
   sourcePath: string;
   sessionId: string;
   requestId?: string | null;
-  costUsd: number;
-  costCny: number;
-  displayCurrency: ModelUsageCurrency;
-  displayCost: number;
+  totalDurationMs?: number | null;
+  firstTokenMs?: number | null;
 }
 
 export interface ModelUsageRequestLogsResult {
@@ -173,29 +131,4 @@ export interface ModelUsageRequestLogsResult {
     timestamp: string;
     id: string;
   } | null;
-  displayCurrency: ModelUsageCurrency;
-  fxRateUsdCny: number;
-  fxStale: boolean;
-  fxFetchedAt: string;
-}
-
-export interface ModelPricingItem {
-  provider: string;
-  model: string;
-  currency: ModelUsageCurrency;
-  inputCostPerMillion: number;
-  outputCostPerMillion: number;
-  effectiveFrom: string;
-  source: string;
-}
-
-export interface ModelPricingQueryResult {
-  items: ModelPricingItem[];
-  fx: {
-    rate: number;
-    stale: boolean;
-    fetchedAt: string;
-    source: string;
-  };
-  currency: ModelUsageCurrency;
 }

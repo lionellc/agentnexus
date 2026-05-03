@@ -1,8 +1,8 @@
 use super::{
     build_parse_failure_summary, cleanup_legacy_codex_session_rows, discover_session_files,
-    extract_model_usage_event, parse_session_file, persist_events, resolve_pricing_usd,
-    should_parse_incremental_file, truncate_text, AgentRootDirScope, ModelUsageFactDraft,
-    ParseFailureEvent, SessionFile, WorkspaceScope, AGENT_CODEX, SOURCE_SESSION_JSONL,
+    extract_model_usage_event, parse_session_file, persist_events, should_parse_incremental_file,
+    truncate_text, AgentRootDirScope, ModelUsageFactDraft, ParseFailureEvent, SessionFile,
+    WorkspaceScope, AGENT_CODEX, SOURCE_SESSION_JSONL,
 };
 use crate::utils::sha256_hex;
 use chrono::{Duration, Utc};
@@ -121,7 +121,8 @@ fn extract_model_usage_event_reads_nested_payload_usage() {
         "payload": {
             "provider": "openai",
             "response": { "model": "gpt-4.1-mini", "status": "completed" },
-            "usage": { "input_tokens": 1200, "output_tokens": 300 }
+            "usage": { "input_tokens": 1200, "output_tokens": 300 },
+            "metrics": { "durationMs": 1500, "firstTokenMs": 320 }
         }
     });
     let event = extract_model_usage_event(&value).expect("should extract");
@@ -129,6 +130,8 @@ fn extract_model_usage_event_reads_nested_payload_usage() {
     assert_eq!(event.model, "gpt-4.1-mini");
     assert_eq!(event.input_tokens, Some(1200));
     assert_eq!(event.output_tokens, Some(300));
+    assert_eq!(event.total_duration_ms, Some(1500));
+    assert_eq!(event.first_token_ms, Some(320));
 }
 
 #[test]
@@ -193,6 +196,8 @@ fn parse_session_file_codex_extracts_token_count_delta() {
     assert_eq!(parsed.facts[0].model, "gpt-5.4");
     assert_eq!(parsed.facts[0].status, "success");
     assert_eq!(parsed.facts[0].session_id, "session-codex-2");
+    assert_eq!(parsed.facts[0].total_duration_ms, None);
+    assert_eq!(parsed.facts[0].first_token_ms, None);
 
     assert_eq!(parsed.facts[1].input_tokens, Some(50));
     assert_eq!(parsed.facts[1].output_tokens, Some(30));
@@ -200,6 +205,8 @@ fn parse_session_file_codex_extracts_token_count_delta() {
         parsed.facts[1].request_id.as_deref(),
         Some("codex_session:session-codex-2:2")
     );
+    assert_eq!(parsed.facts[1].total_duration_ms, Some(1000));
+    assert_eq!(parsed.facts[1].first_token_ms, None);
 
     assert_eq!(parsed.facts[2].input_tokens, Some(20));
     assert_eq!(parsed.facts[2].output_tokens, Some(5));
@@ -207,6 +214,8 @@ fn parse_session_file_codex_extracts_token_count_delta() {
         parsed.facts[2].request_id.as_deref(),
         Some("codex_session:session-codex-2:3")
     );
+    assert_eq!(parsed.facts[2].total_duration_ms, Some(1000));
+    assert_eq!(parsed.facts[2].first_token_ms, None);
 }
 
 #[test]
@@ -271,6 +280,8 @@ fn persist_events_merges_duplicate_fact_with_non_empty_fields() {
             status TEXT NOT NULL,
             input_tokens INTEGER,
             output_tokens INTEGER,
+            total_duration_ms INTEGER,
+            first_token_ms INTEGER,
             total_tokens INTEGER NOT NULL DEFAULT 0,
             is_complete INTEGER NOT NULL DEFAULT 0,
             source TEXT NOT NULL,
@@ -317,6 +328,8 @@ fn persist_events_merges_duplicate_fact_with_non_empty_fields() {
         status: "unknown".to_string(),
         input_tokens: Some(120),
         output_tokens: None,
+        total_duration_ms: None,
+        first_token_ms: None,
         source: "session_jsonl".to_string(),
         source_path: "/tmp/session.jsonl".to_string(),
         session_id: "s1".to_string(),
@@ -330,6 +343,8 @@ fn persist_events_merges_duplicate_fact_with_non_empty_fields() {
         model: "gpt-4.1".to_string(),
         status: "success".to_string(),
         output_tokens: Some(80),
+        total_duration_ms: Some(1500),
+        first_token_ms: Some(320),
         source: "instrumentation_event".to_string(),
         source_path: "/tmp/instrumentation.jsonl".to_string(),
         event_ref: "2:2".to_string(),
@@ -341,7 +356,7 @@ fn persist_events_merges_duplicate_fact_with_non_empty_fields() {
 
     let row = conn
         .query_row(
-            "SELECT model, status, input_tokens, output_tokens, is_complete, source
+            "SELECT model, status, input_tokens, output_tokens, is_complete, source, total_duration_ms, first_token_ms
              FROM model_call_facts WHERE dedupe_key = ?1",
             params![dedupe_key],
             |row| {
@@ -352,6 +367,8 @@ fn persist_events_merges_duplicate_fact_with_non_empty_fields() {
                     row.get::<_, Option<i64>>(3)?,
                     row.get::<_, i64>(4)?,
                     row.get::<_, String>(5)?,
+                    row.get::<_, Option<i64>>(6)?,
+                    row.get::<_, Option<i64>>(7)?,
                 ))
             },
         )
@@ -364,66 +381,6 @@ fn persist_events_merges_duplicate_fact_with_non_empty_fields() {
     assert_eq!(row.4, 1);
     assert!(row.5.contains("session_jsonl"));
     assert!(row.5.contains("instrumentation_event"));
-}
-
-#[test]
-fn resolve_pricing_usd_prefers_manual_override() {
-    let conn = Connection::open_in_memory().expect("open sqlite");
-    conn.execute_batch(
-        r#"
-        CREATE TABLE model_pricing_snapshots (
-            id TEXT PRIMARY KEY,
-            workspace_id TEXT NOT NULL,
-            provider TEXT NOT NULL,
-            model TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            input_cost_per_million REAL NOT NULL,
-            output_cost_per_million REAL NOT NULL,
-            effective_from TEXT NOT NULL,
-            snapshot_version TEXT NOT NULL,
-            source TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        );
-        CREATE TABLE model_pricing_overrides (
-            id TEXT PRIMARY KEY,
-            workspace_id TEXT NOT NULL,
-            provider TEXT NOT NULL,
-            model TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            input_cost_per_million REAL NOT NULL,
-            output_cost_per_million REAL NOT NULL,
-            updated_at TEXT NOT NULL,
-            UNIQUE(workspace_id, provider, model, currency)
-        );
-        "#,
-    )
-    .expect("create pricing tables");
-
-    conn.execute(
-        "INSERT INTO model_pricing_snapshots(
-            id, workspace_id, provider, model, currency, input_cost_per_million, output_cost_per_million, effective_from, snapshot_version, source, created_at
-        ) VALUES ('1', 'workspace-1', 'openai', 'gpt-4.1', 'USD', 2, 8, '1970-01-01T00:00:00Z', 'builtin', 'builtin', '2026-04-21T00:00:00Z')",
-        [],
-    )
-    .expect("insert snapshot");
-    conn.execute(
-        "INSERT INTO model_pricing_overrides(
-            id, workspace_id, provider, model, currency, input_cost_per_million, output_cost_per_million, updated_at
-        ) VALUES ('2', 'workspace-1', 'openai', 'gpt-4.1', 'USD', 4, 12, '2026-04-21T00:00:00Z')",
-        [],
-    )
-    .expect("insert override");
-
-    let pricing = resolve_pricing_usd(
-        &conn,
-        "workspace-1",
-        "openai",
-        "gpt-4.1",
-        "2026-04-21T10:00:00Z",
-    )
-    .expect("resolve")
-    .expect("pricing exists");
-    assert_eq!(pricing.input_cost_per_million, 4.0);
-    assert_eq!(pricing.output_cost_per_million, 12.0);
-    assert_eq!(pricing.source, "manual_override");
+    assert_eq!(row.6, Some(1500));
+    assert_eq!(row.7, Some(320));
 }

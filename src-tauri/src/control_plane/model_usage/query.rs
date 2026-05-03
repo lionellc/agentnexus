@@ -1,4 +1,5 @@
 use super::*;
+use chrono::{DateTime, FixedOffset};
 use rusqlite::{params, types::Value as SqlValue};
 use serde_json::json;
 
@@ -12,7 +13,7 @@ pub(super) fn build_facts_query(
     page: Option<(i64, Option<(String, String)>)>,
 ) -> (String, Vec<SqlValue>) {
     let mut sql = String::from(
-        "SELECT called_at, id, agent, provider, model, input_tokens, output_tokens, is_complete, status, source, source_path, session_id, request_id
+        "SELECT called_at, id, agent, provider, model, input_tokens, output_tokens, is_complete, status, source, source_path, session_id, request_id, total_duration_ms, first_token_ms
          FROM model_call_facts
          WHERE workspace_id = ?1 AND called_at >= ?2 AND called_at <= ?3",
     );
@@ -123,35 +124,52 @@ pub(super) fn query_source_coverage(
     Ok(coverage)
 }
 
-pub(super) fn calculate_row_cost_usd(
-    conn: &Connection,
-    workspace_id: &str,
-    provider: &str,
-    model: &str,
-    called_at: &str,
-    input_tokens: Option<i64>,
-    output_tokens: Option<i64>,
-) -> Result<f64, AppError> {
-    let Some(pricing) = resolve_pricing_usd(conn, workspace_id, provider, model, called_at)? else {
-        return Ok(0.0);
-    };
-    let input = input_tokens.unwrap_or(0) as f64;
-    let output = output_tokens.unwrap_or(0) as f64;
-    Ok((input / 1_000_000.0) * pricing.input_cost_per_million
-        + (output / 1_000_000.0) * pricing.output_cost_per_million)
+pub(super) fn clamp_timezone_offset_minutes(offset: Option<i64>) -> i64 {
+    offset.unwrap_or(0).clamp(-14 * 60, 14 * 60)
 }
 
-pub(super) fn round6(value: f64) -> f64 {
-    (value * 1_000_000.0).round() / 1_000_000.0
-}
-
-pub(super) fn day_bucket(timestamp: &str) -> String {
-    timestamp.split('T').next().unwrap_or(timestamp).to_string()
-}
-
-pub(super) fn hour_bucket(timestamp: &str) -> String {
-    if timestamp.len() >= 13 {
-        return format!("{}:00", &timestamp[..13].replace('T', " "));
+pub(super) fn average_ms(total: i64, count: i64) -> Option<i64> {
+    if count <= 0 {
+        return None;
     }
-    day_bucket(timestamp)
+    Some(((total as f64) / (count as f64)).round() as i64)
+}
+
+pub(super) fn day_bucket(timestamp: &str, timezone_offset_minutes: i64) -> String {
+    let Ok(parsed) = DateTime::parse_from_rfc3339(timestamp) else {
+        return timestamp.split('T').next().unwrap_or(timestamp).to_string();
+    };
+    let offset_seconds = (timezone_offset_minutes * 60) as i32;
+    let Some(offset) = FixedOffset::east_opt(offset_seconds) else {
+        return parsed.date_naive().to_string();
+    };
+    parsed.with_timezone(&offset).format("%Y-%m-%d").to_string()
+}
+
+pub(super) fn hour_bucket(timestamp: &str, timezone_offset_minutes: i64) -> String {
+    let Ok(parsed) = DateTime::parse_from_rfc3339(timestamp) else {
+        if timestamp.len() >= 13 {
+            return format!("{}:00", &timestamp[..13].replace('T', " "));
+        }
+        return day_bucket(timestamp, timezone_offset_minutes);
+    };
+    let offset_seconds = (timezone_offset_minutes * 60) as i32;
+    let Some(offset) = FixedOffset::east_opt(offset_seconds) else {
+        return parsed.format("%Y-%m-%d %H:00").to_string();
+    };
+    parsed
+        .with_timezone(&offset)
+        .format("%Y-%m-%d %H:00")
+        .to_string()
+}
+
+#[cfg(test)]
+mod query_tests {
+    use super::*;
+
+    #[test]
+    fn buckets_use_user_timezone_offset() {
+        assert_eq!(day_bucket("2026-04-20T18:30:00Z", 8 * 60), "2026-04-21");
+        assert_eq!(hour_bucket("2026-04-20T18:30:00Z", 8 * 60), "2026-04-21 02:00");
+    }
 }

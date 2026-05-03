@@ -1,12 +1,11 @@
 import { Select } from "@douyinfe/semi-ui-19";
-import type { ModelUsageCurrency, ModelUsageStatus } from "../../../shared/types";
+import type { ModelUsageStatus } from "../../../shared/types";
 
 type SelectOption = { value: string; label: string };
 
 type UsageFiltersBarProps = {
   l: (zh: string, en: string) => string;
   days: number;
-  currency: ModelUsageCurrency;
   agent: string;
   model: string;
   status: ModelUsageStatus;
@@ -14,7 +13,6 @@ type UsageFiltersBarProps = {
   modelOptions: string[];
   loading?: boolean;
   onDaysChange: (value: number) => void;
-  onCurrencyChange: (value: ModelUsageCurrency) => void;
   onAgentChange: (value: string) => void;
   onModelChange: (value: string) => void;
   onStatusChange: (value: ModelUsageStatus) => void;
@@ -27,11 +25,6 @@ const dayOptions = (l: (zh: string, en: string) => string): SelectOption[] => [
   { value: "90", label: "90d" },
 ];
 
-const currencyOptions: SelectOption[] = [
-  { value: "USD", label: "USD" },
-  { value: "CNY", label: "CNY" },
-];
-
 const statusOptions = (l: (zh: string, en: string) => string): SelectOption[] => [
   { value: "", label: l("全部状态", "All Status") },
   { value: "success", label: l("成功", "Success") },
@@ -42,7 +35,6 @@ const statusOptions = (l: (zh: string, en: string) => string): SelectOption[] =>
 export function UsageFiltersBar({
   l,
   days,
-  currency,
   agent,
   model,
   status,
@@ -50,29 +42,21 @@ export function UsageFiltersBar({
   modelOptions,
   loading,
   onDaysChange,
-  onCurrencyChange,
   onAgentChange,
   onModelChange,
   onStatusChange,
 }: UsageFiltersBarProps) {
   return (
     <div className="rounded-lg border border-border bg-card p-3">
-      <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
+      <div className="grid gap-3 lg:grid-cols-[3fr_1fr]">
         <div className="space-y-2">
-          <p className="text-xs font-medium text-slate-500">{l("统计口径", "Metric Scope")}</p>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <p className="text-xs font-medium text-slate-500">{l("筛选", "Filters")}</p>
+          <div className="grid gap-2 sm:grid-cols-3">
             <Select
               value={String(days)}
               optionList={dayOptions(l)}
               onChange={(value) => onDaysChange(Number(value))}
               aria-label={l("时间范围", "Range")}
-              disabled={loading}
-            />
-            <Select
-              value={currency}
-              optionList={currencyOptions}
-              onChange={(value) => onCurrencyChange(value as ModelUsageCurrency)}
-              aria-label={l("币种", "Currency")}
               disabled={loading}
             />
             <Select

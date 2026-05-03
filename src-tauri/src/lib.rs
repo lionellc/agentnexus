@@ -36,7 +36,6 @@ use control_plane::local_agent_translation::{
     prompt_translation_run, translation_config_get, translation_config_update,
 };
 use control_plane::model_usage::{
-    model_pricing_override_upsert, model_pricing_query, model_pricing_sync_trigger,
     model_usage_query_dashboard, model_usage_query_request_logs, model_usage_sync_progress,
     model_usage_sync_start,
 };
@@ -153,9 +152,6 @@ pub fn run() {
             model_usage_sync_progress,
             model_usage_query_dashboard,
             model_usage_query_request_logs,
-            model_pricing_sync_trigger,
-            model_pricing_query,
-            model_pricing_override_upsert,
             channel_test_run,
             channel_test_query_runs,
             channel_test_cases_list,

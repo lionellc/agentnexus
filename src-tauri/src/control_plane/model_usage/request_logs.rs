@@ -9,10 +9,7 @@ pub fn model_usage_query_request_logs(
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
     get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
-    ensure_pricing_seed(&conn, crate::domain::models::APP_SCOPE_ID)?;
-    ensure_fx_seed(&conn)?;
 
-    let currency = normalize_currency(input.currency.as_deref());
     let end_at = input.end_at.unwrap_or_else(now_rfc3339);
     let days = if input.days == Some(0) {
         1
@@ -59,10 +56,11 @@ pub fn model_usage_query_request_logs(
             row.get::<_, String>(10)?,
             row.get::<_, String>(11)?,
             row.get::<_, Option<String>>(12)?,
+            row.get::<_, Option<i64>>(13)?,
+            row.get::<_, Option<i64>>(14)?,
         ))
     })?;
 
-    let fx = load_fx_snapshot(&conn)?;
     let mut all_items = Vec::new();
     for row in rows {
         let (
@@ -79,24 +77,12 @@ pub fn model_usage_query_request_logs(
             source_path,
             session_id,
             request_id,
+            duration_ms,
+            first_token_ms,
         ) = row?;
         let in_tokens = input_tokens.unwrap_or(0);
         let out_tokens = output_tokens.unwrap_or(0);
         let total_tokens = in_tokens + out_tokens;
-        let cost_usd = if is_complete == 0 {
-            0.0
-        } else {
-            calculate_row_cost_usd(
-                &conn,
-                crate::domain::models::APP_SCOPE_ID,
-                &provider,
-                &model,
-                &called_at,
-                input_tokens,
-                output_tokens,
-            )?
-        };
-        let cost_cny = cost_usd * fx.rate;
         all_items.push(json!({
             "id": id,
             "calledAt": called_at,
@@ -112,10 +98,8 @@ pub fn model_usage_query_request_logs(
             "sourcePath": source_path,
             "sessionId": session_id,
             "requestId": request_id,
-            "costUsd": round6(cost_usd),
-            "costCny": round6(cost_cny),
-            "displayCurrency": currency,
-            "displayCost": round6(if currency == "CNY" { cost_cny } else { cost_usd }),
+            "totalDurationMs": duration_ms,
+            "firstTokenMs": first_token_ms,
         }));
     }
 
@@ -154,9 +138,5 @@ pub fn model_usage_query_request_logs(
         "items": items,
         "total": total,
         "nextCursor": next_cursor,
-        "displayCurrency": currency,
-        "fxRateUsdCny": fx.rate,
-        "fxStale": fx.stale,
-        "fxFetchedAt": fx.fetched_at,
     }))
 }

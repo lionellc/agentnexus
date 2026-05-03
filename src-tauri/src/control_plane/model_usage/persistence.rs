@@ -138,6 +138,8 @@ pub(super) fn persist_events(
                 status,
                 input_tokens,
                 output_tokens,
+                total_duration_ms,
+                first_token_ms,
                 total_tokens,
                 is_complete,
                 source,
@@ -151,13 +153,13 @@ pub(super) fn persist_events(
                 created_at,
                 updated_at
             ) VALUES (
-                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+                ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
                 COALESCE(?8, 0) + COALESCE(?9, 0),
                 CASE
                     WHEN trim(COALESCE(?6, '')) <> '' AND ?8 IS NOT NULL AND ?9 IS NOT NULL THEN 1
                     ELSE 0
                 END,
-                ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19
+                ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21
             )
             ON CONFLICT(dedupe_key) DO UPDATE SET
                 called_at = CASE
@@ -179,6 +181,8 @@ pub(super) fn persist_events(
                 END,
                 input_tokens = COALESCE(model_call_facts.input_tokens, excluded.input_tokens),
                 output_tokens = COALESCE(model_call_facts.output_tokens, excluded.output_tokens),
+                total_duration_ms = COALESCE(model_call_facts.total_duration_ms, excluded.total_duration_ms),
+                first_token_ms = COALESCE(model_call_facts.first_token_ms, excluded.first_token_ms),
                 total_tokens = COALESCE(model_call_facts.input_tokens, excluded.input_tokens, 0)
                     + COALESCE(model_call_facts.output_tokens, excluded.output_tokens, 0),
                 is_complete = CASE
@@ -218,6 +222,8 @@ pub(super) fn persist_events(
                 fact.status,
                 fact.input_tokens,
                 fact.output_tokens,
+                fact.total_duration_ms,
+                fact.first_token_ms,
                 fact.source,
                 fact.source_path,
                 fact.session_id,

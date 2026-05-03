@@ -13,7 +13,6 @@ use uuid::Uuid;
 use crate::{
     db::AppState,
     domain::models::{
-        ModelPricingOverrideUpsertInput, ModelPricingQueryInput, ModelPricingSyncInput,
         ModelUsageDashboardQueryInput, ModelUsageRequestLogsQueryInput,
         ModelUsageSyncProgressInput, ModelUsageSyncStartInput,
     },
@@ -84,6 +83,8 @@ struct ModelUsageFactDraft {
     status: String,
     input_tokens: Option<i64>,
     output_tokens: Option<i64>,
+    total_duration_ms: Option<i64>,
+    first_token_ms: Option<i64>,
     source: String,
     source_path: String,
     session_id: String,
@@ -129,20 +130,15 @@ mod dashboard;
 mod jobs;
 mod parser;
 mod persistence;
-mod pricing;
 mod query;
 mod request_logs;
 
 use jobs::*;
 use parser::*;
 use persistence::*;
-use pricing::*;
 use query::*;
 
-pub use api::{
-    model_pricing_override_upsert, model_pricing_query, model_pricing_sync_trigger,
-    model_usage_sync_progress, model_usage_sync_start,
-};
+pub use api::{model_usage_sync_progress, model_usage_sync_start};
 pub use dashboard::model_usage_query_dashboard;
 pub use request_logs::model_usage_query_request_logs;
 

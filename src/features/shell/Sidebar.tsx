@@ -22,11 +22,11 @@ export function Sidebar({
 }: SidebarProps) {
   const isZh = language === "zh-CN";
   const items: Array<{ module: MainModule; label: string; icon: typeof Sparkles }> = [
+    { module: "channelTest", label: isZh ? "渠道 API 测试台" : "Channel API Testbench", icon: FlaskConical },
+    { module: "usage", label: isZh ? "模型使用" : "Model Usage", icon: ChartColumn },
+    { module: "agents", label: isZh ? "全局 Agent 规则" : "Global Agent Rules", icon: Bot },
     { module: "prompts", label: isZh ? "Prompts" : "Prompts", icon: Sparkles },
     { module: "skills", label: isZh ? "Skills" : "Skills", icon: Wrench },
-    { module: "usage", label: isZh ? "模型使用与成本" : "Model Usage & Cost", icon: ChartColumn },
-    { module: "channelTest", label: isZh ? "渠道 API 测试台" : "Channel API Testbench", icon: FlaskConical },
-    { module: "agents", label: isZh ? "全局 Agent 规则" : "Global Agent Rules", icon: Bot },
   ];
 
   return (

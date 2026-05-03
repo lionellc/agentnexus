@@ -1,10 +1,9 @@
 import { Card } from "@douyinfe/semi-ui-19";
 import type { ModelUsageDashboardSummary } from "../../../shared/types";
 import {
-  formatCurrency,
-  formatDecimal,
+  formatDurationMs,
   formatInteger,
-  formatTimestamp,
+  formatTokenAmount,
   type UsageStatusSummary,
 } from "../utils/usageFormat";
 
@@ -20,19 +19,19 @@ export function UsageKpiCards({ l, summary, statusSummary }: UsageKpiCardsProps)
       key: "requests",
       label: l("请求总数", "Requests"),
       value: formatInteger(summary.requestCount),
-      desc: `${l("完整可计费", "Billable")}: ${formatInteger(summary.billableRequestCount)}`,
-    },
-    {
-      key: "cost",
-      label: l("总成本", "Total Cost"),
-      value: formatCurrency(summary.displayCost, summary.displayCurrency),
-      desc: `USD ${formatCurrency(summary.totalCostUsd, "USD")} / CNY ${formatCurrency(summary.totalCostCny, "CNY")}`,
+      desc: `${l("完整记录", "Complete")}: ${formatInteger(summary.completeRequestCount)}`,
     },
     {
       key: "tokens",
       label: l("总 Token", "Total Tokens"),
-      value: formatInteger(summary.totalTokens),
-      desc: `in ${formatInteger(summary.totalInputTokens)} / out ${formatInteger(summary.totalOutputTokens)}`,
+      value: formatTokenAmount(summary.totalTokens),
+      desc: `in ${formatTokenAmount(summary.totalInputTokens)} / out ${formatTokenAmount(summary.totalOutputTokens)}`,
+    },
+    {
+      key: "latency",
+      label: l("平均用时", "Avg Duration"),
+      value: formatDurationMs(summary.avgDurationMs),
+      desc: `${l("样本", "Samples")}: ${formatInteger(summary.durationSampleCount)}`,
     },
     {
       key: "status",
@@ -54,18 +53,6 @@ export function UsageKpiCards({ l, summary, statusSummary }: UsageKpiCardsProps)
             </div>
           </Card>
         ))}
-      </div>
-      <div className="flex flex-wrap gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs text-slate-600">
-        <span>{l("解释条件", "Context")}</span>
-        <span>·</span>
-        <span>{l("不完整记录", "Incomplete")}: {formatInteger(summary.incompleteCount)}</span>
-        <span>{l("缺 model 或 token，不参与成本估算", "Missing model or tokens, excluded from cost estimation")}</span>
-        <span>·</span>
-        <span>
-          {l("汇率", "FX")}: {formatDecimal(summary.fxRateUsdCny, 4)}
-          {summary.fxStale ? ` · ${l("汇率过期", "Stale FX snapshot")}` : ` · ${l("汇率新鲜", "Fresh FX snapshot")}`}
-        </span>
-        {summary.fxFetchedAt ? <span>· {formatTimestamp(summary.fxFetchedAt)}</span> : null}
       </div>
     </div>
   );

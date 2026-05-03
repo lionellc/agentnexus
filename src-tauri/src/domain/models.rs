@@ -542,7 +542,9 @@ pub struct SkillsUsageCallsQueryInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ModelUsageSyncStartInput {}
+pub struct ModelUsageSyncStartInput {
+    pub force_full: Option<bool>,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -559,7 +561,7 @@ pub struct ModelUsageDashboardQueryInput {
     pub agent: Option<String>,
     pub model: Option<String>,
     pub status: Option<String>,
-    pub currency: Option<String>,
+    pub timezone_offset_minutes: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -571,30 +573,9 @@ pub struct ModelUsageRequestLogsQueryInput {
     pub agent: Option<String>,
     pub model: Option<String>,
     pub status: Option<String>,
-    pub currency: Option<String>,
     pub limit: Option<i64>,
     pub cursor_timestamp: Option<String>,
     pub cursor_id: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelPricingSyncInput {}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelPricingQueryInput {
-    pub currency: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ModelPricingOverrideUpsertInput {
-    pub provider: String,
-    pub model: String,
-    pub currency: Option<String>,
-    pub input_cost_per_million: f64,
-    pub output_cost_per_million: f64,
 }
 
 #[derive(Debug, Deserialize)]

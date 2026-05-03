@@ -21,10 +21,7 @@ const row = {
   sourcePath: "/tmp/session.jsonl",
   sessionId: "s1",
   requestId: "r1",
-  costUsd: 0.6,
-  costCny: 4.32,
-  displayCurrency: "USD",
-  displayCost: 0.6,
+  totalDurationMs: 1200,
 };
 
 describe("RequestDetailTable", () => {
@@ -66,9 +63,9 @@ describe("RequestDetailTable", () => {
     expect(document.body.textContent).toContain("planner");
     expect(document.body.textContent).toContain("openai/gpt-4.1");
     expect(document.body.textContent).toContain("失败");
-    expect(document.body.textContent).toContain("500");
-    expect(document.body.textContent).toContain("300");
-    expect(document.body.textContent).toContain("不参与成本估算");
+    expect(document.body.textContent).toContain("1.2s");
+    expect(document.body.textContent).not.toContain("300ms");
+    expect(document.body.textContent).toContain("不完整");
     expect(document.body.textContent).toContain("session_jsonl");
   });
 
@@ -89,7 +86,7 @@ describe("RequestDetailTable", () => {
 
     expect(document.body.textContent).toContain("暂无请求明细");
     expect(document.body.textContent).toContain("0-0 / 0");
-    expect(document.body.textContent).toContain("同步调用记录");
+    expect(document.body.textContent).toContain("刷新调用记录");
     expect(document.body.textContent).toContain("放宽时间、Agent、模型、状态筛选");
   });
 });

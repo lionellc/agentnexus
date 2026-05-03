@@ -2,9 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { modelUsageApi } from "../../../shared/services/api";
 import type {
-  ModelPricingOverrideUpsertInput,
-  ModelPricingSyncResult,
-  ModelUsageCurrency,
   ModelUsageDashboardResult,
   ModelUsageRequestLogItem,
   ModelUsageStatus,
@@ -31,7 +28,6 @@ function buildTimeWindow(days: number): { days?: number; startAt?: string; endAt
 
 export function useUsageDashboardController() {
   const [days, setDays] = useState(7);
-  const [currency, setCurrency] = useState<ModelUsageCurrency>("USD");
   const [agent, setAgent] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [status, setStatus] = useState<ModelUsageStatus>("");
@@ -45,11 +41,10 @@ export function useUsageDashboardController() {
   const [refreshing, setRefreshing] = useState(false);
   const [logsLoading, setLogsLoading] = useState(false);
   const [syncJob, setSyncJob] = useState<ModelUsageSyncJobSnapshot | null>(null);
-  const [pricingSyncResult, setPricingSyncResult] = useState<ModelPricingSyncResult | null>(null);
-  const [pricingSaving, setPricingSaving] = useState(false);
   const [lastRefreshSucceededAt, setLastRefreshSucceededAt] = useState<string>("");
   const [latestCallAt, setLatestCallAt] = useState<string>("");
   const [error, setError] = useState("");
+  const timezoneOffsetMinutes = useMemo(() => -new Date().getTimezoneOffset(), []);
 
   const loadDashboard = useCallback(async () => {
     setLoading(true);
@@ -63,7 +58,7 @@ export function useUsageDashboardController() {
         agent: agent || undefined,
         model: model || undefined,
         status: status || undefined,
-        currency,
+        timezoneOffsetMinutes,
       });
       setDashboard(result);
     } catch (err) {
@@ -72,7 +67,7 @@ export function useUsageDashboardController() {
     } finally {
       setLoading(false);
     }
-  }, [agent, currency, days, model, status]);
+  }, [agent, days, model, status, timezoneOffsetMinutes]);
 
   const loadLogsPage = useCallback(
     async (pageIndex: number, cursor: LogCursor) => {
@@ -87,7 +82,6 @@ export function useUsageDashboardController() {
           agent: agent || undefined,
           model: model || undefined,
           status: status || undefined,
-          currency,
           limit: DEFAULT_LIMIT,
           cursorTimestamp: cursor?.timestamp,
           cursorId: cursor?.id,
@@ -114,7 +108,7 @@ export function useUsageDashboardController() {
         setLogsLoading(false);
       }
     },
-    [agent, currency, days, model, status],
+    [agent, days, model, status],
   );
 
   const refreshAll = useCallback(async () => {
@@ -129,55 +123,23 @@ export function useUsageDashboardController() {
     }
   }, [loadDashboard, loadLogsPage]);
 
-  const syncUsage = useCallback(async () => {
+  const syncUsage = useCallback(async (forceFull = false) => {
     setError("");
     try {
-      const job = await modelUsageApi.syncStart({});
+      const job = await modelUsageApi.syncStart(forceFull ? { forceFull: true } : {});
       setSyncJob(job);
     } catch (err) {
       setError(err instanceof Error ? err.message : "启动同步失败");
     }
   }, []);
 
-  const syncPricing = useCallback(async () => {
-    setPricingSaving(true);
-    setError("");
-    try {
-      const result = await modelUsageApi.syncPricing({});
-      setPricingSyncResult(result);
-      await loadDashboard();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "刷新内置价格库失败");
-    } finally {
-      setPricingSaving(false);
-    }
-  }, [loadDashboard]);
-
-  const savePricingOverride = useCallback(
-    async (input: Omit<ModelPricingOverrideUpsertInput, "workspaceId">) => {
-      setPricingSaving(true);
-      setError("");
-      try {
-        await modelUsageApi.upsertPricingOverride({
-          provider: input.provider,
-          model: input.model,
-          currency: input.currency,
-          inputCostPerMillion: input.inputCostPerMillion,
-          outputCostPerMillion: input.outputCostPerMillion,
-        });
-        await loadDashboard();
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "保存覆盖单价失败");
-      } finally {
-        setPricingSaving(false);
-      }
-    },
-    [loadDashboard],
-  );
-
   useEffect(() => {
     void refreshAll();
   }, [refreshAll]);
+
+  useEffect(() => {
+    void syncUsage();
+  }, [syncUsage]);
 
   useEffect(() => {
     if (!syncJob || syncJob.status !== "running" ) {
@@ -251,8 +213,6 @@ export function useUsageDashboardController() {
   return {
     days,
     setDays,
-    currency,
-    setCurrency,
     agent,
     setAgent,
     model,
@@ -269,8 +229,6 @@ export function useUsageDashboardController() {
     refreshing,
     logsLoading,
     syncJob,
-    pricingSyncResult,
-    pricingSaving,
     lastRefreshSucceededAt,
     latestCallAt,
     error,
@@ -279,8 +237,6 @@ export function useUsageDashboardController() {
     modelOptions,
     refreshAll,
     syncUsage,
-    syncPricing,
-    savePricingOverride,
     loadNextLogsPage: () => {
       if (!logsCursor) {
         return;

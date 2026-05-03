@@ -3,7 +3,7 @@ import { Empty, Table } from "@douyinfe/semi-ui-19";
 import type { ReactNode } from "react";
 import { EmptyState } from "../../common/components/EmptyState";
 import type { ModelUsageRequestLogItem } from "../../../shared/types";
-import { formatCurrency, formatInteger, formatOptionalInteger, formatTimestamp, getStatusLabel } from "../utils/usageFormat";
+import { formatDurationMs, formatInteger, formatTimestamp, getStatusLabel, formatTokenAmount } from "../utils/usageFormat";
 
 type RequestDetailTableProps = {
   l: (zh: string, en: string) => string;
@@ -49,10 +49,15 @@ export function RequestDetailTable({
         <span>{getStatusLabel(item.status, l)}</span>
       ),
     },
-    { title: "input", dataIndex: "inputTokens", width: 100, render: (_value, item) => formatOptionalInteger(item.inputTokens) },
-    { title: "output", dataIndex: "outputTokens", width: 100, render: (_value, item) => formatOptionalInteger(item.outputTokens) },
-    { title: "total", dataIndex: "totalTokens", width: 100, render: (_value, item) => formatInteger(item.totalTokens) },
-    { title: l("成本", "Cost"), dataIndex: "displayCost", width: 120, render: (_value, item) => formatCurrency(item.displayCost, item.displayCurrency) },
+    { title: "input", dataIndex: "inputTokens", width: 100, render: (_value, item) => item.inputTokens == null ? "-" : formatTokenAmount(item.inputTokens) },
+    { title: "output", dataIndex: "outputTokens", width: 100, render: (_value, item) => item.outputTokens == null ? "-" : formatTokenAmount(item.outputTokens) },
+    { title: "total", dataIndex: "totalTokens", width: 100, render: (_value, item) => formatTokenAmount(item.totalTokens) },
+    {
+      title: l("用时", "Duration"),
+      dataIndex: "totalDurationMs",
+      width: 120,
+      render: (_value, item) => formatDurationMs(item.totalDurationMs),
+    },
     { title: "source", dataIndex: "source", width: 140 },
     {
       title: l("完整性", "Complete"),
@@ -60,7 +65,7 @@ export function RequestDetailTable({
       width: 160,
       render: (_value, item) => (
         <span>
-          {item.isComplete ? l("完整", "Complete") : l("不参与成本估算", "Excluded")}
+          {item.isComplete ? l("完整", "Complete") : l("不完整", "Incomplete")}
         </span>
       ),
     },
@@ -73,9 +78,6 @@ export function RequestDetailTable({
           <h3 className="text-sm font-semibold text-slate-900">
             {l("请求明细", "Request Logs")} · {formatInteger(total)}
           </h3>
-          <p className="text-xs text-slate-500">
-            {l("按单次调用排查 Agent、模型、状态、Token、成本和来源。", "Inspect each call by agent, model, status, tokens, cost, and source.")}
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span>
@@ -92,7 +94,7 @@ export function RequestDetailTable({
       {rows.length === 0 ? (
         <EmptyState
           title={loading ? l("正在加载请求明细", "Loading request logs") : l("暂无请求明细", "No request logs")}
-          description={l("可以先同步调用记录，或放宽时间、Agent、模型、状态筛选后再查看。", "Sync usage first, or broaden range, agent, model, and status filters.")}
+          description={l("可以先刷新调用记录，或放宽时间、Agent、模型、状态筛选后再查看。", "Refresh usage first, or broaden range, agent, model, and status filters.")}
         />
       ) : (
         <Table
