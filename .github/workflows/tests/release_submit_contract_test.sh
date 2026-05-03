@@ -29,6 +29,8 @@ assert_literal "tags:" "tag trigger"
 assert_literal "- \"v*\"" "v* tag filter"
 assert_literal "workflow_dispatch:" "manual trigger"
 assert_literal "release_tag:" "release tag input"
+assert_literal "cargo_text_updated, replacements = re.subn(" "cargo version replacement counts matches"
+assert_literal "if replacements != 1:" "cargo version replacement allows unchanged target version"
 
 assert_literal "Build app bundle" "build step exists"
 assert_literal "Submit app and dmg to notary" "submit step exists"
