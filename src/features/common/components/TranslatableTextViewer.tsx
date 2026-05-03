@@ -1,7 +1,6 @@
+import { Button, Select } from "@douyinfe/semi-ui-19";
 import { useEffect, useRef, useState } from "react";
 import { Columns2, Eye, FileText, Languages, Pencil, X } from "lucide-react";
-
-import { Button, Select } from "../../../shared/ui";
 import { cn } from "../../../shared/lib/cn";
 import { MarkdownEditor, MarkdownPreview } from "./MarkdownEditor";
 
@@ -236,9 +235,7 @@ export function TranslatableTextViewer({
         </div>
         <div className="relative" ref={translationPanelRef}>
           <Button
-            type="button"
-            size="icon"
-            variant={translationPanelOpen ? "default" : "outline"}
+            htmlType="button"
             className="h-7 w-7"
             title={isZh ? "翻译工具" : "Translation Tools"}
             aria-label={isZh ? "翻译工具" : "Translation Tools"}
@@ -253,9 +250,7 @@ export function TranslatableTextViewer({
                   {isZh ? "翻译功能" : "Translation"}
                 </div>
                 <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
+                  htmlType="button"
                   className="h-6 w-6"
                   aria-label={isZh ? "关闭翻译工具" : "Close translation tools"}
                   onClick={() => setTranslationPanelOpen(false)}
@@ -265,17 +260,14 @@ export function TranslatableTextViewer({
               </div>
               <div className="space-y-2">
                 <Select
-                  className="w-full"
-                  buttonClassName="h-8 rounded-lg px-2 pr-7 text-xs"
+                  className="h-8 w-full rounded-lg px-2 pr-7 text-xs"
                   value={targetLanguage}
-                  onChange={onTargetLanguageChange}
-                  options={targetLanguageOptions}
+                  onChange={(value) => onTargetLanguageChange(String(value ?? ""))}
+                  optionList={targetLanguageOptions}
                 />
                 <div className="flex items-center gap-2">
                   <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
+                    htmlType="button"
                     className="flex-1"
                     disabled={currentTargetTranslating || !sourceText.trim()}
                     onClick={() => {
@@ -287,9 +279,7 @@ export function TranslatableTextViewer({
                       : (isZh ? "翻译" : "Translate")}
                   </Button>
                   <Button
-                    type="button"
-                    size="sm"
-                    variant={showTranslatedPreview && hasCurrentTargetTranslatedText ? "default" : "outline"}
+                    htmlType="button"
                     className="flex-1"
                     disabled={!hasCurrentTargetTranslatedText}
                     onClick={() => setShowTranslatedPreview((prev) => !prev)}
@@ -311,9 +301,7 @@ export function TranslatableTextViewer({
         <div className="relative min-h-0 flex-1" ref={sourcePreviewContainerRef}>
           <div className="absolute right-0 top-0 z-10 inline-flex items-center gap-1 rounded-bl-md rounded-tr-md border border-slate-200 bg-white/90 p-1 shadow-sm backdrop-blur opacity-60 transition-opacity hover:opacity-100 focus-within:opacity-100 dark:border-slate-700 dark:bg-slate-900/85 dark:shadow-black/50">
               <Button
-                type="button"
-                size="icon"
-                variant={sourceViewMode === "view" ? "default" : "ghost"}
+                htmlType="button"
                 className="h-7 w-7"
                 title={isZh ? "查看" : "View"}
                 aria-label={isZh ? "查看" : "View"}
@@ -323,9 +311,7 @@ export function TranslatableTextViewer({
                 <span className="sr-only">{isZh ? "查看" : "View"}</span>
               </Button>
               <Button
-                type="button"
-                size="icon"
-                variant={sourceViewMode === "preview" ? "default" : "ghost"}
+                htmlType="button"
                 className="h-7 w-7"
                 title={isZh ? "预览" : "Preview"}
                 aria-label={isZh ? "预览" : "Preview"}
@@ -335,9 +321,7 @@ export function TranslatableTextViewer({
                 <span className="sr-only">{isZh ? "预览" : "Preview"}</span>
               </Button>
               <Button
-                type="button"
-                size="icon"
-                variant={sourceViewMode === "split-preview" ? "default" : "ghost"}
+                htmlType="button"
                 className="h-7 w-7"
                 title={isZh ? "分栏预览" : "Split Preview"}
                 aria-label={isZh ? "分栏预览" : "Split Preview"}
@@ -348,9 +332,7 @@ export function TranslatableTextViewer({
               </Button>
               {sourceEditable ? (
                 <Button
-                  type="button"
-                  size="icon"
-                  variant={sourceViewMode === "edit" ? "default" : "ghost"}
+                  htmlType="button"
                   className="h-7 w-7"
                   title={isZh ? "编辑" : "Edit"}
                   aria-label={isZh ? "编辑" : "Edit"}

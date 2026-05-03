@@ -1,10 +1,9 @@
-import { Input } from "@douyinfe/semi-ui-19";
+import { Button, Input, Select, Tabs as SemiTabs } from "@douyinfe/semi-ui-19";
 import { ArrowLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { ReactElement } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
-import { Button, Select, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
 import type {
   SkillOpenMode,
   SkillsManagerMode,
@@ -122,17 +121,24 @@ export function SkillsCenter({
   return (
     <div className={skillDetailView === "detail" ? "flex h-full min-h-0 flex-col gap-4" : "space-y-4"}>
       {skillDetailView === "list" ? (
-        <Tabs value={managerMode} onValueChange={(value) => setManagerMode(value as SkillsManagerMode)}>
+        <div>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-xl font-semibold text-slate-900">Skills</h2>
-                <TabsList>
-                  <TabsTrigger value="operations">{l("中控", "Hub")}</TabsTrigger>
-                  <TabsTrigger value="config">{l("扫描", "Scan")}</TabsTrigger>
-                </TabsList>
+                <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Skills</h2>
+                <SemiTabs
+                  activeKey={managerMode}
+                  onChange={(value) => setManagerMode(String(value) as SkillsManagerMode)}
+                  preventScroll
+                  size="small"
+                  tabList={[
+                    { itemKey: "operations", tab: l("中控", "Hub") },
+                    { itemKey: "config", tab: l("扫描", "Scan") },
+                  ]}
+                  type="button"
+                />
               </div>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
                 {l(`当前筛选 ${filteredSkillCount} 项`, `${filteredSkillCount} filtered items`)}
               </p>
             </div>
@@ -147,23 +153,22 @@ export function SkillsCenter({
               ) : null}
               {managerMode === "config" && !showSkillOpenModeInStatusBar ? (
                 <Select
-                  className="w-44"
-                  buttonClassName={selectBaseClass}
+                  className={selectBaseClass}
                   value={skillOpenMode}
                   onChange={(nextValue) => setSkillOpenMode(nextValue as SkillOpenMode)}
-                  options={skillOpenModeOptions.map((option) => ({
+                  optionList={skillOpenModeOptions.map((option) => ({
                     value: option.value,
                     label: option.label,
                   }))}
                 />
               ) : null}
               {managerMode === "config" ? (
-                <Button variant="outline" onClick={onScanSkills}>
+                <Button theme="solid" type="primary" onClick={onScanSkills}>
                   {l("扫描 Skills", "Scan Skills")}
                 </Button>
               ) : null}
               {managerMode === "config" ? (
-                <Button variant="outline" onClick={onRefreshSkills} disabled={skillsLoading}>
+                <Button type="tertiary" onClick={onRefreshSkills} disabled={skillsLoading}>
                   <RefreshCw className="mr-1 h-4 w-4" />
                   {l("刷新", "Refresh")}
                 </Button>
@@ -171,29 +176,22 @@ export function SkillsCenter({
             </div>
           </div>
 
-          <TabsContent value="operations" className="mt-3">
-            {operationsPanel}
-          </TabsContent>
-          <TabsContent value="config" className="mt-3">
-            {configPanel}
-          </TabsContent>
-        </Tabs>
+          <div className="mt-2">{managerMode === "operations" ? operationsPanel : configPanel}</div>
+        </div>
       ) : (
         <>
           <div className="flex w-full flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm text-slate-600">
-              <Button size="sm" variant="outline" onClick={onBackToSkillList}>
+              <Button onClick={onBackToSkillList}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <Button
+              <button
                 type="button"
-                size="sm"
-                variant="ghost"
-                className="h-auto px-1 py-0 font-medium text-blue-600 hover:underline"
+                className="font-medium text-slate-600 hover:text-slate-950 hover:underline dark:text-slate-300 dark:hover:text-slate-100"
                 onClick={onBackToSkillList}
               >
                 Skills
-              </Button>
+              </button>
               <ChevronRight className="h-4 w-4 text-slate-400" />
               <span className="max-w-[380px] truncate text-slate-700">
                 {selectedSkill?.name ?? l("未选择 skill", "No skill selected")}
@@ -201,10 +199,10 @@ export function SkillsCenter({
             </div>
             {selectedSkill ? (
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" onClick={() => onOpenUsageTimeline(selectedSkill.id)}>
+                <Button onClick={() => onOpenUsageTimeline(selectedSkill.id)}>
                   {l("调用记录", "Call History")}
                 </Button>
-                <Button variant="outline" onClick={() => void onSkillOpen(selectedSkill.id)}>
+                <Button onClick={() => void onSkillOpen(selectedSkill.id)}>
                   {l("打开", "Open")}
                 </Button>
               </div>
@@ -215,17 +213,22 @@ export function SkillsCenter({
             <EmptyState title={l("未选择 Skill", "No skill selected")} description={l("请返回列表重新选择。", "Go back and choose a skill.")} />
           ) : (
             <>
-                <Tabs
-                  value={skillDetailTab}
-                  onValueChange={(value) => setSkillDetailTab(value as "overview" | "files")}
-                  className="flex min-h-0 flex-1 flex-col"
-                >
-                <TabsList className="self-start">
-                  <TabsTrigger value="overview">{l("概述", "Overview")}</TabsTrigger>
-                  <TabsTrigger value="files">{l("文件", "Files")}</TabsTrigger>
-                </TabsList>
+              <div className="flex min-h-0 flex-1 flex-col">
+                <SemiTabs
+                  activeKey={skillDetailTab}
+                  className="self-start"
+                  onChange={(value) => setSkillDetailTab(String(value) as "overview" | "files")}
+                  preventScroll
+                  size="small"
+                  tabList={[
+                    { itemKey: "overview", tab: l("概述", "Overview") },
+                    { itemKey: "files", tab: l("文件", "Files") },
+                  ]}
+                  type="button"
+                />
 
-                <TabsContent value="overview" className="mt-3 flex min-h-0 flex-1 flex-col">
+                {skillDetailTab === "overview" ? (
+                <div className="mt-3 flex min-h-0 flex-1 flex-col">
                   <div className="flex min-h-0 flex-1 flex-col gap-3">
                     {skillFileReadLoading && !selectedSkillOverviewRead ? (
                       <div className="rounded-md border border-slate-200 bg-white px-3 py-4 text-sm text-slate-500">{l("加载中...", "Loading...")}</div>
@@ -258,18 +261,19 @@ export function SkillsCenter({
                       </div>
                     )}
                   </div>
-                </TabsContent>
+                </div>
 
-                <TabsContent value="files" className="mt-3 flex min-h-0 flex-1 flex-col">
+                ) : (
+                <div className="mt-3 flex min-h-0 flex-1 flex-col">
                   <div className="grid min-h-[420px] flex-1 grid-cols-1 gap-3 lg:min-h-0 lg:grid-cols-[280px_minmax(0,1fr)]">
                     <div className="flex min-h-0 flex-col rounded-xl border border-slate-200 bg-white p-2">
                       <div className="mb-2 flex items-center justify-between px-1">
                         <span className="text-xs font-medium text-slate-500">{l("文件树", "File Tree")}</span>
                         <div className="flex gap-1">
-                          <Button size="sm" variant="outline" onClick={() => void onLoadSkillTree(selectedSkill.id, true)}>
+                          <Button onClick={() => void onLoadSkillTree(selectedSkill.id, true)}>
                             <RefreshCw className="h-3.5 w-3.5" />
                           </Button>
-                          <Button size="sm" variant="outline" onClick={() => void onSkillOpen(selectedSkill.id)}>
+                          <Button onClick={() => void onSkillOpen(selectedSkill.id)}>
                             {l("打开", "Open")}
                           </Button>
                         </div>
@@ -327,8 +331,9 @@ export function SkillsCenter({
                       )}
                     </div>
                   </div>
-                </TabsContent>
-              </Tabs>
+                </div>
+                )}
+              </div>
             </>
           )}
         </>

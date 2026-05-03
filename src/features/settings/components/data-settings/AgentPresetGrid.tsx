@@ -1,3 +1,4 @@
+import { Button } from "@douyinfe/semi-ui-19";
 import {
   closestCenter,
   DndContext,
@@ -16,8 +17,6 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical } from "lucide-react";
-
-import { Badge, Button } from "../../../../shared/ui";
 
 import { PlatformPresetIcon } from "./PlatformPresetIcon";
 import type { AgentConnectionRow, AgentPresetRow, Translator } from "./types";
@@ -92,7 +91,7 @@ function SortableEnabledCard({
             >
               <GripVertical className="h-4 w-4" />
             </button>
-            <PlatformPresetIcon platformId={row.platform} size={18} />
+            <PlatformPresetIcon platformId={row.platform} />
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">{row.displayName}</span>
           </div>
           <div className="text-xs text-slate-500">
@@ -108,12 +107,11 @@ function SortableEnabledCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end">
-          <Button size="sm" variant="outline" onClick={() => onStartEdit(row.platform)} disabled={disabled}>
+          <Button type="tertiary" onClick={() => onStartEdit(row.platform)} disabled={disabled}>
             {l("编辑", "Edit")}
           </Button>
           <Button
-            size="sm"
-            variant="outline"
+            type="tertiary"
             onClick={() => onDisableAgentConnection(row.platform)}
             disabled={disabled}
           >
@@ -166,7 +164,7 @@ export function AgentPresetGrid({
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-medium text-slate-800 dark:text-slate-100">{l("已启用平台", "Enabled Platforms")}</h4>
-          <Badge variant="secondary">{enabledRows.length}</Badge>
+          <span>{enabledRows.length}</span>
         </div>
         {enabledRows.length === 0 ? (
           <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500 dark:border-slate-700">
@@ -202,7 +200,7 @@ export function AgentPresetGrid({
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-sm font-medium text-slate-800 dark:text-slate-100">{l("可添加平台", "Available Platforms")}</h4>
-          <Badge variant="secondary">{availableRows.length}</Badge>
+          <span>{availableRows.length}</span>
         </div>
         {availableRows.length === 0 ? (
           <div className="rounded-md border border-slate-200 px-3 py-3 text-xs text-slate-500 dark:border-slate-800">
@@ -216,12 +214,12 @@ export function AgentPresetGrid({
                 <div key={row.platform} className="rounded-md border border-slate-200 px-3 py-3 dark:border-slate-800">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <PlatformPresetIcon platformId={row.platform} size={16} />
+                      <PlatformPresetIcon platformId={row.platform} />
                       <div className="min-w-0 truncate text-xs font-medium text-slate-900 dark:text-slate-100">
                         {row.displayName}
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => onEnableAgentPreset(row.platform)} disabled={enabling}>
+                    <Button type="tertiary" onClick={() => onEnableAgentPreset(row.platform)} disabled={enabling}>
                       {enabling ? l("添加中...", "Adding...") : l("添加", "Add")}
                     </Button>
                   </div>

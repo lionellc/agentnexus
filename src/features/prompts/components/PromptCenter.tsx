@@ -1,8 +1,8 @@
+import { Button, Card } from "@douyinfe/semi-ui-19";
 import { Input as SemiInput, Select as SemiSelect } from "@douyinfe/semi-ui-19";
-import { RefreshCw, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
 import { SectionTitle } from "../../common/components/SectionTitle";
-import { Button, Card, CardContent, Tabs, TabsList, TabsTrigger } from "../../../shared/ui";
 import type { PromptBrowseScope } from "../utils/promptBrowseContext";
 import { PromptResults, type PromptResultsProps, type PromptViewMode } from "./PromptResults";
 
@@ -23,8 +23,6 @@ type PromptCenterProps = {
   setPromptAllCategoryFilter: (value: string) => void;
   promptCategoryOptions: PromptCategoryOption[];
   setCreatePromptOpen: (open: boolean) => void;
-  activeWorkspaceId: string | null;
-  fetchPrompts: (workspaceId: string) => Promise<void> | void;
   handleChangePromptBrowseScope: (nextScope: PromptBrowseScope) => void;
   promptViewMode: PromptViewMode;
   setPromptViewMode: (mode: PromptViewMode) => void;
@@ -47,8 +45,6 @@ export function PromptCenter({
   setPromptAllCategoryFilter,
   promptCategoryOptions,
   setCreatePromptOpen,
-  activeWorkspaceId,
-  fetchPrompts,
   handleChangePromptBrowseScope,
   promptViewMode,
   setPromptViewMode,
@@ -91,47 +87,64 @@ export function PromptCenter({
                 style={{ width: 184 }}
               />
             ) : null}
-            <Button variant="outline" onClick={() => setCreatePromptOpen(true)}>
+            <Button theme="solid" type="primary" onClick={() => setCreatePromptOpen(true)}>
               {l("新建 Prompt", "New Prompt")}
-            </Button>
-            <Button variant="outline" onClick={() => activeWorkspaceId && fetchPrompts(activeWorkspaceId)}>
-              <RefreshCw className="mr-1 h-4 w-4" />
-              {l("刷新", "Refresh")}
             </Button>
           </div>
         }
       />
 
       <div className="flex items-center justify-between gap-3 overflow-x-auto">
-        <Tabs
-          className="w-auto shrink-0"
-          value={promptBrowseScope}
-          onValueChange={(value) => handleChangePromptBrowseScope(value as PromptBrowseScope)}
-        >
-          <TabsList>
-            <TabsTrigger value="all" aria-label={l("Prompts 视角 All", "Prompts scope all")}>
-              {l("All", "All")}
-            </TabsTrigger>
-            <TabsTrigger value="categories" aria-label={l("Prompts 视角 Categories", "Prompts scope categories")}>
-              {l("分类", "Categories")}
-            </TabsTrigger>
-            <TabsTrigger value="favorites" aria-label={l("Prompts 视角 Favorites", "Prompts scope favorites")}>
-              {l("收藏夹", "Favorites")}
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex w-auto shrink-0 items-center gap-1">
+          <Button
+            aria-label={l("Prompts 视角 All", "Prompts scope all")}
+            theme={promptBrowseScope === "all" ? "solid" : "light"}
+            type={promptBrowseScope === "all" ? "primary" : "tertiary"}
+            onClick={() => handleChangePromptBrowseScope("all")}
+          >
+            {l("All", "All")}
+          </Button>
+          <Button
+            aria-label={l("Prompts 视角 Categories", "Prompts scope categories")}
+            theme={promptBrowseScope === "categories" ? "solid" : "light"}
+            type={promptBrowseScope === "categories" ? "primary" : "tertiary"}
+            onClick={() => handleChangePromptBrowseScope("categories")}
+          >
+            {l("分类", "Categories")}
+          </Button>
+          <Button
+            aria-label={l("Prompts 视角 Favorites", "Prompts scope favorites")}
+            theme={promptBrowseScope === "favorites" ? "solid" : "light"}
+            type={promptBrowseScope === "favorites" ? "primary" : "tertiary"}
+            onClick={() => handleChangePromptBrowseScope("favorites")}
+          >
+            {l("收藏夹", "Favorites")}
+          </Button>
+        </div>
 
-        <Tabs
-          className="w-auto shrink-0"
-          value={promptViewMode}
-          onValueChange={(value) => setPromptViewMode(value as PromptViewMode)}
-        >
-          <TabsList>
-            <TabsTrigger value="list">{l("列表", "List")}</TabsTrigger>
-            <TabsTrigger value="gallery">{l("卡片", "Cards")}</TabsTrigger>
-            <TabsTrigger value="table">{l("表格", "Table")}</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex w-auto shrink-0 items-center gap-1">
+          <Button
+            theme={promptViewMode === "list" ? "solid" : "light"}
+            type={promptViewMode === "list" ? "primary" : "tertiary"}
+            onClick={() => setPromptViewMode("list")}
+          >
+            {l("列表", "List")}
+          </Button>
+          <Button
+            theme={promptViewMode === "gallery" ? "solid" : "light"}
+            type={promptViewMode === "gallery" ? "primary" : "tertiary"}
+            onClick={() => setPromptViewMode("gallery")}
+          >
+            {l("卡片", "Cards")}
+          </Button>
+          <Button
+            theme={promptViewMode === "table" ? "solid" : "light"}
+            type={promptViewMode === "table" ? "primary" : "tertiary"}
+            onClick={() => setPromptViewMode("table")}
+          >
+            {l("表格", "Table")}
+          </Button>
+        </div>
       </div>
 
       {showPromptContextBar ? (
@@ -139,11 +152,11 @@ export function PromptCenter({
           <span>{l("当前浏览：", "Context:")} {promptBrowseContextLabel}</span>
           <div className="ml-auto flex items-center gap-2">
             {promptQuery.trim() ? (
-              <Button size="sm" variant="ghost" onClick={() => setPromptQuery("")}>
+              <Button onClick={() => setPromptQuery("")}>
                 {l("清空搜索", "Clear search")}
               </Button>
             ) : null}
-            <Button size="sm" variant="outline" onClick={handleResetPromptBrowseContext}>
+            <Button onClick={handleResetPromptBrowseContext}>
               {l("回到 All", "Back to All")}
             </Button>
           </div>
@@ -153,13 +166,12 @@ export function PromptCenter({
       {promptBrowseScope === "categories" ? (
         <div className="grid gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
           <Card className="h-fit">
-            <CardContent className="space-y-1 pt-4">
+            <div className="space-y-1 pt-4">
               {promptCategoryOptions.map((item) => (
                 <Button
                   key={item.key}
-                  type="button"
+                  htmlType="button"
                   aria-label={`prompt-category-${item.key}`}
-                  variant="ghost"
                   className={`flex h-auto w-full items-center justify-between px-2 py-1.5 text-left text-sm ${
                     promptBrowseCategory === item.key
                       ? "bg-blue-50 text-blue-700"
@@ -174,7 +186,7 @@ export function PromptCenter({
                   <span className="ml-2 text-xs opacity-75">{item.count}</span>
                 </Button>
               ))}
-            </CardContent>
+            </div>
           </Card>
           <div className="space-y-3">
             <PromptResults {...promptResultsProps} />

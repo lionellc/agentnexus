@@ -1,8 +1,7 @@
+import { Button } from "@douyinfe/semi-ui-19";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@douyinfe/semi-ui-19";
 import { RefreshCw, X } from "lucide-react";
-
-import { Button } from "../../../../shared/ui";
 import type { SkillsUsageSyncJobSnapshot } from "../../../../shared/types";
 
 import { usageProgressPercent } from "./helpers";
@@ -121,7 +120,6 @@ export function UsageFilters({
             className="w-56"
           />
           <Button
-            variant="outline"
             onClick={() => {
               void onRefreshSkills();
             }}
@@ -134,8 +132,6 @@ export function UsageFilters({
         <div className="flex flex-wrap items-center gap-2">
           <div ref={sortMenuRef} className="relative">
             <Button
-              size="sm"
-              variant="outline"
               onClick={() => {
                 setSortMenuOpen((prev) => !prev);
                 setToolsMenuOpen(false);
@@ -148,8 +144,7 @@ export function UsageFilters({
                 {sortOptions.map((option) => (
                   <Button
                     key={option.value}
-                    type="button"
-                    variant="ghost"
+                    htmlType="button"
                     className="h-auto w-full justify-start px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
                     onClick={() => {
                       onSortModeChange(option.value);
@@ -164,8 +159,6 @@ export function UsageFilters({
           </div>
           <div ref={toolsMenuRef} className="relative">
             <Button
-              size="sm"
-              variant="outline"
               onClick={() => {
                 setToolsMenuOpen((prev) => !prev);
                 setSortMenuOpen(false);
@@ -176,8 +169,7 @@ export function UsageFilters({
             {toolsMenuOpen ? (
               <div className="absolute right-0 top-10 z-20 min-w-44 rounded-md border border-slate-200 bg-white p-1 shadow-md">
                 <Button
-                  type="button"
-                  variant="ghost"
+                  htmlType="button"
                   className="h-auto w-full justify-start px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={usageSyncRunning}
                   onClick={() => {
@@ -189,8 +181,7 @@ export function UsageFilters({
                 </Button>
                 {onBulkLink ? (
                   <Button
-                    type="button"
-                    variant="ghost"
+                    htmlType="button"
                     className="h-auto w-full justify-start px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                     disabled={runningDistribution || bulkLinking || !bulkLinkEnabled}
                     onClick={() => {
@@ -215,9 +206,7 @@ export function UsageFilters({
               </span>
               {onDismissUsageSyncJob ? (
                 <Button
-                  type="button"
-                  size="icon"
-                  variant="ghost"
+                  htmlType="button"
                   className="h-5 w-5 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
                   onClick={onDismissUsageSyncJob}
                   aria-label={l("关闭状态", "Close Status")}

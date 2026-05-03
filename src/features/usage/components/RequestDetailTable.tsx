@@ -1,7 +1,6 @@
+import { Button } from "@douyinfe/semi-ui-19";
 import { Empty, Table } from "@douyinfe/semi-ui-19";
 import type { ReactNode } from "react";
-
-import { Button, Tag } from "../../../shared/ui";
 import { EmptyState } from "../../common/components/EmptyState";
 import type { ModelUsageRequestLogItem } from "../../../shared/types";
 import { formatCurrency, formatInteger, formatOptionalInteger, formatTimestamp, getStatusLabel } from "../utils/usageFormat";
@@ -47,7 +46,7 @@ export function RequestDetailTable({
       dataIndex: "status",
       width: 120,
       render: (_value, item) => (
-        <Tag tone={item.status === "failed" ? "danger" : "success"}>{getStatusLabel(item.status, l)}</Tag>
+        <span>{getStatusLabel(item.status, l)}</span>
       ),
     },
     { title: "input", dataIndex: "inputTokens", width: 100, render: (_value, item) => formatOptionalInteger(item.inputTokens) },
@@ -60,9 +59,9 @@ export function RequestDetailTable({
       dataIndex: "isComplete",
       width: 160,
       render: (_value, item) => (
-        <Tag tone={item.isComplete ? "success" : "warning"}>
+        <span>
           {item.isComplete ? l("完整", "Complete") : l("不参与成本估算", "Excluded")}
-        </Tag>
+        </span>
       ),
     },
   ];
@@ -82,10 +81,10 @@ export function RequestDetailTable({
           <span>
             {l("第", "Page")} {formatInteger(pageIndex + 1)} {l("页", "")} · {formatInteger(pageStart)}-{formatInteger(pageEnd)} / {formatInteger(total)}
           </span>
-          <Button size="sm" variant="outline" onClick={onPreviousPage} disabled={loading || !hasPreviousPage}>
+          <Button onClick={onPreviousPage} disabled={loading || !hasPreviousPage}>
             {l("上一页", "Previous")}
           </Button>
-          <Button size="sm" variant="outline" onClick={onNextPage} disabled={loading || !hasNextPage}>
+          <Button onClick={onNextPage} disabled={loading || !hasNextPage}>
             {l("下一页", "Next")}
           </Button>
         </div>
@@ -103,7 +102,6 @@ export function RequestDetailTable({
           loading={loading}
           pagination={false}
           scroll={{ x: 1280 }}
-          size="small"
           empty={<Empty title={l("暂无请求明细", "No request logs")} />}
         />
       )}

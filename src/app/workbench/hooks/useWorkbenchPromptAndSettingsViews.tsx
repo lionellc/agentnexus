@@ -15,8 +15,6 @@ export function buildWorkbenchPromptAndSettingsViews(args: any) {
     isZh,
     SELECT_BASE_CLASS,
     PROMPTS_PAGE_SIZE,
-    activeWorkspaceId,
-    fetchPrompts,
     promptsLoading,
     filteredPrompts,
     promptBrowseScope,
@@ -220,8 +218,6 @@ export function buildWorkbenchPromptAndSettingsViews(args: any) {
       setPromptAllCategoryFilter={(value) => setPromptAllCategoryFilter(value)}
       promptCategoryOptions={promptCategoryOptions}
       setCreatePromptOpen={(open) => setCreatePromptOpen(open)}
-      activeWorkspaceId={activeWorkspaceId}
-      fetchPrompts={fetchPrompts}
       handleChangePromptBrowseScope={handleChangePromptBrowseScope}
       promptViewMode={promptViewMode}
       setPromptViewMode={(mode) => setPromptViewMode(mode)}

@@ -1,5 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "../../../../shared/ui";
-
+import { Card } from "@douyinfe/semi-ui-19";
 import { AgentPresetGrid } from "./AgentPresetGrid";
 import type { AgentConnectionRow, AgentPresetRow, Translator } from "./types";
 
@@ -26,10 +25,10 @@ export function AgentConnectionsSection({
 }: AgentConnectionsSectionProps) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{l("Agents 配置", "Agents Settings")}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      <div>
+        <h3>{l("Agents 配置", "Agents Settings")}</h3>
+      </div>
+      <div className="space-y-3 text-sm">
         <AgentPresetGrid
           l={l}
           enabledRows={enabledAgentRows}
@@ -40,7 +39,7 @@ export function AgentConnectionsSection({
           onDisableAgentConnection={onDisableAgentConnection}
           onReorderEnabledAgentRows={onReorderEnabledAgentRows}
         />
-      </CardContent>
+      </div>
     </Card>
   );
 }

@@ -1,4 +1,4 @@
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../shared/ui";
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import type { SkillsManagerLinkPreviewResult } from "../../../shared/types";
 
 type ManagerLinkConfirmDecision = "cancel" | "force-link" | "update-then-link";
@@ -18,23 +18,16 @@ export function SkillsLinkConfirmDialog({ l, preview, onDecision }: SkillsLinkCo
     : "";
 
   return (
-    <Dialog
-      open={preview !== null}
-      onOpenChange={(open) => {
-        if (!open) {
-          onDecision("cancel");
-        }
-      }}
-    >
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{l("确认覆盖链接", "Confirm Link Replacement")}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={preview !== null} onCancel={() => onDecision("cancel")} footer={null} title={null}>
+      <div className="max-w-2xl">
+        <div>
+          <h2>{l("确认覆盖链接", "Confirm Link Replacement")}</h2>
+          <p>
             {preview
               ? `${preview.tool} / ${preview.skillName}`
               : ""}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         {preview ? (
           <div className="space-y-3">
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
@@ -57,16 +50,16 @@ export function SkillsLinkConfirmDialog({ l, preview, onDecision }: SkillsLinkCo
             </div>
           </div>
         ) : null}
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onDecision("cancel")}>
+        <div>
+          <Button onClick={() => onDecision("cancel")}>
             {l("取消", "Cancel")}
           </Button>
-          <Button variant="outline" onClick={() => onDecision("force-link")}>
+          <Button onClick={() => onDecision("force-link")}>
             {l("直接覆盖链接", "Overwrite & Link")}
           </Button>
           <Button onClick={() => onDecision("update-then-link")}>{l("更新后链接", "Update Then Link")}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

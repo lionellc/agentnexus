@@ -1,9 +1,9 @@
+import type { WorkbenchToastOptions as ToastOptions } from "../types";
 import { useEffect, useState, type ReactElement } from "react";
 import { ChevronDown, ChevronRight, FileCode2, Folder, FolderOpen } from "lucide-react";
 
 import { skillsApi } from "../../../shared/services/api";
 import type { SkillOpenMode, SkillsFileReadResult, SkillsFileTreeNode, SkillsFileTreeResult } from "../../../shared/types";
-import type { ToastOptions } from "../../../shared/ui";
 
 type UseWorkbenchSkillFileHandlersInput = {
   l: (zh: string, en: string) => string;

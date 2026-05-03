@@ -1,9 +1,9 @@
+import { Button, Card } from "@douyinfe/semi-ui-19";
 import { Input } from "@douyinfe/semi-ui-19";
 import { Copy, Pencil, Star, Trash2 } from "lucide-react";
 
 import { DataTable } from "../../common/components/DataTable";
 import { EmptyState } from "../../common/components/EmptyState";
-import { Button, Card, CardContent, CardHeader, CardTitle, DeleteIconButton } from "../../../shared/ui";
 import type { PromptAsset } from "../../../shared/types/prompts";
 import type { PromptBrowseScope } from "../utils/promptBrowseContext";
 
@@ -89,7 +89,7 @@ export function PromptResults({
 }: PromptResultsProps) {
   return (
     <>
-      {promptsLoading ? <Card><CardContent className="py-8 text-sm text-slate-500">{l("加载中...", "Loading...")}</CardContent></Card> : null}
+      {promptsLoading ? <Card><div className="py-8 text-sm text-slate-500">{l("加载中...", "Loading...")}</div></Card> : null}
 
       {!promptsLoading && filteredPrompts.length === 0 ? (
         <EmptyState
@@ -113,7 +113,7 @@ export function PromptResults({
             ) : promptBrowseScope === "all" ? (
               <Button onClick={() => setCreatePromptOpen(true)}>{l("立即创建", "Create now")}</Button>
             ) : (
-              <Button variant="outline" onClick={handleResetPromptBrowseContext}>{l("回到 All", "Back to All")}</Button>
+              <Button onClick={handleResetPromptBrowseContext}>{l("回到 All", "Back to All")}</Button>
             )
           }
         />
@@ -122,24 +122,34 @@ export function PromptResults({
       {!promptsLoading && filteredPrompts.length > 0 && promptViewMode === "list" ? (
         <div className="space-y-2">
           {pagedPrompts.map((item) => (
-            <Card key={item.id} className="group">
-              <CardContent
-                className="flex cursor-pointer items-start gap-3 pt-6"
+            <Card key={item.id} className="group" bodyStyle={{ padding: "18px 20px" }}>
+              <div
+                className="flex cursor-pointer items-start gap-4"
                 onClick={() => {
                   openPromptDetailById(item.id);
                 }}
               >
-                <div className="flex-1 text-left">
-                  <div className="text-base font-semibold text-slate-900">{item.name}</div>
-                  <div className="mt-1 text-xs text-slate-500">
-                    {formatPromptCategoryLabel(item.category)} · v{item.activeVersion} · {toLocalTime(item.updatedAt)}
+                <div className="min-w-0 flex-1 text-left">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">{item.name}</div>
+                    {item.favorite ? (
+                      <span className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200 dark:bg-amber-950/30 dark:text-amber-300 dark:ring-amber-900">
+                        {l("收藏", "Favorite")}
+                      </span>
+                    ) : null}
                   </div>
-                  <div className="mt-2 line-clamp-2 text-sm text-slate-600">{item.content}</div>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-900 dark:text-slate-300">
+                      {formatPromptCategoryLabel(item.category)}
+                    </span>
+                    <span>v{item.activeVersion}</span>
+                    <span>{toLocalTime(item.updatedAt)}</span>
+                  </div>
+                  <div className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.content}</div>
                 </div>
                 <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
                   <Button
-                    size="sm"
-                    variant="ghost"
+                    type="tertiary"
                     title={l("复制 Prompt", "Copy prompt")}
                     aria-label={l("复制 Prompt", "Copy prompt")}
                     onClick={(event) => {
@@ -150,8 +160,7 @@ export function PromptResults({
                     <Copy className="h-4 w-4" />
                   </Button>
                   <Button
-                    size="sm"
-                    variant="ghost"
+                    type="tertiary"
                     title={item.favorite ? l("取消收藏", "Unfavorite") : l("收藏", "Favorite")}
                     aria-label={item.favorite ? l("取消收藏", "Unfavorite") : l("收藏", "Favorite")}
                     onClick={(event) => {
@@ -162,8 +171,7 @@ export function PromptResults({
                     <Star className={`h-4 w-4 ${item.favorite ? "fill-amber-400 text-amber-500" : "text-slate-500"}`} />
                   </Button>
                   <Button
-                    size="sm"
-                    variant="ghost"
+                    type="tertiary"
                     title={l("编辑", "Edit")}
                     aria-label={l("编辑", "Edit")}
                     onClick={(event) => {
@@ -174,8 +182,7 @@ export function PromptResults({
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
-                    size="sm"
-                    variant="ghost"
+                    type="danger"
                     title={l("删除", "Delete")}
                     aria-label={l("删除", "Delete")}
                     onClick={(event) => {
@@ -186,7 +193,7 @@ export function PromptResults({
                     <Trash2 className="h-4 w-4 text-red-600" />
                   </Button>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>
@@ -198,21 +205,26 @@ export function PromptResults({
             <Card
               key={item.id}
               className="group cursor-pointer"
-              onClick={() => {
-                openPromptDetailById(item.id);
-              }}
+              bodyStyle={{ padding: "18px 20px" }}
             >
-              <CardHeader>
-                <CardTitle className="text-base">{item.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="mb-2 text-xs text-slate-500">{formatPromptCategoryLabel(item.category)} · v{item.activeVersion}</div>
-                <div className="line-clamp-4 text-sm text-slate-600">{item.content}</div>
-                <div className="mt-3 flex items-center justify-end">
+              <div
+                onClick={() => {
+                  openPromptDetailById(item.id);
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="min-w-0 truncate text-base font-semibold text-slate-900 dark:text-slate-100">{item.name}</h3>
+                  {item.favorite ? <Star className="h-4 w-4 shrink-0 fill-amber-400 text-amber-500" /> : null}
+                </div>
+                <div className="mb-2 mt-1.5 flex flex-wrap items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600 dark:bg-slate-900 dark:text-slate-300">{formatPromptCategoryLabel(item.category)}</span>
+                  <span>v{item.activeVersion}</span>
+                </div>
+                <div className="line-clamp-4 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.content}</div>
+                <div className="mt-2 flex items-center justify-end">
                   <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
                     <Button
-                      size="sm"
-                      variant="ghost"
+                      type="tertiary"
                       title={l("复制 Prompt", "Copy prompt")}
                       aria-label={l("复制 Prompt", "Copy prompt")}
                       onClick={(event) => {
@@ -223,8 +235,7 @@ export function PromptResults({
                       <Copy className="h-4 w-4" />
                     </Button>
                     <Button
-                      size="sm"
-                      variant="ghost"
+                      type="tertiary"
                       title={item.favorite ? l("取消收藏", "Unfavorite") : l("收藏", "Favorite")}
                       aria-label={item.favorite ? l("取消收藏", "Unfavorite") : l("收藏", "Favorite")}
                       onClick={(event) => {
@@ -235,8 +246,7 @@ export function PromptResults({
                       <Star className={`h-4 w-4 ${item.favorite ? "fill-amber-400 text-amber-500" : "text-slate-500"}`} />
                     </Button>
                     <Button
-                      size="sm"
-                      variant="ghost"
+                      type="tertiary"
                       title={l("编辑", "Edit")}
                       aria-label={l("编辑", "Edit")}
                       onClick={(event) => {
@@ -247,8 +257,7 @@ export function PromptResults({
                       <Pencil className="h-4 w-4" />
                     </Button>
                     <Button
-                      size="sm"
-                      variant="ghost"
+                      type="danger"
                       title={l("删除", "Delete")}
                       aria-label={l("删除", "Delete")}
                       onClick={(event) => {
@@ -260,7 +269,7 @@ export function PromptResults({
                     </Button>
                   </div>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>
@@ -273,16 +282,14 @@ export function PromptResults({
               {l(`已选 ${promptSelectedIds.length} 条`, `${promptSelectedIds.length} selected`)}
             </span>
             <Button
-              size="sm"
-              variant="outline"
+              type="tertiary"
               disabled={promptSelectedIds.length === 0}
               onClick={() => void runPromptBatchAction("favorite_on")}
             >
               {l("批量收藏", "Batch Favorite")}
             </Button>
             <Button
-              size="sm"
-              variant="outline"
+              type="tertiary"
               disabled={promptSelectedIds.length === 0}
               onClick={() => void runPromptBatchAction("favorite_off")}
             >
@@ -296,24 +303,24 @@ export function PromptResults({
                 className="h-9 w-40"
               />
               <Button
-                size="sm"
-                variant="outline"
+                type="tertiary"
                 disabled={promptSelectedIds.length === 0}
                 onClick={() => void runPromptBatchAction("move")}
               >
                 {l("批量移动", "Batch Move")}
               </Button>
             </div>
-            <DeleteIconButton
-              size="sm"
-              variant="outline"
-              label={l("批量删除", "Batch Delete")}
+            <Button
+              type="danger"
+              aria-label={l("批量删除", "Batch Delete")}
+              title={l("批量删除", "Batch Delete")}
               disabled={promptSelectedIds.length === 0}
               onClick={() => void runPromptBatchAction("delete")}
-            />
+            >
+              <Trash2 className="h-4 w-4 text-red-600" />
+            </Button>
             <Button
-              size="sm"
-              variant="ghost"
+              type="tertiary"
               disabled={promptSelectedIds.length === 0}
               onClick={() => clearPromptSelection()}
             >
@@ -321,8 +328,7 @@ export function PromptResults({
             </Button>
             {promptBatchJumpSuggestion ? (
               <Button
-                size="sm"
-                variant="secondary"
+                type="tertiary"
                 className="ml-auto"
                 onClick={handleRunPromptBatchJumpSuggestion}
               >
@@ -354,8 +360,7 @@ export function PromptResults({
             renderRowActions={(row) => (
               <div className="flex items-center gap-1">
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  type="tertiary"
                   title={l("复制 Prompt", "Copy prompt")}
                   aria-label={l("复制 Prompt", "Copy prompt")}
                   onClick={() => void handleCopyPromptFromRow(row)}
@@ -363,8 +368,7 @@ export function PromptResults({
                   <Copy className="h-4 w-4" />
                 </Button>
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  type="tertiary"
                   title={row.favorite ? l("取消收藏", "Unfavorite") : l("收藏", "Favorite")}
                   aria-label={row.favorite ? l("取消收藏", "Unfavorite") : l("收藏", "Favorite")}
                   onClick={() => void handleTogglePromptFavorite(row)}
@@ -372,8 +376,7 @@ export function PromptResults({
                   <Star className={`h-4 w-4 ${row.favorite ? "fill-amber-400 text-amber-500" : "text-slate-500"}`} />
                 </Button>
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  type="tertiary"
                   title={l("编辑", "Edit")}
                   aria-label={l("编辑", "Edit")}
                   onClick={() => {
@@ -383,8 +386,7 @@ export function PromptResults({
                   <Pencil className="h-4 w-4" />
                 </Button>
                 <Button
-                  size="sm"
-                  variant="ghost"
+                  type="danger"
                   title={l("删除", "Delete")}
                   aria-label={l("删除", "Delete")}
                   onClick={() => void handleDeletePrompt(row.id, row.name)}
@@ -436,8 +438,6 @@ export function PromptResults({
           </span>
           <div className="flex items-center gap-2">
             <Button
-              size="sm"
-              variant="outline"
               disabled={promptPage <= 1}
               onClick={() => setPromptPage((prev) => Math.max(1, prev - 1))}
             >
@@ -447,8 +447,6 @@ export function PromptResults({
               {promptPage} / {totalPromptPages}
             </span>
             <Button
-              size="sm"
-              variant="outline"
               disabled={promptPage >= totalPromptPages}
               onClick={() => setPromptPage((prev) => Math.min(totalPromptPages, prev + 1))}
             >

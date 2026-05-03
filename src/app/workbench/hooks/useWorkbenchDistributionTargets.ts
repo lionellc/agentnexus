@@ -1,3 +1,4 @@
+import type { WorkbenchToastOptions as ToastOptions } from "../types";
 import { useEffect, useState } from "react";
 
 import { appDataDir } from "@tauri-apps/api/path";
@@ -10,7 +11,6 @@ import {
   normalizeAgentTypeInput,
   normalizeDirectoryInput,
 } from "../utils";
-import type { ToastOptions } from "../../../shared/ui";
 
 type DistributionTargetDraftField = "platform" | "targetPath" | "installMode";
 

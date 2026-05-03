@@ -1,4 +1,4 @@
-import { Card, CardContent } from "../../../shared/ui";
+import { Card } from "@douyinfe/semi-ui-19";
 import type { ModelUsageDashboardSummary } from "../../../shared/types";
 import {
   formatCurrency,
@@ -47,11 +47,11 @@ export function UsageKpiCards({ l, summary, statusSummary }: UsageKpiCardsProps)
       <div className="grid gap-3 md:grid-cols-4">
         {cards.map((card) => (
           <Card key={card.key}>
-            <CardContent className="space-y-1 p-4">
+            <div className="space-y-1 p-4">
               <p className="text-xs text-slate-500">{card.label}</p>
               <p className="text-xl font-semibold text-slate-900">{card.value}</p>
               <p className="text-xs text-slate-500">{card.desc}</p>
-            </CardContent>
+            </div>
           </Card>
         ))}
       </div>

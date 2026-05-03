@@ -1,9 +1,8 @@
+import { Button } from "@douyinfe/semi-ui-19";
 import { Empty, Table } from "@douyinfe/semi-ui-19";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { Input } from "@douyinfe/semi-ui-19";
-
-import { Button } from "../../../shared/ui";
 import type { ModelPricingItem, ModelPricingSyncResult, ModelUsageCurrency } from "../../../shared/types";
 import { formatDecimal, formatInteger, formatTimestamp } from "../utils/usageFormat";
 
@@ -57,10 +56,10 @@ export function PricingPanel({ l, currency, rows, syncResult, saving, onSyncPric
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" onClick={onSyncPricing} disabled={saving}>
+          <Button htmlType="button" onClick={onSyncPricing} disabled={saving}>
             {saving ? l("刷新中", "Refreshing") : l("刷新默认价格库", "Refresh Built-in Prices")}
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
+          <Button htmlType="button" onClick={() => setOpen((value) => !value)}>
             {open ? l("收起", "Collapse") : l("展开", "Expand")}
           </Button>
         </div>
@@ -100,7 +99,6 @@ export function PricingPanel({ l, currency, rows, syncResult, saving, onSyncPric
             dataSource={rows}
             pagination={false}
             scroll={{ x: 720 }}
-            size="small"
             empty={<Empty title={l("暂无定价规则", "No pricing rules")} />}
           />
         </>

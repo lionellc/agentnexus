@@ -1,8 +1,7 @@
-import { Table } from "@douyinfe/semi-ui-19";
+import { Button, Table, Tabs as SemiTabs } from "@douyinfe/semi-ui-19";
 import type { ReactNode } from "react";
 import { useState } from "react";
 
-import { Button, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
 import type { ModelUsageCurrency, ModelUsageDashboardResult, ModelUsageSyncJobSnapshot } from "../../../shared/types";
 import { SectionTitle } from "../../common/components/SectionTitle";
 import { EmptyState } from "../../common/components/EmptyState";
@@ -24,6 +23,7 @@ type UsageDashboardProps = {
 
 export function UsageDashboard({ l }: UsageDashboardProps) {
   const [hiddenSyncKey, setHiddenSyncKey] = useState("");
+  const [detailTab, setDetailTab] = useState("logs");
   const {
     days,
     setDays,
@@ -120,12 +120,19 @@ export function UsageDashboard({ l }: UsageDashboardProps) {
             <ModelCostDistributionChart l={l} rows={dashboard.trends.modelCostDistribution} currency={currency} />
             <ModelDistributionChart l={l} rows={dashboard.trends.modelDistribution} />
           </div>
-          <Tabs defaultValue="logs" className="space-y-3">
-            <TabsList className="bg-muted/60">
-              <TabsTrigger value="logs">{l("请求明细", "Request Logs")}</TabsTrigger>
-              <TabsTrigger value="models">{l("模型排行", "Model Ranking")}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="logs" className="mt-0">
+          <div className="space-y-3">
+            <SemiTabs
+              activeKey={detailTab}
+              onChange={(value) => setDetailTab(String(value))}
+              preventScroll
+              size="small"
+              tabList={[
+                { itemKey: "logs", tab: l("请求明细", "Request Logs") },
+                { itemKey: "models", tab: l("模型排行", "Model Ranking") },
+              ]}
+              type="button"
+            />
+            {detailTab === "logs" ? (
               <RequestDetailTable
                 l={l}
                 rows={logs}
@@ -138,11 +145,10 @@ export function UsageDashboard({ l }: UsageDashboardProps) {
                 onNextPage={loadNextLogsPage}
                 onPreviousPage={loadPreviousLogsPage}
               />
-            </TabsContent>
-            <TabsContent value="models" className="mt-0">
+            ) : (
               <ModelRankingTable l={l} rows={dashboard.trends.modelCostDistribution} currency={currency} />
-            </TabsContent>
-          </Tabs>
+            )}
+          </div>
           <PricingPanel
             l={l}
             currency={currency}
@@ -214,7 +220,7 @@ function UsageOverview({ l, currency, days, dashboard, loading, refreshing, sync
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={onSyncUsage} disabled={loading}>
+          <Button onClick={onSyncUsage} disabled={loading}>
             {l("同步调用", "Sync Calls")}
           </Button>
           <Button onClick={onRefresh} disabled={refreshing || syncRunning}>
@@ -235,7 +241,7 @@ function SyncFeedback({ l, job, onDismiss }: { l: (zh: string, en: string) => st
           {getSyncStatusLabel(job.status, l)} · {job.processedFiles}/{job.totalFiles}
           {job.currentSource ? ` · ${job.currentSource}` : ""}
         </span>
-        <Button type="button" size="sm" variant="ghost" onClick={onDismiss}>
+        <Button htmlType="button" onClick={onDismiss}>
           {l("关闭", "Dismiss")}
         </Button>
       </div>
@@ -284,7 +290,6 @@ function ModelRankingTable({
         dataSource={rows}
         pagination={false}
         scroll={{ x: 640 }}
-        size="small"
       />
     </div>
   );

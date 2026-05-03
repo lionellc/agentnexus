@@ -1,11 +1,10 @@
-import { Input } from "@douyinfe/semi-ui-19";
+import { Button, Input } from "@douyinfe/semi-ui-19";
 import { ArrowLeft, ChevronRight, Copy, History, Save } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
 import { SectionTitle } from "../../common/components/SectionTitle";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
-import { Button } from "../../../shared/ui";
 import type { PromptAsset, PromptTranslationDto } from "../../../shared/types";
 
 type PromptTranslationStage = "idle" | "running" | "reviewing";
@@ -86,21 +85,17 @@ export function PromptDetail({
       <div className="space-y-4">
         <div className="flex items-center gap-2 text-sm text-slate-600">
           <Button
-            size="sm"
-            variant="outline"
             onClick={leavePromptDetail}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <Button
+          <button
             type="button"
-            size="sm"
-            variant="ghost"
-            className="h-auto px-1 py-0 font-medium text-blue-600 hover:underline"
+            className="font-medium text-slate-600 hover:text-slate-950 hover:underline dark:text-slate-300 dark:hover:text-slate-100"
             onClick={leavePromptDetail}
           >
             Prompts
-          </Button>
+          </button>
           <ChevronRight className="h-4 w-4 text-slate-400" />
           <span className="max-w-[420px] truncate text-slate-700">
             {selectedPrompt?.name ?? l("未选择 Prompt", "No prompt selected")}
@@ -117,20 +112,20 @@ export function PromptDetail({
         <EmptyState title={l("未选择 Prompt", "No prompt selected")} description={l("请返回列表后选择一个 Prompt。", "Go back and pick a prompt.")} />
       ) : (
         <div className="space-y-3">
-          <div className="space-y-3">
-            <label className="block text-xs text-slate-500">
-              {l("标题", "Title")}
+          <div className="space-y-4 rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-950/30">
+            <label className="grid gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+              <span>{l("标题", "Title")}</span>
               <Input value={detailName} onChange={(value) => setDetailName(value)} />
             </label>
 
             <div className="grid gap-3 md:grid-cols-2">
-              <label className="block text-xs text-slate-500">
-                {l("分类", "Category")}
+              <label className="grid gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <span>{l("分类", "Category")}</span>
                 <Input value={detailCategory} onChange={(value) => setDetailCategory(value)} />
               </label>
 
-              <label className="block text-xs text-slate-500">
-                {l("标签（逗号分隔）", "Tags (comma separated)")}
+              <label className="grid gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+                <span>{l("标签（逗号分隔）", "Tags (comma separated)")}</span>
                 <Input value={detailTagsInput} onChange={(value) => setDetailTagsInput(value)} />
               </label>
             </div>
@@ -156,7 +151,7 @@ export function PromptDetail({
                 ) : null}
               </div>
               {promptTranslationRunning ? (
-                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300">
                   {l(
                     `正在翻译 · 已运行 ${promptTranslationElapsedLabel}`,
                     `Translating · running ${promptTranslationElapsedLabel}`,
@@ -166,14 +161,14 @@ export function PromptDetail({
                 <div
                   className={`rounded-md border px-3 py-2 text-xs ${
                     promptTranslationResult.ok
-                      ? "border-green-200 bg-green-50 text-green-700"
-                      : "border-red-200 bg-red-50 text-red-700"
+                      ? "border-green-200 bg-green-50 text-green-700 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300"
+                      : "border-red-200 bg-red-50 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
                   }`}
                 >
                   {promptTranslationResult.text}
                 </div>
               ) : promptTranslationStage === "reviewing" ? (
-                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-300">
                   {l(
                     "译文已就绪，可在原文/译文之间切换阅读。",
                     "Translation is ready. Switch between source and translated views for reading.",
@@ -203,15 +198,15 @@ export function PromptDetail({
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => void handleSavePromptDetail()}>
+              <Button theme="solid" type="primary" onClick={() => void handleSavePromptDetail()}>
                 <Save className="mr-1 h-4 w-4" />
                 {l("保存", "Save")}
               </Button>
-              <Button variant="outline" onClick={() => void handleCopyPromptFromDetail()}>
+              <Button type="tertiary" onClick={() => void handleCopyPromptFromDetail()}>
                 <Copy className="mr-1 h-4 w-4" />
                 {l("复制 Prompt", "Copy Prompt")}
               </Button>
-              <Button variant="outline" onClick={() => void handleOpenPromptVersion()}>
+              <Button type="tertiary" onClick={() => void handleOpenPromptVersion()}>
                 <History className="mr-1 h-4 w-4" />
                 {l("历史版本", "History")}
               </Button>

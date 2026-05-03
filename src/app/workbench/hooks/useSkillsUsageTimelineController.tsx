@@ -1,8 +1,8 @@
+import type { WorkbenchToastOptions as ToastOptions } from "../types";
 import { useEffect, useMemo, useState, type ReactElement } from "react";
 
 import { SkillUsageTimelineDialog } from "../../../features/skills/components/SkillUsageTimelineDialog";
 import type { SkillsUsageCallItem, SkillsUsageSyncJobSnapshot } from "../../../shared/types";
-import { type ToastOptions } from "../../../shared/ui";
 
 type UseSkillsUsageTimelineControllerInput = {
   l: (zh: string, en: string) => string;

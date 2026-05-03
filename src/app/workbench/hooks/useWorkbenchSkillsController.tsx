@@ -1,3 +1,4 @@
+import type { WorkbenchToastOptions as ToastOptions } from "../types";
 import { useMemo, useState } from "react";
 
 import {
@@ -17,7 +18,6 @@ import type {
   SkillsUsageCallItem,
   SkillsUsageSyncJobSnapshot,
 } from "../../../shared/types";
-import type { ToastOptions } from "../../../shared/ui";
 
 import { useSkillsOperationsActions } from "./useSkillsOperationsActions";
 import { useSkillsUsageTimelineController } from "./useSkillsUsageTimelineController";

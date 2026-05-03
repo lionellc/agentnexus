@@ -1,3 +1,4 @@
+import type { WorkbenchToastOptions as ToastOptions } from "../types";
 import type {
   AgentRuleDistributionRunInput,
   LocalAgentTranslationTestResult,
@@ -8,7 +9,6 @@ import type {
   AgentRuleTag,
   AgentRuleVersion,
 } from "../../../shared/stores/agentRulesStore/types";
-import type { ToastOptions } from "../../../shared/ui";
 
 export type TranslationTargetLanguageOption = {
   value: string;
