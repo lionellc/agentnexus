@@ -1,7 +1,6 @@
 import { Button } from "@douyinfe/semi-ui-19";
 import { useState } from "react";
 
-import { EmptyState } from "../../common/components/EmptyState";
 import { ChannelTestCaseManager } from "../components/ChannelTestCaseManager";
 import { ChannelTestForm } from "../components/ChannelTestForm";
 import { ChannelTestResultsTable } from "../components/ChannelTestResultsTable";
@@ -9,21 +8,12 @@ import { useChannelApiTestController } from "../hooks/useChannelApiTestControlle
 
 type ChannelApiTestModuleProps = {
   l: (zh: string, en: string) => string;
-  workspaceId: string | null;
+  workspaceId?: string | null;
 };
 
-export function ChannelApiTestModule({ l, workspaceId }: ChannelApiTestModuleProps) {
-  const controller = useChannelApiTestController(workspaceId);
+export function ChannelApiTestModule({ l }: ChannelApiTestModuleProps) {
+  const controller = useChannelApiTestController();
   const [page, setPage] = useState<"testbench" | "cases">("testbench");
-
-  if (!workspaceId) {
-    return (
-      <EmptyState
-        title={l("请先创建并激活工作区", "Create and activate a workspace first")}
-        description={l("激活工作区后再运行渠道 API 测试。", "Activate a workspace before running channel API tests.")}
-      />
-    );
-  }
 
   if (page === "cases") {
     return (

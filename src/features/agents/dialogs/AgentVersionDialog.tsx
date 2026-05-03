@@ -104,10 +104,11 @@ export function AgentVersionDialog({
                     ? "border-blue-200 bg-blue-500 text-white"
                     : "border-slate-200 bg-white text-slate-800 hover:border-blue-200 hover:bg-blue-50";
               return (
-                <button
+                <Button
                   key={`agent-version-${version}`}
                   type="button"
-                  className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${colorClass}`}
+                  variant="outline"
+                  className={`h-auto w-full justify-start rounded-xl px-3 py-3 text-left ${colorClass}`}
                   onClick={() => {
                     if (agentVersionCompareMode) {
                       toggleAgentCompareCandidate(version);
@@ -118,7 +119,7 @@ export function AgentVersionDialog({
                 >
                   <div className="text-[22px] leading-none">v{version}</div>
                   <div className="mt-1 text-sm opacity-90">{toLocalTime(item.createdAt)}</div>
-                </button>
+                </Button>
               );
             })}
           </div>

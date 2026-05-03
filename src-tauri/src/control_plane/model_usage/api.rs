@@ -8,13 +8,13 @@ pub fn model_usage_sync_start(
     input: ModelUsageSyncStartInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let job_id = Uuid::new_v4().to_string();
     let now = now_rfc3339();
     let state_arc = Arc::new(Mutex::new(ModelUsageSyncJobState {
         job_id: job_id.clone(),
-        workspace_id: input.workspace_id.clone(),
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         status: JOB_STATUS_RUNNING.to_string(),
         total_files: 0,
         processed_files: 0,
@@ -40,7 +40,7 @@ pub fn model_usage_sync_start(
     }
 
     let app_state = state.inner().clone();
-    let workspace_id = input.workspace_id.clone();
+    let workspace_id = crate::domain::models::APP_SCOPE_ID.to_string();
     std::thread::spawn(move || {
         if let Err(err) = run_sync_job(app_state, &workspace_id, state_arc.clone()) {
             if let Ok(mut job) = state_arc.lock() {
@@ -51,7 +51,7 @@ pub fn model_usage_sync_start(
         }
     });
 
-    usage_job_snapshot(&job_id, &input.workspace_id)
+    usage_job_snapshot(&job_id, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -59,7 +59,7 @@ pub fn model_usage_sync_progress(
     _state: State<'_, AppState>,
     input: ModelUsageSyncProgressInput,
 ) -> Result<Value, AppError> {
-    usage_job_snapshot(&input.job_id, &input.workspace_id)
+    usage_job_snapshot(&input.job_id, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -68,17 +68,17 @@ pub fn model_pricing_sync_trigger(
     input: ModelPricingSyncInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
-    ensure_pricing_seed(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_pricing_seed(&conn, crate::domain::models::APP_SCOPE_ID)?;
     ensure_fx_seed(&conn)?;
     let pricing_count: i64 = conn.query_row(
         "SELECT COUNT(1) FROM model_pricing_snapshots WHERE workspace_id = ?1",
-        params![input.workspace_id],
+        params![crate::domain::models::APP_SCOPE_ID.to_string()],
         |row| row.get(0),
     )?;
     let fx = load_fx_snapshot(&conn)?;
     Ok(json!({
-        "workspaceId": input.workspace_id,
+        "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
         "syncedAt": now_rfc3339(),
         "pricingRows": pricing_count,
         "source": "builtin",
@@ -97,11 +97,15 @@ pub fn model_pricing_query(
     input: ModelPricingQueryInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
-    ensure_pricing_seed(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_pricing_seed(&conn, crate::domain::models::APP_SCOPE_ID)?;
     ensure_fx_seed(&conn)?;
     let currency = normalize_currency(input.currency.as_deref());
-    let rows = query_pricing_rows(&conn, &input.workspace_id, Some(currency.as_str()))?;
+    let rows = query_pricing_rows(
+        &conn,
+        crate::domain::models::APP_SCOPE_ID,
+        Some(currency.as_str()),
+    )?;
     let fx = load_fx_snapshot(&conn)?;
     Ok(json!({
         "items": rows,
@@ -121,6 +125,6 @@ pub fn model_pricing_override_upsert(
     input: ModelPricingOverrideUpsertInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
     upsert_pricing_override(&conn, &input)
 }

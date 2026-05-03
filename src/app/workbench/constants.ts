@@ -25,6 +25,7 @@ export const AUTO_CHECK_APP_UPDATES = true;
 
 export const PROMPT_TABLE_COLUMN_SETTINGS_KEY = "agentnexus.prompts.table.columns.v1";
 export const LOCAL_AGENT_TRANSLATION_STREAM_EVENT = "local-agent-translation-stream";
+export const APP_SCOPE_ID = "global";
 
 export const DEFAULT_TRANSLATION_PROFILE_KEY = "codex";
 export const DEFAULT_TRANSLATION_PROMPT_TEMPLATE = [

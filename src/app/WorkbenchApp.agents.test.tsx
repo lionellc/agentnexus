@@ -25,7 +25,12 @@ const {
     skillsHubSortMode: "default" as const,
     agentPlatformOrderByWorkspace: {} as Record<string, string[]>,
     settingsCategory: "general" as const,
-    searchHits: [] as Array<{ module: "agents"; id: string; title: string; subtitle?: string }>,
+    searchHits: [] as Array<{
+      module: "agents";
+      id: string;
+      title: string;
+      subtitle?: string;
+    }>,
     setActiveModule: vi.fn(),
     setQuery: vi.fn(),
     setSelectedIds: vi.fn(),
@@ -68,11 +73,17 @@ const {
     loading: false,
     selectedSkillId: null,
     selectedIds: [] as string[],
-    detailById: {} as Record<string, { versions: Array<{ version: string; installedAt: string }> }>,
+    detailById: {} as Record<
+      string,
+      { versions: Array<{ version: string; installedAt: string }> }
+    >,
     lastBatchResult: null,
     managerMode: "operations" as const,
     managerExpandedSkillId: null as string | null,
-    managerMatrixFilter: { tool: null as string | null, status: "all" as const },
+    managerMatrixFilter: {
+      tool: null as string | null,
+      status: "all" as const,
+    },
     managerState: null,
     managerLoading: false,
     managerCalibrating: false,
@@ -213,6 +224,14 @@ const {
         enabled: true,
         resolvedPath: "/tmp/.codex/AGENTS.md",
       },
+      {
+        id: "ac2",
+        workspaceId: "w1",
+        agentType: "claude",
+        rootDir: "/tmp",
+        enabled: false,
+        resolvedPath: "/tmp/.claude/CLAUDE.md",
+      },
     ],
     draft: {
       content: "rule content",
@@ -267,6 +286,29 @@ const {
     loadingReleases: false,
     loadingDistribution: false,
     loadingAudits: false,
+    accessCheck: {
+      ok: true,
+      checkedAt: "2026-05-03T00:00:00Z",
+      summary: "",
+      targets: [
+        {
+          agentType: "codex",
+          rootDir: "/tmp",
+          ruleFile: ".codex/AGENTS.md",
+          resolvedPath: "/tmp/.codex/AGENTS.md",
+          parentDir: "/tmp/.codex",
+          rootDirExists: true,
+          parentDirExists: true,
+          hiddenPath: true,
+          preparedDir: false,
+          canCreateFile: true,
+          fileWritable: true,
+          status: "ready",
+          message: "隐藏规则目录可写",
+        },
+      ],
+    },
+    checkingAccess: false,
     savingDraft: false,
     selectedAssetId: "asset-a" as string | null,
     selectedReleaseVersion: "v1" as string | null,
@@ -300,6 +342,7 @@ const {
     }),
     rollbackVersion: vi.fn(async () => undefined),
     runApply: vi.fn(async () => undefined),
+    checkAccess: vi.fn(async () => agentState.accessCheck),
     retryFailed: vi.fn(async () => undefined),
     loadConnections: vi.fn(async () => undefined),
     runDistribution: vi.fn(async () => ({
@@ -431,19 +474,35 @@ const {
     contentHash: "",
   }));
 
-  return { toastMock, shellState, promptsState, skillsState, agentState, settingsState, previewMock };
+  return {
+    toastMock,
+    shellState,
+    promptsState,
+    skillsState,
+    agentState,
+    settingsState,
+    previewMock,
+  };
 });
 
 vi.mock("../shared/stores", () => {
-  const useShellStore = (selector: (state: typeof shellState) => unknown) => selector(shellState);
-  const usePromptsStore = (selector: (state: typeof promptsState) => unknown) => selector(promptsState);
-  const useSkillsStore = (selector: (state: typeof skillsState) => unknown) => selector(skillsState);
-  const useAgentRulesStore = ((selector: (state: typeof agentState) => unknown) => selector(agentState)) as
-    ((selector: (state: typeof agentState) => unknown) => unknown) & {
-      getState: () => typeof agentState;
-    };
+  const useShellStore = (selector: (state: typeof shellState) => unknown) =>
+    selector(shellState);
+  const usePromptsStore = (selector: (state: typeof promptsState) => unknown) =>
+    selector(promptsState);
+  const useSkillsStore = (selector: (state: typeof skillsState) => unknown) =>
+    selector(skillsState);
+  const useAgentRulesStore = ((
+    selector: (state: typeof agentState) => unknown,
+  ) => selector(agentState)) as ((
+    selector: (state: typeof agentState) => unknown,
+  ) => unknown) & {
+    getState: () => typeof agentState;
+  };
   useAgentRulesStore.getState = () => agentState;
-  const useSettingsStore = (selector: (state: typeof settingsState) => unknown) => selector(settingsState);
+  const useSettingsStore = (
+    selector: (state: typeof settingsState) => unknown,
+  ) => selector(settingsState);
   return {
     useShellStore,
     usePromptsStore,
@@ -467,7 +526,8 @@ vi.mock("../shared/services/api", async () => {
 });
 
 vi.mock("../shared/ui", async () => {
-  const actual = await vi.importActual<typeof import("../shared/ui")>("../shared/ui");
+  const actual =
+    await vi.importActual<typeof import("../shared/ui")>("../shared/ui");
   return {
     ...actual,
     useToast: () => ({
@@ -480,9 +540,9 @@ vi.mock("../shared/ui", async () => {
 import { WorkbenchApp } from "./WorkbenchApp";
 
 function findButton(text: string): HTMLButtonElement | undefined {
-  return Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === text) as
-    | HTMLButtonElement
-    | undefined;
+  return Array.from(document.querySelectorAll("button")).find(
+    (button) => button.textContent?.trim() === text,
+  ) as HTMLButtonElement | undefined;
 }
 
 function findButtons(text: string): HTMLButtonElement[] {
@@ -492,12 +552,14 @@ function findButtons(text: string): HTMLButtonElement[] {
 }
 
 function findButtonByTitle(title: string): HTMLButtonElement | undefined {
-  return document.querySelector(`button[title="${title}"]`) as HTMLButtonElement | undefined;
+  return document.querySelector(`button[title="${title}"]`) as
+    | HTMLButtonElement
+    | undefined;
 }
 
 function clickRuleItem(name: string): void {
-  const node = Array.from(document.querySelectorAll("div,span,p")).find((element) =>
-    element.textContent?.trim() === name,
+  const node = Array.from(document.querySelectorAll("div,span,p")).find(
+    (element) => element.textContent?.trim() === name,
   );
   const item = node?.closest("div.group");
   if (item) {
@@ -556,6 +618,26 @@ describe("WorkbenchApp agents interactions", () => {
     expect(document.body.textContent).toContain("codex · drifted");
   });
 
+  it("应用规则弹窗只展示基础设置中启用的 Agent", async () => {
+    await act(async () => {
+      root.render(<WorkbenchApp />);
+    });
+
+    await act(async () => {
+      findButton("应用")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
+    });
+
+    expect(document.body.textContent).toContain("目标 Agent");
+    expect(document.body.textContent).toContain("codex");
+    expect(document.body.textContent).not.toContain("claude");
+    expect(document.body.textContent).not.toContain("/tmp/.codex/AGENTS.md");
+    expect(document.body.textContent).not.toContain(
+      "所有启用 Agent 的规则目录都可写",
+    );
+  });
+
   it("保存版本会调用 publishVersion", async () => {
     await act(async () => {
       root.render(<WorkbenchApp />);
@@ -579,7 +661,9 @@ describe("WorkbenchApp agents interactions", () => {
     });
 
     await act(async () => {
-      findButtons("新建规则文件")[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButtons("新建规则文件")[0]?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
     const nameInput = Array.from(document.querySelectorAll("input")).find(
@@ -623,7 +707,9 @@ describe("WorkbenchApp agents interactions", () => {
     });
 
     await act(async () => {
-      findButton("刷新")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("刷新")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
     expect(agentState.refreshAsset).toHaveBeenCalledWith("w1", "asset-a");
     expect(agentState.refreshAsset).not.toHaveBeenCalledWith("w1", "asset-b");
@@ -657,17 +743,21 @@ describe("WorkbenchApp agents interactions", () => {
     });
 
     await act(async () => {
-      findButton("刷新")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("刷新")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
 
-    const latestToastArg = toastMock.mock.calls[toastMock.mock.calls.length - 1]?.[0] as
-      | { title?: string; description?: string }
-      | undefined;
+    const latestToastArg = toastMock.mock.calls[
+      toastMock.mock.calls.length - 1
+    ]?.[0] as { title?: string; description?: string } | undefined;
     expect(latestToastArg?.title).toBe("规则检查完成");
     const description = latestToastArg?.description ?? "";
     expect(description).toContain("规则检查完成");
     expect(description).toMatch(/codex.*正常|正常.*codex/);
-    expect(description).toMatch(/claude.*检测到(规则)?变更|检测到(规则)?变更.*claude/);
+    expect(description).toMatch(
+      /claude.*检测到(规则)?变更|检测到(规则)?变更.*claude/,
+    );
   });
 
   it("规则 item 支持删除", async () => {
@@ -676,12 +766,16 @@ describe("WorkbenchApp agents interactions", () => {
     });
 
     await act(async () => {
-      findButtonByTitle("删除规则文件")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButtonByTitle("删除规则文件")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
     expect(document.body.textContent).toContain("确认彻底删除");
 
     await act(async () => {
-      findButton("确认")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("确认")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
     expect(agentState.deleteAsset).toHaveBeenCalledWith("w1", "asset-a");
   });
@@ -692,7 +786,9 @@ describe("WorkbenchApp agents interactions", () => {
     });
 
     await act(async () => {
-      findButton("版本对比")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      findButton("版本对比")?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true }),
+      );
     });
     expect(agentState.loadVersions).toHaveBeenCalledWith("asset-a");
     expect(document.body.textContent).toContain("历史版本");

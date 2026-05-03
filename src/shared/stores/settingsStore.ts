@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { appDataDir } from "@tauri-apps/api/path";
 
 import {
   agentConnectionApi,
@@ -8,7 +7,6 @@ import {
   saveWebDavConfig,
   securityApi,
   targetApi,
-  workspaceApi,
   type WebDavConfig,
 } from "../services/api";
 import type {
@@ -167,30 +165,9 @@ function toRuntimeFlagsForm(runtimeFlags?: RuntimeFlags): RuntimeFlagsFormValues
   return { ...runtimeFlags };
 }
 
-async function resolveSingleProjectWorkspace(): Promise<Workspace[]> {
-  let workspaces = await workspaceApi.list();
-  if (workspaces.length === 0) {
-    const defaultDir = await appDataDir();
-    const created = await workspaceApi.create({
-      name: message("默认项目", "Default Project"),
-      rootPath: defaultDir,
-    });
-    const activated = await workspaceApi.activate(created.id);
-    return [{ ...activated, active: true }];
-  }
-
-  const currentActive = workspaces.find((item) => item.active);
-  if (currentActive) {
-    return [{ ...currentActive, active: true }];
-  }
-
-  const activated = await workspaceApi.activate(workspaces[0].id);
-  return [{ ...activated, active: true }];
-}
-
 export const useSettingsStore = create<SettingsState>((set, get) => ({
   workspaces: [],
-  activeWorkspaceId: null,
+  activeWorkspaceId: "global",
   runtimeFlags: null,
   targets: [],
   connections: [],
@@ -210,21 +187,18 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loadAll: async () => {
     set({ loading: true });
     try {
-      const [workspaces, runtimeFlags] = await Promise.all([
-        resolveSingleProjectWorkspace(),
+      const [runtimeFlags, targets, connections] = await Promise.all([
         runtimeApi.getFlags(),
+        targetApi.list(),
+        agentConnectionApi.list(),
       ]);
-      const activeWorkspace = workspaces[0] ?? null;
-      const [targets, connections] = activeWorkspace
-        ? await Promise.all([targetApi.list(activeWorkspace.id), agentConnectionApi.list(activeWorkspace.id)])
-        : [[], []];
       set({
-        workspaces,
-        activeWorkspaceId: activeWorkspace?.id ?? null,
+        workspaces: [],
+        activeWorkspaceId: "global",
         runtimeFlags,
         targets,
         connections,
-        workspaceForm: createFormState(toWorkspaceForm(activeWorkspace ?? undefined)),
+        workspaceForm: createFormState(toWorkspaceForm()),
         targetForm: createFormState(toTargetForm(targets[0])),
         runtimeFlagsForm: createFormState(toRuntimeFlagsForm(runtimeFlags)),
         webdavForm: createFormState({
@@ -240,36 +214,23 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
   createWorkspace: async (input) => {
-    const created = await workspaceApi.create(input);
-    set((state) => ({
-      workspaces: [created, ...state.workspaces],
-      activeWorkspaceId: created.id,
-      workspaceForm: createFormState(toWorkspaceForm(created)),
-    }));
-    return created;
+    const now = new Date().toISOString();
+    return {
+      id: "global",
+      name: input.name,
+      rootPath: input.rootPath,
+      installMode: "copy",
+      platformOverrides: {},
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    };
   },
   activateWorkspace: async (id) => {
-    const activated = await workspaceApi.activate(id);
-    const [targets, connections] = await Promise.all([
-      targetApi.list(activated.id),
-      agentConnectionApi.list(activated.id),
-    ]);
-    set((state) => ({
-      activeWorkspaceId: activated.id,
-      workspaces: state.workspaces.map((item) => ({ ...item, active: item.id === activated.id })),
-      targets,
-      connections,
-      workspaceForm: createFormState(toWorkspaceForm(activated)),
-      targetForm: createFormState(toTargetForm(targets[0])),
-    }));
+    set({ activeWorkspaceId: id || "global" });
   },
   loadConnections: async (workspaceId) => {
-    const activeWorkspaceId = workspaceId ?? get().activeWorkspaceId;
-    if (!activeWorkspaceId) {
-      set({ connections: [] });
-      return [];
-    }
-    const connections = await agentConnectionApi.list(activeWorkspaceId);
+    const connections = await agentConnectionApi.list(workspaceId);
     set({ connections });
     return connections;
   },

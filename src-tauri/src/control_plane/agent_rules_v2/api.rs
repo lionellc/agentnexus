@@ -34,9 +34,9 @@ const DETECTION_PERMISSION_DENIED: &str = "permission_denied";
 #[tauri::command]
 pub fn agent_connection_list(
     state: State<'_, AppState>,
-    workspace_id: String,
 ) -> Result<Vec<AgentConnectionDto>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     ensure_workspace_exists(&conn, &workspace_id)?;
     ensure_default_agent_connections(&conn, &workspace_id)?;
     list_agent_connections(&conn, &workspace_id)
@@ -48,8 +48,8 @@ pub fn agent_connection_upsert(
     input: AgentConnectionUpsertInput,
 ) -> Result<AgentConnectionDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
     let root_dir = input.root_dir.trim().to_string();
@@ -69,7 +69,7 @@ pub fn agent_connection_upsert(
     let detected_at = Some(now_rfc3339());
 
     let now = now_rfc3339();
-    let existing_row = get_connection_row(&conn, &input.workspace_id, &agent_type)?;
+    let existing_row = get_connection_row(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
     let id = existing_row
         .as_ref()
         .map(|row| row.id.clone())
@@ -98,7 +98,7 @@ pub fn agent_connection_upsert(
             updated_at = excluded.updated_at",
         params![
             id,
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             agent_type,
             root_dir,
             rule_file,
@@ -116,15 +116,15 @@ pub fn agent_connection_upsert(
     if input.enabled {
         sync_global_rule_binding_for_connection(
             &conn,
-            &input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID,
             &agent_type,
             &root_dir,
             &rule_file,
         )?;
     } else {
-        remove_global_rule_tag(&conn, &input.workspace_id, &agent_type)?;
+        remove_global_rule_tag(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
     }
-    get_agent_connection(&conn, &input.workspace_id, &agent_type)
+    get_agent_connection(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)
 }
 
 #[tauri::command]
@@ -133,11 +133,11 @@ pub fn agent_connection_toggle(
     input: AgentConnectionToggleInput,
 ) -> Result<AgentConnectionDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
-    let connection = get_agent_connection(&conn, &input.workspace_id, &agent_type)?;
+    let connection = get_agent_connection(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
 
     if input.enabled {
         validate_enabled_root_dir(&connection.root_dir)?;
@@ -147,7 +147,7 @@ pub fn agent_connection_toggle(
     conn.execute(
         "UPDATE agent_connections SET enabled = ?3, updated_at = ?4 WHERE workspace_id = ?1 AND agent_type = ?2",
         params![
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             agent_type,
             bool_to_int(input.enabled),
             now_rfc3339(),
@@ -157,16 +157,16 @@ pub fn agent_connection_toggle(
     if input.enabled {
         sync_global_rule_binding_for_connection(
             &conn,
-            &input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID,
             &connection.agent_type,
             &connection.root_dir,
             &connection.rule_file,
         )?;
     } else {
-        remove_global_rule_tag(&conn, &input.workspace_id, &agent_type)?;
+        remove_global_rule_tag(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
     }
 
-    get_agent_connection(&conn, &input.workspace_id, &agent_type)
+    get_agent_connection(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)
 }
 
 #[tauri::command]
@@ -175,25 +175,25 @@ pub fn agent_connection_delete(
     input: AgentConnectionDeleteInput,
 ) -> Result<Vec<AgentConnectionDto>, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
     if is_builtin_agent_preset(&agent_type) {
         return Err(AppError::invalid_argument("内置连接禁止删除，请使用停用"));
     }
 
-    remove_global_rule_tag(&conn, &input.workspace_id, &agent_type)?;
+    remove_global_rule_tag(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
 
     let affected = conn.execute(
         "DELETE FROM agent_connections WHERE workspace_id = ?1 AND agent_type = ?2",
-        params![input.workspace_id, agent_type],
+        params![crate::domain::models::APP_SCOPE_ID.to_string(), agent_type],
     )?;
     if affected == 0 {
         return Err(AppError::invalid_argument("Agent 连接不存在"));
     }
 
-    list_agent_connections(&conn, &input.workspace_id)
+    list_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -202,15 +202,16 @@ pub fn agent_connection_redetect(
     input: AgentConnectionPresetActionInput,
 ) -> Result<AgentConnectionDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
     if !is_builtin_agent_preset(&agent_type) {
         return Err(AppError::invalid_argument("仅内置 Agent 支持重新检测"));
     }
 
-    let existing = get_connection_row_required(&conn, &input.workspace_id, &agent_type)?;
+    let existing =
+        get_connection_row_required(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
     let default_root = default_agent_root_dir(&agent_type);
     let default_rule = default_rule_file_name(&agent_type);
     let (detected_root, status) = detect_candidate_root(&candidate_root_dirs(&agent_type));
@@ -246,7 +247,7 @@ pub fn agent_connection_redetect(
              updated_at = ?9
          WHERE workspace_id = ?1 AND agent_type = ?2",
         params![
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             agent_type,
             next_root,
             next_rule,
@@ -259,7 +260,7 @@ pub fn agent_connection_redetect(
     )?;
 
     replace_search_dirs(&conn, &existing.id, &next_dirs)?;
-    get_agent_connection(&conn, &input.workspace_id, &agent_type)
+    get_agent_connection(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)
 }
 
 #[tauri::command]
@@ -268,15 +269,16 @@ pub fn agent_connection_restore_defaults(
     input: AgentConnectionPresetActionInput,
 ) -> Result<AgentConnectionDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
     if !is_builtin_agent_preset(&agent_type) {
         return Err(AppError::invalid_argument("仅内置 Agent 支持恢复默认配置"));
     }
 
-    let existing = get_connection_row_required(&conn, &input.workspace_id, &agent_type)?;
+    let existing =
+        get_connection_row_required(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
     let default_root = default_agent_root_dir(&agent_type);
     let default_rule = default_rule_file_name(&agent_type);
     let detection_status = infer_detection_status(&default_root);
@@ -294,7 +296,7 @@ pub fn agent_connection_restore_defaults(
              updated_at = ?10
          WHERE workspace_id = ?1 AND agent_type = ?2",
         params![
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             agent_type,
             default_root,
             default_rule,
@@ -315,15 +317,15 @@ pub fn agent_connection_restore_defaults(
     if default_agent_enabled(&agent_type) {
         sync_global_rule_binding_for_connection(
             &conn,
-            &input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID,
             &agent_type,
             &default_root,
             &default_rule,
         )?;
     } else {
-        remove_global_rule_tag(&conn, &input.workspace_id, &agent_type)?;
+        remove_global_rule_tag(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
     }
-    get_agent_connection(&conn, &input.workspace_id, &agent_type)
+    get_agent_connection(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)
 }
 
 #[tauri::command]
@@ -332,11 +334,11 @@ pub fn agent_connection_preview(
     input: AgentRulePreviewInput,
 ) -> Result<AgentRulePreviewResult, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
     let agent_type = normalize_agent_type(&input.agent_type)?;
-    let connection = get_agent_connection(&conn, &input.workspace_id, &agent_type)?;
+    let connection = get_agent_connection(&conn, crate::domain::models::APP_SCOPE_ID, &agent_type)?;
     validate_enabled_root_dir(&connection.root_dir)?;
 
     let resolved_path = resolve_rule_file_path(
@@ -398,7 +400,11 @@ pub(super) fn ensure_default_agent_connections(
         let agent_type = preset.id;
         let default_root = default_agent_root_dir(agent_type);
         let default_rule_file = default_rule_file_name(agent_type);
-        let default_enabled = if default_agent_enabled(agent_type) { 1 } else { 0 };
+        let default_enabled = if default_agent_enabled(agent_type) {
+            1
+        } else {
+            0
+        };
         let detection_status = infer_detection_status(&default_root);
         let detected_at = if detection_status == DETECTION_DETECTED {
             Some(now.clone())
@@ -472,7 +478,10 @@ pub(super) fn ensure_default_agent_connections(
     Ok(())
 }
 
-fn connection_row_to_dto(_conn: &Connection, row: ConnectionRow) -> Result<AgentConnectionDto, AppError> {
+fn connection_row_to_dto(
+    _conn: &Connection,
+    row: ConnectionRow,
+) -> Result<AgentConnectionDto, AppError> {
     let normalized_rule_file = normalize_rule_file(Some(&row.rule_file), &row.agent_type)
         .unwrap_or_else(|_| default_rule_file_name(&row.agent_type));
     let resolved_path = if row.root_dir.trim().is_empty() {
@@ -492,7 +501,10 @@ fn connection_row_to_dto(_conn: &Connection, row: ConnectionRow) -> Result<Agent
         rule_file: normalized_rule_file,
         root_dir_source: normalize_path_source(Some(&row.root_dir_source), SOURCE_INFERRED),
         rule_file_source: normalize_path_source(Some(&row.rule_file_source), SOURCE_INFERRED),
-        detection_status: normalize_detection_status(Some(&row.detection_status), DETECTION_UNDETECTED),
+        detection_status: normalize_detection_status(
+            Some(&row.detection_status),
+            DETECTION_UNDETECTED,
+        ),
         detected_at: row.detected_at,
         skill_search_dirs: search_dirs,
         enabled: row.enabled,
@@ -848,7 +860,11 @@ fn create_rule_asset_from_content(
     let asset_id = Uuid::new_v4().to_string();
     let safe_rule_file = rule_file.replace(['/', '\\', ' '], "_");
     let hash_short = content_hash.chars().take(8).collect::<String>();
-    let random_suffix = Uuid::new_v4().to_string().chars().take(6).collect::<String>();
+    let random_suffix = Uuid::new_v4()
+        .to_string()
+        .chars()
+        .take(6)
+        .collect::<String>();
     let name = format!(
         "auto:{agent_type}:{safe_rule_file}:{hash_short}:{}",
         random_suffix

@@ -5,7 +5,6 @@ export * from "./delete-icon-button";
 export * from "./directory-path-field";
 export * from "./dialog";
 export * from "./fieldset";
-export * from "./input";
 export * from "./sheet";
 export * from "./select";
 export * from "./SemiAppProvider";

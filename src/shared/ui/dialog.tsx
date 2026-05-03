@@ -1,6 +1,5 @@
 import * as React from "react";
 import { Modal } from "@douyinfe/semi-ui-19";
-import { X } from "lucide-react";
 
 import { cn } from "../lib/cn";
 
@@ -123,10 +122,11 @@ DialogOverlay.displayName = "DialogOverlay";
 
 interface DialogContentProps extends React.HTMLAttributes<HTMLDivElement> {
   overlayClassName?: string;
+  size?: "small" | "medium" | "large" | "full-width";
 }
 
 const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
-  ({ className, children, overlayClassName: _overlayClassName, ...props }, ref) => {
+  ({ className, children, overlayClassName: _overlayClassName, size = "medium", ...props }, ref) => {
     const { open, setOpen } = useDialogContext();
 
     if (!open) {
@@ -138,8 +138,9 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
         visible={open}
         title={null}
         footer={null}
-        closable={false}
+        closable
         maskClosable
+        size={size}
         onCancel={() => setOpen(false)}
         className={cn("bg-background text-foreground", className)}
         bodyStyle={{ padding: 0 }}
@@ -152,14 +153,6 @@ const DialogContent = React.forwardRef<HTMLDivElement, DialogContentProps>(
           {...props}
         >
           {children}
-          <button
-            type="button"
-            aria-label="Close"
-            className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100"
-            onClick={() => setOpen(false)}
-          >
-            <X className="h-4 w-4" />
-          </button>
         </div>
       </Modal>
     );

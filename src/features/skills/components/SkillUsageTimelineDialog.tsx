@@ -1,3 +1,5 @@
+import { Tag } from "@douyinfe/semi-ui-19";
+
 import {
   Button,
   Dialog,
@@ -6,8 +8,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Tag,
-  type TagProps,
 } from "../../../shared/ui";
 import type {
   SkillsUsageCallItem,
@@ -29,18 +29,18 @@ export type SkillUsageTimelineDialogProps = {
   l: (zh: string, en: string) => string;
 };
 
-function resultTone(status: SkillsUsageResultStatus): NonNullable<TagProps["tone"]> {
+function resultColor(status: SkillsUsageResultStatus): "green" | "red" | "grey" {
   if (status === "success") {
-    return "success";
+    return "green";
   }
   if (status === "failed") {
-    return "danger";
+    return "red";
   }
-  return "neutral";
+  return "grey";
 }
 
-function evidenceTone(source: SkillsUsageEvidenceSource): NonNullable<TagProps["tone"]> {
-  return source === "observed" ? "success" : "neutral";
+function evidenceColor(source: SkillsUsageEvidenceSource): "green" | "grey" {
+  return source === "observed" ? "green" : "grey";
 }
 
 function progressPercent(job: SkillsUsageSyncJobSnapshot | null): number {
@@ -139,10 +139,10 @@ export function SkillUsageTimelineDialog({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-medium text-slate-800">{formatTime(item.calledAt)}</span>
                     <div className="flex flex-wrap items-center gap-1">
-                      <Tag tone="neutral">{item.agent}</Tag>
-                      <Tag tone="neutral">{item.source}</Tag>
-                      <Tag tone={resultTone(item.resultStatus)}>{item.resultStatus}</Tag>
-                      <Tag tone={evidenceTone(item.evidenceSource)}>{item.evidenceSource}</Tag>
+                      <Tag color="grey" type="light">{item.agent}</Tag>
+                      <Tag color="grey" type="light">{item.source}</Tag>
+                      <Tag color={resultColor(item.resultStatus)} type="light">{item.resultStatus}</Tag>
+                      <Tag color={evidenceColor(item.evidenceSource)} type="light">{item.evidenceSource}</Tag>
                     </div>
                   </div>
                   <div className="mt-1 text-xs text-slate-500">

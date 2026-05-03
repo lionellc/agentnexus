@@ -1,6 +1,9 @@
+import { Empty, Table } from "@douyinfe/semi-ui-19";
+import type { ReactNode } from "react";
 import { useState } from "react";
+import { Input } from "@douyinfe/semi-ui-19";
 
-import { Button, Input } from "../../../shared/ui";
+import { Button } from "../../../shared/ui";
 import type { ModelPricingItem, ModelPricingSyncResult, ModelUsageCurrency } from "../../../shared/types";
 import { formatDecimal, formatInteger, formatTimestamp } from "../utils/usageFormat";
 
@@ -26,6 +29,23 @@ export function PricingPanel({ l, currency, rows, syncResult, saving, onSyncPric
   const [model, setModel] = useState("");
   const [inputCost, setInputCost] = useState("");
   const [outputCost, setOutputCost] = useState("");
+  const columns: TableColumn[] = [
+    { title: "provider", dataIndex: "provider", width: 140 },
+    { title: "model", dataIndex: "model", width: 180 },
+    {
+      title: l("输入单价", "Input Cost"),
+      dataIndex: "inputCostPerMillion",
+      width: 140,
+      render: (_value, item) => formatDecimal(item.inputCostPerMillion, 4),
+    },
+    {
+      title: l("输出单价", "Output Cost"),
+      dataIndex: "outputCostPerMillion",
+      width: 140,
+      render: (_value, item) => formatDecimal(item.outputCostPerMillion, 4),
+    },
+    { title: l("来源", "Source"), dataIndex: "source", width: 120 },
+  ];
 
   return (
     <div className="space-y-3 rounded-lg border border-border bg-card p-3">
@@ -55,10 +75,10 @@ export function PricingPanel({ l, currency, rows, syncResult, saving, onSyncPric
       {open ? (
         <>
           <div className="grid gap-2 md:grid-cols-5">
-            <Input value={provider} onChange={(event) => setProvider(event.target.value)} placeholder="provider" />
-            <Input value={model} onChange={(event) => setModel(event.target.value)} placeholder="model" />
-            <Input value={inputCost} onChange={(event) => setInputCost(event.target.value)} placeholder={l("输入单价/百万", "Input cost / million")} />
-            <Input value={outputCost} onChange={(event) => setOutputCost(event.target.value)} placeholder={l("输出单价/百万", "Output cost / million")} />
+            <Input value={provider} onChange={(value) => setProvider(value)} placeholder="provider" />
+            <Input value={model} onChange={(value) => setModel(value)} placeholder="model" />
+            <Input value={inputCost} onChange={(value) => setInputCost(value)} placeholder={l("输入单价/百万", "Input cost / million")} />
+            <Input value={outputCost} onChange={(value) => setOutputCost(value)} placeholder={l("输出单价/百万", "Output cost / million")} />
             <Button
               onClick={() =>
                 onSaveOverride({
@@ -74,32 +94,24 @@ export function PricingPanel({ l, currency, rows, syncResult, saving, onSyncPric
               {l("保存覆盖", "Save Override")}
             </Button>
           </div>
-          <div className="overflow-auto">
-            <table className="min-w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-border text-slate-500">
-                  <th className="py-2 pr-3">provider</th>
-                  <th className="py-2 pr-3">model</th>
-                  <th className="py-2 pr-3">{l("输入单价", "Input Cost")}</th>
-                  <th className="py-2 pr-3">{l("输出单价", "Output Cost")}</th>
-                  <th className="py-2 pr-3">{l("来源", "Source")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((item) => (
-                  <tr key={`${item.source}-${item.provider}-${item.model}`} className="border-b border-border/60">
-                    <td className="py-2 pr-3">{item.provider}</td>
-                    <td className="py-2 pr-3">{item.model}</td>
-                    <td className="py-2 pr-3">{formatDecimal(item.inputCostPerMillion, 4)}</td>
-                    <td className="py-2 pr-3">{formatDecimal(item.outputCostPerMillion, 4)}</td>
-                    <td className="py-2 pr-3">{item.source}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <Table
+            rowKey={(item) => item ? `${item.source}-${item.provider}-${item.model}` : ""}
+            columns={columns}
+            dataSource={rows}
+            pagination={false}
+            scroll={{ x: 720 }}
+            size="small"
+            empty={<Empty title={l("暂无定价规则", "No pricing rules")} />}
+          />
         </>
       ) : null}
     </div>
   );
 }
+
+type TableColumn = {
+  title: string;
+  dataIndex: string;
+  width?: number;
+  render?: (_value: unknown, record: ModelPricingItem) => ReactNode;
+};

@@ -1,4 +1,3 @@
-import type { TagProps } from "../../../../shared/ui";
 import type {
   SkillManagerStatus,
   SkillsManagerOperationsRow,
@@ -15,6 +14,8 @@ export type ActiveStatus = {
 
 export const OPERATIONS_PAGE_SIZE = 10;
 
+export type SkillStatusTagColor = "green" | "orange" | "red" | "grey";
+
 export function isPendingLinkStatus(status: SkillManagerStatus): boolean {
   return status === "wrong" || status === "directory";
 }
@@ -28,17 +29,17 @@ export function isLinkCandidateStatus(status: SkillManagerStatus): boolean {
   );
 }
 
-export function statusTagTone(status: SkillManagerStatus): NonNullable<TagProps["tone"]> {
+export function statusTagColor(status: SkillManagerStatus): SkillStatusTagColor {
   if (status === "linked") {
-    return "success";
+    return "green";
   }
   if (isPendingLinkStatus(status) || status === "manual") {
-    return "warning";
+    return "orange";
   }
   if (status === "blocked") {
-    return "danger";
+    return "red";
   }
-  return "neutral";
+  return "grey";
 }
 
 export function statusLabel(status: SkillManagerStatus, l: (zh: string, en: string) => string): string {

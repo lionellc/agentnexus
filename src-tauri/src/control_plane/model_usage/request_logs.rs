@@ -8,13 +8,17 @@ pub fn model_usage_query_request_logs(
     input: ModelUsageRequestLogsQueryInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
-    ensure_pricing_seed(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_pricing_seed(&conn, crate::domain::models::APP_SCOPE_ID)?;
     ensure_fx_seed(&conn)?;
 
     let currency = normalize_currency(input.currency.as_deref());
     let end_at = input.end_at.unwrap_or_else(now_rfc3339);
-    let days = if input.days == Some(0) { 1 } else { input.days.unwrap_or(7).clamp(1, 365) };
+    let days = if input.days == Some(0) {
+        1
+    } else {
+        input.days.unwrap_or(7).clamp(1, 365)
+    };
     let start_at = input
         .start_at
         .unwrap_or_else(|| (Utc::now() - Duration::days(days)).to_rfc3339());
@@ -31,7 +35,7 @@ pub fn model_usage_query_request_logs(
         _ => None,
     };
     let (list_sql, list_params) = build_facts_query(
-        &input.workspace_id,
+        crate::domain::models::APP_SCOPE_ID,
         &start_at,
         &end_at,
         agent_filter.as_deref(),
@@ -84,7 +88,7 @@ pub fn model_usage_query_request_logs(
         } else {
             calculate_row_cost_usd(
                 &conn,
-                &input.workspace_id,
+                crate::domain::models::APP_SCOPE_ID,
                 &provider,
                 &model,
                 &called_at,
@@ -116,7 +120,14 @@ pub fn model_usage_query_request_logs(
     }
 
     let has_next = all_items.len() as i64 > limit;
-    let items = if has_next { all_items.into_iter().take(limit as usize).collect::<Vec<_>>() } else { all_items };
+    let items = if has_next {
+        all_items
+            .into_iter()
+            .take(limit as usize)
+            .collect::<Vec<_>>()
+    } else {
+        all_items
+    };
     let next_cursor = if has_next {
         items.last().map(|item| {
             json!({
@@ -129,14 +140,15 @@ pub fn model_usage_query_request_logs(
     };
 
     let (count_sql, count_params) = build_facts_count_query(
-        &input.workspace_id,
+        crate::domain::models::APP_SCOPE_ID,
         &start_at,
         &end_at,
         agent_filter.as_deref(),
         model_filter.as_deref(),
         status_filter.as_deref(),
     );
-    let total: i64 = conn.query_row(&count_sql, params_from_iter(count_params), |row| row.get(0))?;
+    let total: i64 =
+        conn.query_row(&count_sql, params_from_iter(count_params), |row| row.get(0))?;
 
     Ok(json!({
         "items": items,

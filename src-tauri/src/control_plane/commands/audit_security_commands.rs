@@ -17,30 +17,16 @@ pub fn audit_query(
     let conn = state.open()?;
     let limit = input.limit.unwrap_or(50).clamp(1, 500);
 
+    let mut stmt = conn.prepare(
+        "SELECT id, workspace_id, event_type, operator, payload, created_at
+         FROM audit_events
+         ORDER BY created_at DESC
+         LIMIT ?1",
+    )?;
+    let rows = stmt.query_map(params![limit], audit_row_to_json)?;
     let mut list = Vec::new();
-    if let Some(workspace_id) = input.workspace_id {
-        let mut stmt = conn.prepare(
-            "SELECT id, workspace_id, event_type, operator, payload, created_at
-             FROM audit_events
-             WHERE workspace_id = ?1
-             ORDER BY created_at DESC
-             LIMIT ?2",
-        )?;
-        let rows = stmt.query_map(params![workspace_id, limit], audit_row_to_json)?;
-        for row in rows {
-            list.push(row?);
-        }
-    } else {
-        let mut stmt = conn.prepare(
-            "SELECT id, workspace_id, event_type, operator, payload, created_at
-             FROM audit_events
-             ORDER BY created_at DESC
-             LIMIT ?1",
-        )?;
-        let rows = stmt.query_map(params![limit], audit_row_to_json)?;
-        for row in rows {
-            list.push(row?);
-        }
+    for row in rows {
+        list.push(row?);
     }
 
     Ok(list)

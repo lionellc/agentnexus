@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Input } from "@douyinfe/semi-ui-19";
 
 import {
   Button,
@@ -15,7 +16,6 @@ import {
   FormField,
   FormFieldset,
   FormLabel,
-  Input,
   Select,
 } from "../../../shared/ui";
 
@@ -310,9 +310,7 @@ export function DataSettingsPanel({
                 <FormLabel>{l("名称", "Name")}</FormLabel>
                 <Input
                   value={editDraft.platform}
-                  onChange={(event) =>
-                    onDistributionTargetFieldChange(editingTargetId, "platform", event.currentTarget.value)
-                  }
+                  onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "platform", value)}
                   placeholder=".codex"
                 />
               </FormField>
@@ -400,9 +398,7 @@ export function DataSettingsPanel({
                 <FormLabel>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</FormLabel>
                 <Input
                   value={editingAgent.ruleFile}
-                  onChange={(event) =>
-                    onAgentConnectionFieldChange(editingAgentPlatform, "ruleFile", event.currentTarget.value)
-                  }
+                  onChange={(value) => onAgentConnectionFieldChange(editingAgentPlatform, "ruleFile", value)}
                   placeholder="AGENTS.md"
                   disabled={agentConnectionSavingId === editingAgentPlatform}
                 />

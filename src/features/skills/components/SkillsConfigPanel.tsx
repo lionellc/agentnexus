@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { Tag } from "@douyinfe/semi-ui-19";
 import { ChevronRight } from "lucide-react";
 
 import {
   Button,
   Card,
   CardContent,
-  Tag,
 } from "../../../shared/ui";
 import type { SkillsManagerDiffEntry, SkillsManagerDiffStatus } from "../../../shared/types";
 
@@ -130,7 +130,7 @@ export function SkillsConfigPanel({
                   <summary className="list-none cursor-pointer px-3 py-2 text-sm font-medium text-slate-800 marker:content-none [&::-webkit-details-marker]:hidden">
                     <div className="flex items-center gap-2">
                       <span className="min-w-0 truncate">{group.label}</span>
-                      <Tag tone="neutral" className="whitespace-nowrap rounded-sm">
+                      <Tag color="grey" type="light" className="whitespace-nowrap">
                         {group.total} {l("项", "items")} · {group.pendingCount} {l("待处理", "pending")}
                       </Tag>
                       <ChevronRight
@@ -145,12 +145,12 @@ export function SkillsConfigPanel({
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-slate-800">{item.name}</span>
                           {item.isSymlink ? (
-                            <Tag tone="info" size="sm">
+                            <Tag color="blue" type="light" size="small">
                               {l("软链", "Symlink")}
                             </Tag>
                           ) : null}
                           {item.conflict ? (
-                            <Tag tone="warning" size="sm">
+                            <Tag color="orange" type="light" size="small">
                               {l("冲突", "Conflict")}
                             </Tag>
                           ) : null}

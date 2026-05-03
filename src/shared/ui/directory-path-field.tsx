@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
+import { Input } from "@douyinfe/semi-ui-19";
 
 import { cn } from "../lib/cn";
 import { Button } from "./button";
 import { FormField, FormLabel } from "./fieldset";
-import { Input } from "./input";
 
 export type DirectoryPathFieldProps = {
   label: ReactNode;
@@ -36,7 +36,7 @@ export function DirectoryPathField({
       <div className="flex items-center gap-2">
         <Input
           value={value}
-          onChange={(event) => onChange(event.currentTarget.value)}
+          onChange={(nextValue) => onChange(nextValue)}
           placeholder={placeholder}
           disabled={disabled}
           className={cn("min-w-0 flex-1 font-mono text-xs sm:text-sm", inputClassName)}

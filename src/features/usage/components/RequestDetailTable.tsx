@@ -1,4 +1,7 @@
-import { Badge, Button } from "../../../shared/ui";
+import { Empty, Table } from "@douyinfe/semi-ui-19";
+import type { ReactNode } from "react";
+
+import { Button, Tag } from "../../../shared/ui";
 import { EmptyState } from "../../common/components/EmptyState";
 import type { ModelUsageRequestLogItem } from "../../../shared/types";
 import { formatCurrency, formatInteger, formatOptionalInteger, formatTimestamp, getStatusLabel } from "../utils/usageFormat";
@@ -30,6 +33,39 @@ export function RequestDetailTable({
 }: RequestDetailTableProps) {
   const pageStart = total === 0 ? 0 : pageIndex * pageSize + 1;
   const pageEnd = Math.min(total, pageIndex * pageSize + rows.length);
+  const columns: TableColumn[] = [
+    {
+      title: l("时间", "Time"),
+      dataIndex: "calledAt",
+      width: 180,
+      render: (_value, item) => <span className="whitespace-nowrap">{formatTimestamp(item.calledAt)}</span>,
+    },
+    { title: "Agent", dataIndex: "agent", width: 140, render: (_value, item) => item.agent || "-" },
+    { title: "provider/model", dataIndex: "model", width: 180, render: (_value, item) => `${item.provider}/${item.model || "-"}` },
+    {
+      title: "status",
+      dataIndex: "status",
+      width: 120,
+      render: (_value, item) => (
+        <Tag tone={item.status === "failed" ? "danger" : "success"}>{getStatusLabel(item.status, l)}</Tag>
+      ),
+    },
+    { title: "input", dataIndex: "inputTokens", width: 100, render: (_value, item) => formatOptionalInteger(item.inputTokens) },
+    { title: "output", dataIndex: "outputTokens", width: 100, render: (_value, item) => formatOptionalInteger(item.outputTokens) },
+    { title: "total", dataIndex: "totalTokens", width: 100, render: (_value, item) => formatInteger(item.totalTokens) },
+    { title: l("成本", "Cost"), dataIndex: "displayCost", width: 120, render: (_value, item) => formatCurrency(item.displayCost, item.displayCurrency) },
+    { title: "source", dataIndex: "source", width: 140 },
+    {
+      title: l("完整性", "Complete"),
+      dataIndex: "isComplete",
+      width: 160,
+      render: (_value, item) => (
+        <Tag tone={item.isComplete ? "success" : "warning"}>
+          {item.isComplete ? l("完整", "Complete") : l("不参与成本估算", "Excluded")}
+        </Tag>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-2 rounded-lg border border-border bg-card p-3">
@@ -60,47 +96,24 @@ export function RequestDetailTable({
           description={l("可以先同步调用记录，或放宽时间、Agent、模型、状态筛选后再查看。", "Sync usage first, or broaden range, agent, model, and status filters.")}
         />
       ) : (
-        <div className="overflow-auto">
-          <table className="min-w-full text-left text-xs">
-            <thead>
-              <tr className="border-b border-border text-slate-500">
-                <th className="py-2 pr-3">{l("时间", "Time")}</th>
-                <th className="py-2 pr-3">Agent</th>
-                <th className="py-2 pr-3">provider/model</th>
-                <th className="py-2 pr-3">status</th>
-                <th className="py-2 pr-3">input</th>
-                <th className="py-2 pr-3">output</th>
-                <th className="py-2 pr-3">total</th>
-                <th className="py-2 pr-3">{l("成本", "Cost")}</th>
-                <th className="py-2 pr-3">source</th>
-                <th className="py-2 pr-3">{l("完整性", "Complete")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((item) => (
-                <tr key={item.id} className="border-b border-border/60 align-top">
-                  <td className="py-2 pr-3 whitespace-nowrap">{formatTimestamp(item.calledAt)}</td>
-                  <td className="py-2 pr-3">{item.agent || "-"}</td>
-                  <td className="py-2 pr-3">{item.provider}/{item.model || "-"}</td>
-                  <td className="py-2 pr-3">
-                    <Badge variant={item.status === "failed" ? "destructive" : "secondary"}>{getStatusLabel(item.status, l)}</Badge>
-                  </td>
-                  <td className="py-2 pr-3">{formatOptionalInteger(item.inputTokens)}</td>
-                  <td className="py-2 pr-3">{formatOptionalInteger(item.outputTokens)}</td>
-                  <td className="py-2 pr-3">{formatInteger(item.totalTokens)}</td>
-                  <td className="py-2 pr-3">{formatCurrency(item.displayCost, item.displayCurrency)}</td>
-                  <td className="py-2 pr-3">{item.source}</td>
-                  <td className="py-2 pr-3">
-                    <Badge variant={item.isComplete ? "secondary" : "outline"}>
-                      {item.isComplete ? l("完整", "Complete") : l("不参与成本估算", "Excluded")}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <Table
+          rowKey="id"
+          columns={columns}
+          dataSource={rows}
+          loading={loading}
+          pagination={false}
+          scroll={{ x: 1280 }}
+          size="small"
+          empty={<Empty title={l("暂无请求明细", "No request logs")} />}
+        />
       )}
     </div>
   );
 }
+
+type TableColumn = {
+  title: string;
+  dataIndex: string;
+  width?: number;
+  render?: (_value: unknown, record: ModelUsageRequestLogItem) => ReactNode;
+};

@@ -149,7 +149,7 @@ describe("UsageDashboard", () => {
 
   it("加载后展示首屏判断、KPI、可信度和请求明细", async () => {
     await act(async () => {
-      root.render(<UsageDashboard l={l} workspaceId="w1" />);
+      root.render(<UsageDashboard l={l} />);
     });
 
     expect(document.body.textContent).toContain("模型使用与成本看板");
@@ -161,15 +161,17 @@ describe("UsageDashboard", () => {
     expect(document.body.textContent).toContain("数据可信度");
     expect(document.body.textContent).toContain("session_jsonl · completed · 1");
     expect(document.body.textContent).toContain("planner");
-    expect(modelUsageApi.queryDashboard).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "w1", days: 7, status: undefined }));
-    expect(modelUsageApi.queryRequestLogs).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: "w1", days: 7, limit: 20, status: undefined }));
+    expect(modelUsageApi.queryDashboard).toHaveBeenCalledWith(expect.objectContaining({ days: 7, status: undefined }));
+    expect(modelUsageApi.queryDashboard).not.toHaveBeenCalledWith(expect.objectContaining({ workspaceId: expect.anything() }));
+    expect(modelUsageApi.queryRequestLogs).toHaveBeenCalledWith(expect.objectContaining({ days: 7, limit: 20, status: undefined }));
+    expect(modelUsageApi.queryRequestLogs).not.toHaveBeenCalledWith(expect.objectContaining({ workspaceId: expect.anything() }));
     expect(document.body.textContent).toContain("页面刷新成功");
     expect(document.body.textContent).toContain("最新调用时间");
   });
 
   it("点击同步调用触发 syncStart 并展示可关闭反馈", async () => {
     await act(async () => {
-      root.render(<UsageDashboard l={l} workspaceId="w1" />);
+      root.render(<UsageDashboard l={l} />);
     });
 
     const syncButton = Array.from(document.body.querySelectorAll("button")).find(
@@ -179,7 +181,7 @@ describe("UsageDashboard", () => {
       syncButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(modelUsageApi.syncStart).toHaveBeenCalledWith({ workspaceId: "w1" });
+    expect(modelUsageApi.syncStart).toHaveBeenCalledWith({});
     expect(document.body.textContent).toContain("同步中");
     expect(document.body.textContent).toContain("session_jsonl");
 
@@ -195,7 +197,7 @@ describe("UsageDashboard", () => {
 
   it("点击刷新触发增量同步，而不是只重查本地库", async () => {
     await act(async () => {
-      root.render(<UsageDashboard l={l} workspaceId="w1" />);
+      root.render(<UsageDashboard l={l} />);
     });
 
     modelUsageApi.syncStart.mockClear();
@@ -206,12 +208,12 @@ describe("UsageDashboard", () => {
       refreshButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
 
-    expect(modelUsageApi.syncStart).toHaveBeenCalledWith({ workspaceId: "w1" });
+    expect(modelUsageApi.syncStart).toHaveBeenCalledWith({});
   });
 
   it("定价规则默认收起，同步价格保留在定价区域", async () => {
     await act(async () => {
-      root.render(<UsageDashboard l={l} workspaceId="w1" />);
+      root.render(<UsageDashboard l={l} />);
     });
 
     expect(document.body.textContent).toContain("定价规则");
@@ -223,7 +225,7 @@ describe("UsageDashboard", () => {
     await act(async () => {
       refreshPricingButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     });
-    expect(modelUsageApi.syncPricing).toHaveBeenCalledWith({ workspaceId: "w1" });
+    expect(modelUsageApi.syncPricing).toHaveBeenCalledWith({});
     expect(document.body.textContent).toContain("默认价格库已刷新");
     expect(document.body.textContent).toContain("5 条");
 

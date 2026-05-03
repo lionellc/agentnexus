@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState, type ReactNode } from "react";
+import { Tabs as SemiTabs } from "@douyinfe/semi-ui-19";
 
-import { Button, Textarea } from "../../../shared/ui";
+import { Textarea } from "../../../shared/ui";
 
 export type MarkdownMode = "edit" | "preview" | "split";
 type MarkdownLanguage = "zh" | "en";
@@ -296,36 +297,23 @@ export function MarkdownEditor({
   const showEditor = effectiveMode === "edit" || effectiveMode === "split";
   const showPreview = effectiveMode === "preview" || effectiveMode === "split";
   const textareaRows = Math.max(10, Math.floor(minHeight / 24));
+  const modeTabList = [
+    { itemKey: "edit", tab: labels.edit },
+    { itemKey: "preview", tab: labels.preview },
+    { itemKey: "split", tab: labels.split },
+  ];
 
   return (
     <div className="space-y-2">
       {!readOnly && !hideModeSwitcher ? (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            size="sm"
-            variant={currentMode === "edit" ? "default" : "outline"}
-            onClick={() => setCurrentMode("edit")}
-          >
-            {labels.edit}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={currentMode === "preview" ? "default" : "outline"}
-            onClick={() => setCurrentMode("preview")}
-          >
-            {labels.preview}
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant={currentMode === "split" ? "default" : "outline"}
-            onClick={() => setCurrentMode("split")}
-          >
-            {labels.split}
-          </Button>
-        </div>
+        <SemiTabs
+          activeKey={currentMode}
+          onChange={(activeKey) => setCurrentMode(activeKey as MarkdownMode)}
+          preventScroll
+          size="small"
+          tabList={modeTabList}
+          type="button"
+        />
       ) : null}
 
       <div className={showEditor && showPreview ? "grid gap-3 lg:grid-cols-2" : ""}>

@@ -201,7 +201,7 @@ pub(super) fn upsert_pricing_override(
             updated_at = excluded.updated_at",
         params![
             Uuid::new_v4().to_string(),
-            input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID.to_string(),
             provider,
             model,
             currency,
@@ -212,7 +212,7 @@ pub(super) fn upsert_pricing_override(
     )?;
 
     Ok(json!({
-        "workspaceId": input.workspace_id,
+        "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
         "provider": input.provider.trim(),
         "model": input.model.trim(),
         "currency": currency,

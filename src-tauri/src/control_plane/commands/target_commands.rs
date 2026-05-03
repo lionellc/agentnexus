@@ -23,7 +23,7 @@ pub fn target_upsert(
     let mut conn = state.open()?;
     let tx = conn.transaction()?;
 
-    let workspace = get_workspace(&tx, &input.workspace_id)?;
+    let workspace = get_workspace(&tx, crate::domain::models::APP_SCOPE_ID)?;
     let root = PathBuf::from(&workspace.root_path);
 
     let install_mode = input
@@ -89,7 +89,7 @@ pub fn target_delete(
     let mut conn = state.open()?;
     let tx = conn.transaction()?;
 
-    let workspace = get_workspace(&tx, &input.workspace_id)?;
+    let workspace = get_workspace(&tx, crate::domain::models::APP_SCOPE_ID)?;
     let target = get_target(&tx, &input.id)?;
     if target.workspace_id != workspace.id {
         return Err(AppError::invalid_argument("target 不存在"));
@@ -122,11 +122,9 @@ pub fn target_delete(
 }
 
 #[tauri::command]
-pub fn target_list(
-    state: State<'_, AppState>,
-    workspace_id: String,
-) -> Result<Vec<Value>, AppError> {
+pub fn target_list(state: State<'_, AppState>) -> Result<Vec<Value>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     let workspace = get_workspace(&conn, &workspace_id)?;
     ensure_default_skills_distribution_targets(&conn, &workspace)?;
     let targets = list_targets(&conn, &workspace_id, None)?;

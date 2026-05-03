@@ -1,7 +1,8 @@
-import { RefreshCw } from "lucide-react";
+import { Input as SemiInput, Select as SemiSelect } from "@douyinfe/semi-ui-19";
+import { RefreshCw, Search } from "lucide-react";
 
 import { SectionTitle } from "../../common/components/SectionTitle";
-import { Button, Card, CardContent, Input, Select, Tabs, TabsList, TabsTrigger } from "../../../shared/ui";
+import { Button, Card, CardContent, Tabs, TabsList, TabsTrigger } from "../../../shared/ui";
 import type { PromptBrowseScope } from "../utils/promptBrowseContext";
 import { PromptResults, type PromptResultsProps, type PromptViewMode } from "./PromptResults";
 
@@ -18,7 +19,6 @@ type PromptCenterProps = {
   promptQuery: string;
   setPromptQuery: (value: string) => void;
   promptBrowseScope: PromptBrowseScope;
-  selectBaseClass: string;
   promptAllCategoryFilter: string;
   setPromptAllCategoryFilter: (value: string) => void;
   promptCategoryOptions: PromptCategoryOption[];
@@ -43,7 +43,6 @@ export function PromptCenter({
   promptQuery,
   setPromptQuery,
   promptBrowseScope,
-  selectBaseClass,
   promptAllCategoryFilter,
   setPromptAllCategoryFilter,
   promptCategoryOptions,
@@ -68,23 +67,28 @@ export function PromptCenter({
         subtitle={l(`共 ${filteredPromptsCount} 项`, `${filteredPromptsCount} items`)}
         action={
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <Input
+            <SemiInput
               value={promptQuery}
-              onChange={(event) => setPromptQuery(event.currentTarget.value)}
+              onChange={(value) => setPromptQuery(value)}
               placeholder={l("搜索 Prompt...", "Search prompts...")}
-              className="w-56"
+              prefix={
+                <span className="inline-flex pl-1 pr-2">
+                  <Search className="h-4 w-4 text-slate-400" />
+                </span>
+              }
+              showClear
+              style={{ width: 240 }}
             />
             {promptBrowseScope === "all" ? (
-              <Select
+              <SemiSelect
                 aria-label={l("All 视角分类筛选", "All scope category filter")}
-                className="w-44"
-                buttonClassName={selectBaseClass}
                 value={promptAllCategoryFilter}
-                onChange={setPromptAllCategoryFilter}
-                options={promptCategoryOptions.map((item) => ({
+                onChange={(value) => setPromptAllCategoryFilter(String(value ?? ""))}
+                optionList={promptCategoryOptions.map((item) => ({
                   value: item.key,
                   label: item.label,
                 }))}
+                style={{ width: 184 }}
               />
             ) : null}
             <Button variant="outline" onClick={() => setCreatePromptOpen(true)}>
@@ -151,11 +155,12 @@ export function PromptCenter({
           <Card className="h-fit">
             <CardContent className="space-y-1 pt-4">
               {promptCategoryOptions.map((item) => (
-                <button
+                <Button
                   key={item.key}
                   type="button"
                   aria-label={`prompt-category-${item.key}`}
-                  className={`flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm transition-colors ${
+                  variant="ghost"
+                  className={`flex h-auto w-full items-center justify-between px-2 py-1.5 text-left text-sm ${
                     promptBrowseCategory === item.key
                       ? "bg-blue-50 text-blue-700"
                       : "text-slate-700 hover:bg-slate-100"
@@ -167,7 +172,7 @@ export function PromptCenter({
                 >
                   <span className="truncate">{item.label}</span>
                   <span className="ml-2 text-xs opacity-75">{item.count}</span>
-                </button>
+                </Button>
               ))}
             </CardContent>
           </Card>

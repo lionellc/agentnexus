@@ -1,3 +1,4 @@
+import { Input } from "@douyinfe/semi-ui-19";
 import { Copy } from "lucide-react";
 
 import {
@@ -8,7 +9,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  Input,
 } from "../../../shared/ui";
 
 export type PromptRunDialogProps = {
@@ -78,7 +78,7 @@ export function PromptRunDialog({
                       <div className="flex items-center gap-2">
                         <Input
                           value={variables[variableName] ?? ""}
-                          onChange={(event) => onVariableChange(variableName, event.currentTarget.value)}
+                          onChange={(value) => onVariableChange(variableName, value)}
                           placeholder={isZh ? `请输入 ${variableName}` : `Enter ${variableName}`}
                         />
                         <Button

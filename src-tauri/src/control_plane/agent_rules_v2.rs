@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 mod api;
 mod apply;
 mod normalize;
+mod permissions;
 mod publish;
 
 pub use api::{
@@ -11,6 +12,7 @@ pub use api::{
     agent_connection_upsert,
 };
 pub use apply::{agent_rule_apply, agent_rule_refresh, agent_rule_retry, agent_rule_status};
+pub use permissions::agent_rule_access_check;
 pub use publish::{
     agent_rule_asset_create, agent_rule_asset_delete, agent_rule_asset_list,
     agent_rule_asset_rename, agent_rule_publish_version, agent_rule_rollback, agent_rule_versions,
@@ -118,10 +120,37 @@ pub struct AgentRulePreviewResult {
     pub message: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuleAccessCheckDto {
+    pub ok: bool,
+    pub checked_at: String,
+    pub summary: String,
+    pub targets: Vec<AgentRuleAccessTargetDto>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentRuleAccessTargetDto {
+    pub agent_type: String,
+    pub root_dir: String,
+    pub rule_file: String,
+    pub resolved_path: String,
+    pub parent_dir: String,
+    pub root_dir_exists: bool,
+    pub parent_dir_exists: bool,
+    pub hidden_path: bool,
+    pub prepared_dir: bool,
+    pub can_create_file: bool,
+    pub file_writable: bool,
+    pub status: String,
+    pub message: String,
+    pub advice: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConnectionUpsertInput {
-    pub workspace_id: String,
     pub agent_type: String,
     pub root_dir: String,
     pub rule_file: Option<String>,
@@ -144,7 +173,6 @@ pub struct AgentConnectionSearchDirInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConnectionToggleInput {
-    pub workspace_id: String,
     pub agent_type: String,
     pub enabled: bool,
 }
@@ -152,28 +180,30 @@ pub struct AgentConnectionToggleInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConnectionDeleteInput {
-    pub workspace_id: String,
     pub agent_type: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConnectionPresetActionInput {
-    pub workspace_id: String,
     pub agent_type: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRulePreviewInput {
-    pub workspace_id: String,
     pub agent_type: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AgentRuleAccessCheckInput {
+    pub agent_types: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AgentRuleAssetCreateInput {
-    pub workspace_id: String,
     pub name: String,
     pub content: String,
     pub operator: Option<String>,
@@ -190,14 +220,12 @@ pub struct AgentRuleAssetPublishInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleAssetDeleteInput {
-    pub workspace_id: String,
     pub asset_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleAssetRenameInput {
-    pub workspace_id: String,
     pub asset_id: String,
     pub name: String,
 }
@@ -213,7 +241,6 @@ pub struct AgentRuleAssetRollbackInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleApplyInput {
-    pub workspace_id: String,
     pub asset_id: String,
     pub agent_types: Option<Vec<String>>,
     pub operator: Option<String>,
@@ -229,7 +256,6 @@ pub struct AgentRuleRetryInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleRefreshInput {
-    pub workspace_id: String,
     pub asset_id: String,
 }
 

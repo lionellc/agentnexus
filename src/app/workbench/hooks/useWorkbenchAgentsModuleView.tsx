@@ -11,7 +11,10 @@ import type {
   AgentRuleTag,
   AgentRuleVersion,
 } from "../../../shared/stores/agentRulesStore/types";
-import type { LocalAgentTranslationTestResult } from "../../../shared/types";
+import type {
+  AgentRuleAccessCheck,
+  LocalAgentTranslationTestResult,
+} from "../../../shared/types";
 
 type TranslationTargetLanguageOption = {
   value: string;
@@ -36,15 +39,20 @@ type UseWorkbenchAgentsModuleViewInput = {
   filteredAgentAssets: AgentRuleAsset[];
   pagedAgentAssets: AgentRuleAsset[];
   deleteConfirmAssetId: string | null;
-  setDeleteConfirmAssetId: (updater: string | null | ((prev: string | null) => string | null)) => void;
-  handleDeleteAgentRuleAsset: (assetId: string, assetName: string) => Promise<void>;
+  setDeleteConfirmAssetId: (
+    updater: string | null | ((prev: string | null) => string | null),
+  ) => void;
+  handleDeleteAgentRuleAsset: (
+    assetId: string,
+    assetName: string,
+  ) => Promise<void>;
   handleRefreshAgentModule: () => Promise<void>;
   handleCreateNewAgentAsset: () => void;
   openAgentRuleEditor: (assetId: string) => Promise<void>;
   handleOpenAgentVersionDiff: (assetId: string) => Promise<void>;
   toLocalTime: (value: string | null | undefined) => string;
   agentRulesPage: number;
-  setAgentRulesPage: (updater: number | ((prev: number) => number) ) => void;
+  setAgentRulesPage: (updater: number | ((prev: number) => number)) => void;
   totalAgentPages: number;
   agentRulesPageSize: number;
   agentVersionModalOpen: boolean;
@@ -86,9 +94,11 @@ type UseWorkbenchAgentsModuleViewInput = {
   agentDistributionModalOpen: boolean;
   setAgentDistributionModalOpen: (open: boolean) => void;
   agentTargetIds: string[];
-  setAgentTargetIds: (updater: string[] | ((prev: string[]) => string[])) => void;
-  defaultAgentRuleFile: (platform: string) => string;
-  joinRuleFilePath: (rootDir: string, ruleFile: string) => string;
+  setAgentTargetIds: (
+    updater: string[] | ((prev: string[]) => string[]),
+  ) => void;
+  agentRuleAccessCheck: AgentRuleAccessCheck | null;
+  checkingAgentRuleAccess: boolean;
   handleRunAgentDistribution: () => Promise<void>;
 };
 
@@ -157,8 +167,8 @@ export function useWorkbenchAgentsModuleView({
   setAgentDistributionModalOpen,
   agentTargetIds,
   setAgentTargetIds,
-  defaultAgentRuleFile,
-  joinRuleFilePath,
+  agentRuleAccessCheck,
+  checkingAgentRuleAccess,
   handleRunAgentDistribution,
 }: UseWorkbenchAgentsModuleViewInput) {
   const agentsCenter = (
@@ -255,8 +265,8 @@ export function useWorkbenchAgentsModuleView({
       agentConnections={agentConnections}
       agentTargetIds={agentTargetIds}
       setAgentTargetIds={setAgentTargetIds}
-      defaultAgentRuleFile={defaultAgentRuleFile}
-      joinRuleFilePath={joinRuleFilePath}
+      agentRuleAccessCheck={agentRuleAccessCheck}
+      checkingAgentRuleAccess={checkingAgentRuleAccess}
       handleRunAgentDistribution={handleRunAgentDistribution}
     />
   );
@@ -270,7 +280,12 @@ export function useWorkbenchAgentsModuleView({
         agentDistributionDialog={agentDistributionDialog}
       />
     ),
-    [agentDistributionDialog, agentRuleEditorDialog, agentVersionDialog, agentsCenter],
+    [
+      agentDistributionDialog,
+      agentRuleEditorDialog,
+      agentVersionDialog,
+      agentsCenter,
+    ],
   );
 
   return { module };

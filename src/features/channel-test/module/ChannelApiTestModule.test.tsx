@@ -51,15 +51,17 @@ describe("ChannelApiTestModule", () => {
     container.remove();
   });
 
-  it("workspace 未激活时展示提示", () => {
-    act(() => {
+  it("不需要工作区也展示测试台入口", async () => {
+    await act(async () => {
       root.render(<ChannelApiTestModule l={l} workspaceId={null} />);
     });
 
-    expect(document.body.textContent).toContain("请先创建并激活工作区");
+    expect(document.body.textContent).toContain("渠道 API 测试台");
+    expect(channelApiTestApi.queryRuns).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(channelApiTestApi.listCases).toHaveBeenCalledWith({});
   });
 
-  it("workspace 已激活时展示测试台入口", async () => {
+  it("传入旧 workspaceId 时也不会下发到后端", async () => {
     await act(async () => {
       root.render(<ChannelApiTestModule l={l} workspaceId="workspace-1" />);
     });
@@ -67,8 +69,8 @@ describe("ChannelApiTestModule", () => {
     expect(document.body.textContent).toContain("渠道 API 测试台");
     expect(document.body.textContent).toContain("选择协议、模型、Base URL");
     expect(document.body.textContent).toContain("题库管理");
-    expect(channelApiTestApi.queryRuns).toHaveBeenCalledWith({ workspaceId: "workspace-1", page: 1, pageSize: 10 });
-    expect(channelApiTestApi.listCases).toHaveBeenCalledWith({ workspaceId: "workspace-1" });
+    expect(channelApiTestApi.queryRuns).toHaveBeenCalledWith({ page: 1, pageSize: 10 });
+    expect(channelApiTestApi.listCases).toHaveBeenCalledWith({});
   });
 
   it("点击题库管理进入二级页面", async () => {

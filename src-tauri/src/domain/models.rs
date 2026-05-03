@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+pub const APP_SCOPE_ID: &str = "global";
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Workspace {
@@ -211,29 +213,6 @@ pub struct SkillsOpenInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WorkspaceCreateInput {
-    pub name: String,
-    pub root_path: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceUpdateInput {
-    pub id: String,
-    pub name: Option<String>,
-    pub root_path: Option<String>,
-    pub install_mode: Option<String>,
-    pub platform_overrides: Option<HashMap<String, String>>,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct WorkspaceActivateInput {
-    pub id: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct RuntimeFlagsInput {
     pub local_mode: bool,
     pub external_sources_enabled: bool,
@@ -243,7 +222,6 @@ pub struct RuntimeFlagsInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetUpsertInput {
-    pub workspace_id: String,
     pub id: Option<String>,
     pub platform: String,
     pub target_path: String,
@@ -254,21 +232,18 @@ pub struct TargetUpsertInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TargetDeleteInput {
-    pub workspace_id: String,
     pub id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentDocSaveInput {
-    pub workspace_id: String,
     pub content: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReleaseCreateInput {
-    pub workspace_id: String,
     pub title: String,
     pub notes: Option<String>,
     pub operator: Option<String>,
@@ -277,7 +252,6 @@ pub struct ReleaseCreateInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReleaseRollbackInput {
-    pub workspace_id: String,
     pub release_version: String,
     pub operator: Option<String>,
 }
@@ -285,7 +259,6 @@ pub struct ReleaseRollbackInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DistributionRunInput {
-    pub workspace_id: String,
     pub release_version: String,
     pub target_ids: Option<Vec<String>>,
     pub mode: Option<String>,
@@ -303,14 +276,12 @@ pub struct DistributionRetryInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DriftDetectInput {
-    pub workspace_id: String,
     pub target_ids: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConnectionUpsertInput {
-    pub workspace_id: String,
     pub agent_type: String,
     pub root_dir: String,
     pub enabled: bool,
@@ -319,7 +290,6 @@ pub struct AgentConnectionUpsertInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentConnectionToggleInput {
-    pub workspace_id: String,
     pub agent_type: String,
     pub enabled: bool,
 }
@@ -327,14 +297,12 @@ pub struct AgentConnectionToggleInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleFilePreviewInput {
-    pub workspace_id: String,
     pub agent_type: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleAssetCreateInput {
-    pub workspace_id: String,
     pub name: String,
     pub content: String,
     pub operator: Option<String>,
@@ -359,7 +327,6 @@ pub struct AgentRuleRollbackAssetInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleApplyInput {
-    pub workspace_id: String,
     pub asset_id: String,
     pub agent_types: Option<Vec<String>>,
     pub operator: Option<String>,
@@ -368,7 +335,6 @@ pub struct AgentRuleApplyInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentRuleRefreshInput {
-    pub workspace_id: String,
     pub asset_id: String,
 }
 
@@ -382,7 +348,6 @@ pub struct AgentRuleRetryInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsScanInput {
-    pub workspace_id: String,
     pub directories: Option<Vec<String>>,
     pub latest_versions: Option<HashMap<String, String>>,
 }
@@ -390,7 +355,6 @@ pub struct SkillsScanInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsBatchInput {
-    pub workspace_id: String,
     pub skill_ids: Vec<String>,
     pub target_ids: Vec<String>,
     pub operator: Option<String>,
@@ -413,14 +377,11 @@ pub struct SkillsManagerToolRuleValue {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SkillsManagerStateInput {
-    pub workspace_id: String,
-}
+pub struct SkillsManagerStateInput {}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerActionInput {
-    pub workspace_id: String,
     pub operator: Option<String>,
 }
 
@@ -435,7 +396,6 @@ pub struct SkillsManagerBatchItemInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerBatchInput {
-    pub workspace_id: String,
     pub items: Vec<SkillsManagerBatchItemInput>,
     pub operator: Option<String>,
 }
@@ -443,7 +403,6 @@ pub struct SkillsManagerBatchInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerDeleteInput {
-    pub workspace_id: String,
     pub skill_id: String,
     pub operator: Option<String>,
 }
@@ -451,7 +410,6 @@ pub struct SkillsManagerDeleteInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerRestoreInput {
-    pub workspace_id: String,
     pub skill_name: String,
     pub operator: Option<String>,
 }
@@ -459,7 +417,6 @@ pub struct SkillsManagerRestoreInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerRulesUpdateInput {
-    pub workspace_id: String,
     pub rules: Option<HashMap<String, SkillsManagerRuleValue>>,
     pub group_rules: Option<HashMap<String, SkillsManagerRuleValue>>,
     pub tool_rules: Option<HashMap<String, SkillsManagerToolRuleValue>>,
@@ -469,7 +426,6 @@ pub struct SkillsManagerRulesUpdateInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerDiffStartInput {
-    pub workspace_id: String,
     pub left_skill_id: String,
     pub right_skill_id: String,
     pub operator: Option<String>,
@@ -478,7 +434,6 @@ pub struct SkillsManagerDiffStartInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerDiffJobInput {
-    pub workspace_id: String,
     pub job_id: String,
     pub operator: Option<String>,
 }
@@ -486,7 +441,6 @@ pub struct SkillsManagerDiffJobInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerLinkPreviewInput {
-    pub workspace_id: String,
     pub skill_id: String,
     pub tool: String,
     pub max_entries: Option<usize>,
@@ -495,7 +449,6 @@ pub struct SkillsManagerLinkPreviewInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerUpdateThenLinkInput {
-    pub workspace_id: String,
     pub skill_id: String,
     pub tool: String,
     pub operator: Option<String>,
@@ -504,7 +457,6 @@ pub struct SkillsManagerUpdateThenLinkInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsManagerCheckExternalUpdatesInput {
-    pub workspace_id: String,
     pub skill_ids: Option<Vec<String>>,
     pub operator: Option<String>,
 }
@@ -512,7 +464,6 @@ pub struct SkillsManagerCheckExternalUpdatesInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptCreateInput {
-    pub workspace_id: String,
     pub name: String,
     pub content: String,
     pub tags: Option<Vec<String>>,
@@ -547,7 +498,6 @@ pub struct PromptRestoreInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptSearchInput {
-    pub workspace_id: String,
     pub keyword: Option<String>,
     pub tags: Option<Vec<String>>,
     pub category: Option<String>,
@@ -563,21 +513,17 @@ pub struct PromptRenderInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SkillsUsageSyncStartInput {
-    pub workspace_id: String,
-}
+pub struct SkillsUsageSyncStartInput {}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsUsageSyncProgressInput {
-    pub workspace_id: String,
     pub job_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsUsageStatsQueryInput {
-    pub workspace_id: String,
     pub agent: Option<String>,
     pub source: Option<String>,
     pub evidence_source: Option<String>,
@@ -586,7 +532,6 @@ pub struct SkillsUsageStatsQueryInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SkillsUsageCallsQueryInput {
-    pub workspace_id: String,
     pub skill_id: String,
     pub agent: Option<String>,
     pub source: Option<String>,
@@ -597,21 +542,17 @@ pub struct SkillsUsageCallsQueryInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ModelUsageSyncStartInput {
-    pub workspace_id: String,
-}
+pub struct ModelUsageSyncStartInput {}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelUsageSyncProgressInput {
-    pub workspace_id: String,
     pub job_id: String,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelUsageDashboardQueryInput {
-    pub workspace_id: String,
     pub days: Option<i64>,
     pub start_at: Option<String>,
     pub end_at: Option<String>,
@@ -624,7 +565,6 @@ pub struct ModelUsageDashboardQueryInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelUsageRequestLogsQueryInput {
-    pub workspace_id: String,
     pub days: Option<i64>,
     pub start_at: Option<String>,
     pub end_at: Option<String>,
@@ -639,21 +579,17 @@ pub struct ModelUsageRequestLogsQueryInput {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct ModelPricingSyncInput {
-    pub workspace_id: String,
-}
+pub struct ModelPricingSyncInput {}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelPricingQueryInput {
-    pub workspace_id: String,
     pub currency: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ModelPricingOverrideUpsertInput {
-    pub workspace_id: String,
     pub provider: String,
     pub model: String,
     pub currency: Option<String>,
@@ -664,7 +600,6 @@ pub struct ModelPricingOverrideUpsertInput {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditQueryInput {
-    pub workspace_id: Option<String>,
     pub limit: Option<i64>,
 }
 

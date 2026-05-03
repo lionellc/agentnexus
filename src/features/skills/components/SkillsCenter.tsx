@@ -1,9 +1,10 @@
+import { Input } from "@douyinfe/semi-ui-19";
 import { ArrowLeft, ChevronRight, RefreshCw } from "lucide-react";
 import type { ReactElement } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
-import { Button, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
+import { Button, Select, Tabs, TabsContent, TabsList, TabsTrigger } from "../../../shared/ui";
 import type {
   SkillOpenMode,
   SkillsManagerMode,
@@ -139,7 +140,7 @@ export function SkillsCenter({
               {managerMode === "config" ? (
                 <Input
                   value={skillQuery}
-                  onChange={(event) => setSkillQuery(event.currentTarget.value)}
+                  onChange={(value) => setSkillQuery(value)}
                   placeholder={l("搜索 Skill...", "Search skills...")}
                   className="w-56"
                 />
@@ -184,9 +185,15 @@ export function SkillsCenter({
               <Button size="sm" variant="outline" onClick={onBackToSkillList}>
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <button type="button" className="font-medium text-blue-600 hover:underline" onClick={onBackToSkillList}>
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="h-auto px-1 py-0 font-medium text-blue-600 hover:underline"
+                onClick={onBackToSkillList}
+              >
                 Skills
-              </button>
+              </Button>
               <ChevronRight className="h-4 w-4 text-slate-400" />
               <span className="max-w-[380px] truncate text-slate-700">
                 {selectedSkill?.name ?? l("未选择 skill", "No skill selected")}

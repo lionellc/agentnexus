@@ -1,5 +1,5 @@
 use super::*;
-use rusqlite::{params_from_iter};
+use rusqlite::params_from_iter;
 use serde_json::json;
 
 #[tauri::command]
@@ -8,14 +8,18 @@ pub fn model_usage_query_dashboard(
     input: ModelUsageDashboardQueryInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    get_workspace_scope(&conn, &input.workspace_id)?;
-    ensure_pricing_seed(&conn, &input.workspace_id)?;
+    get_workspace_scope(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_pricing_seed(&conn, crate::domain::models::APP_SCOPE_ID)?;
     ensure_fx_seed(&conn)?;
 
     let currency = normalize_currency(input.currency.as_deref());
     let hourly_bucket = input.days == Some(0);
     let end_at = input.end_at.unwrap_or_else(now_rfc3339);
-    let days = if hourly_bucket { 1 } else { input.days.unwrap_or(7).clamp(1, 365) };
+    let days = if hourly_bucket {
+        1
+    } else {
+        input.days.unwrap_or(7).clamp(1, 365)
+    };
     let start_at = input
         .start_at
         .unwrap_or_else(|| (Utc::now() - Duration::days(days)).to_rfc3339());
@@ -24,7 +28,7 @@ pub fn model_usage_query_dashboard(
     let status_filter = normalize_filter_value(input.status.as_deref());
 
     let (facts_sql, facts_params) = build_facts_query(
-        &input.workspace_id,
+        crate::domain::models::APP_SCOPE_ID,
         &start_at,
         &end_at,
         agent_filter.as_deref(),
@@ -63,7 +67,17 @@ pub fn model_usage_query_dashboard(
     let mut model_stats: HashMap<String, (i64, i64, f64)> = HashMap::new();
 
     for row in rows {
-        let (_id, called_at, agent, provider, model, status, input_tokens, output_tokens, is_complete) = row?;
+        let (
+            _id,
+            called_at,
+            agent,
+            provider,
+            model,
+            status,
+            input_tokens,
+            output_tokens,
+            is_complete,
+        ) = row?;
         request_count += 1;
         *status_counts.entry(status.clone()).or_insert(0) += 1;
         *model_counts.entry(model.clone()).or_insert(0) += 1;
@@ -75,7 +89,11 @@ pub fn model_usage_query_dashboard(
         total_output_tokens += out_tokens;
         total_tokens += row_tokens;
 
-        let date_key = if hourly_bucket { hour_bucket(&called_at) } else { day_bucket(&called_at) };
+        let date_key = if hourly_bucket {
+            hour_bucket(&called_at)
+        } else {
+            day_bucket(&called_at)
+        };
         *daily_input.entry(date_key.clone()).or_insert(0) += in_tokens;
         *daily_output.entry(date_key.clone()).or_insert(0) += out_tokens;
 
@@ -86,7 +104,7 @@ pub fn model_usage_query_dashboard(
         billable_request_count += 1;
         let cost_usd = calculate_row_cost_usd(
             &conn,
-            &input.workspace_id,
+            crate::domain::models::APP_SCOPE_ID,
             &provider,
             &model,
             &called_at,
@@ -95,7 +113,9 @@ pub fn model_usage_query_dashboard(
         )?;
         total_cost_usd += cost_usd;
         *daily_cost.entry(date_key).or_insert(0.0) += cost_usd;
-        let entry = model_stats.entry(model.clone()).or_insert((0_i64, 0_i64, 0_f64));
+        let entry = model_stats
+            .entry(model.clone())
+            .or_insert((0_i64, 0_i64, 0_f64));
         entry.0 += 1;
         entry.1 += row_tokens;
         entry.2 += cost_usd;
@@ -103,7 +123,11 @@ pub fn model_usage_query_dashboard(
     }
 
     let total_cost_cny = total_cost_usd * fx.rate;
-    let display_cost = if currency == "CNY" { total_cost_cny } else { total_cost_usd };
+    let display_cost = if currency == "CNY" {
+        total_cost_cny
+    } else {
+        total_cost_usd
+    };
 
     let mut daily_cost_rows = daily_cost
         .into_iter()
@@ -118,9 +142,15 @@ pub fn model_usage_query_dashboard(
         })
         .collect::<Vec<_>>();
     daily_cost_rows.sort_by(|left, right| {
-        left.get("date").and_then(Value::as_str).unwrap_or_default().cmp(
-            right.get("date").and_then(Value::as_str).unwrap_or_default(),
-        )
+        left.get("date")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .cmp(
+                right
+                    .get("date")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default(),
+            )
     });
 
     let mut dates = daily_input.keys().cloned().collect::<Vec<_>>();
@@ -144,9 +174,11 @@ pub fn model_usage_query_dashboard(
         .map(|(status, count)| json!({ "status": status, "count": count }))
         .collect::<Vec<_>>();
     status_rows.sort_by(|left, right| {
-        right.get("count").and_then(Value::as_i64).unwrap_or(0).cmp(
-            &left.get("count").and_then(Value::as_i64).unwrap_or(0),
-        )
+        right
+            .get("count")
+            .and_then(Value::as_i64)
+            .unwrap_or(0)
+            .cmp(&left.get("count").and_then(Value::as_i64).unwrap_or(0))
     });
 
     let mut model_distribution_rows = model_counts
@@ -154,9 +186,11 @@ pub fn model_usage_query_dashboard(
         .map(|(model, count)| json!({ "model": model, "count": count }))
         .collect::<Vec<_>>();
     model_distribution_rows.sort_by(|left, right| {
-        right.get("count").and_then(Value::as_i64).unwrap_or(0).cmp(
-            &left.get("count").and_then(Value::as_i64).unwrap_or(0),
-        )
+        right
+            .get("count")
+            .and_then(Value::as_i64)
+            .unwrap_or(0)
+            .cmp(&left.get("count").and_then(Value::as_i64).unwrap_or(0))
     });
 
     let mut model_rows = model_stats
@@ -178,12 +212,21 @@ pub fn model_usage_query_dashboard(
             .get("displayCost")
             .and_then(Value::as_f64)
             .unwrap_or(0.0)
-            .partial_cmp(&left.get("displayCost").and_then(Value::as_f64).unwrap_or(0.0))
+            .partial_cmp(
+                &left
+                    .get("displayCost")
+                    .and_then(Value::as_f64)
+                    .unwrap_or(0.0),
+            )
             .unwrap_or(std::cmp::Ordering::Equal)
     });
 
-    let source_coverage = query_source_coverage(&conn, &input.workspace_id)?;
-    let pricing_rows = query_pricing_rows(&conn, &input.workspace_id, Some(currency.as_str()))?;
+    let source_coverage = query_source_coverage(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let pricing_rows = query_pricing_rows(
+        &conn,
+        crate::domain::models::APP_SCOPE_ID,
+        Some(currency.as_str()),
+    )?;
 
     Ok(json!({
         "window": {

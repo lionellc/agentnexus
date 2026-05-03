@@ -1,3 +1,4 @@
+import { Input } from "@douyinfe/semi-ui-19";
 import { Save } from "lucide-react";
 
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
@@ -12,7 +13,6 @@ import {
   FormField,
   FormFieldset,
   FormLabel,
-  Input,
 } from "../../../shared/ui";
 
 type AgentAssetSummary = {
@@ -91,7 +91,7 @@ export function AgentRuleEditorDialog({
               <FormLabel>{l("规则文件名称", "Rule File Name")}</FormLabel>
               <Input
                 value={agentAssetNameInput}
-                onChange={(event) => setAgentAssetNameInput(event.currentTarget.value)}
+                onChange={(value) => setAgentAssetNameInput(value)}
                 placeholder={l("例如：团队规范A", "e.g. Team Policy A")}
               />
             </FormField>

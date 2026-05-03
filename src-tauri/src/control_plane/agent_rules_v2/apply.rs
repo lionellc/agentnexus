@@ -12,6 +12,9 @@ use crate::{
 use super::{
     api::{ensure_default_agent_connections, ensure_workspace_exists, get_agent_connection},
     normalize::{normalize_agent_type, resolve_rule_file_path, validate_enabled_root_dir},
+    permissions::{
+        apply_blocked_message, check_target_access, is_permission_like_error, write_failure_advice,
+    },
     publish::{get_asset_latest_bundle, get_asset_version_bundle, list_asset_tags},
     AgentRuleApplyInput, AgentRuleApplyJobDto, AgentRuleApplyRecordDto, AgentRuleRefreshInput,
     AgentRuleRetryInput, ConnectionRow, VersionBundle,
@@ -23,12 +26,16 @@ pub fn agent_rule_apply(
     input: AgentRuleApplyInput,
 ) -> Result<AgentRuleApplyJobDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
-    ensure_default_agent_connections(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    ensure_default_agent_connections(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
-    let bundle = get_asset_latest_bundle(&conn, &input.workspace_id, &input.asset_id)?;
-    let targets =
-        list_enabled_connections(&conn, &input.workspace_id, input.agent_types.as_deref())?;
+    let bundle =
+        get_asset_latest_bundle(&conn, crate::domain::models::APP_SCOPE_ID, &input.asset_id)?;
+    let targets = list_enabled_connections(
+        &conn,
+        crate::domain::models::APP_SCOPE_ID,
+        input.agent_types.as_deref(),
+    )?;
     if targets.is_empty() {
         return Err(AppError::invalid_argument("未找到可应用的 Agent 连接"));
     }
@@ -46,10 +53,10 @@ pub fn agent_rule_apply(
 #[tauri::command]
 pub fn agent_rule_status(
     state: State<'_, AppState>,
-    workspace_id: String,
     limit: Option<i64>,
 ) -> Result<Vec<AgentRuleApplyJobDto>, AppError> {
     let conn = state.open()?;
+    let workspace_id = crate::domain::models::APP_SCOPE_ID;
     ensure_workspace_exists(&conn, &workspace_id)?;
 
     let max = limit.unwrap_or(20).clamp(1, 200);
@@ -158,18 +165,23 @@ pub fn agent_rule_refresh(
     input: AgentRuleRefreshInput,
 ) -> Result<AgentRuleApplyJobDto, AppError> {
     let conn = state.open()?;
-    ensure_workspace_exists(&conn, &input.workspace_id)?;
+    ensure_workspace_exists(&conn, crate::domain::models::APP_SCOPE_ID)?;
 
-    let bundle = get_asset_latest_bundle(&conn, &input.workspace_id, &input.asset_id)?;
+    let bundle =
+        get_asset_latest_bundle(&conn, crate::domain::models::APP_SCOPE_ID, &input.asset_id)?;
 
     let mut tag_stmt = conn.prepare(
         "SELECT agent_type, last_applied_hash
          FROM global_rule_agent_tags
          WHERE workspace_id = ?1 AND asset_id = ?2",
     )?;
-    let tag_rows = tag_stmt.query_map(params![input.workspace_id, input.asset_id], |row| {
-        Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
-    })?;
+    let tag_rows = tag_stmt.query_map(
+        params![
+            crate::domain::models::APP_SCOPE_ID.to_string(),
+            input.asset_id
+        ],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+    )?;
 
     let mut tagged: Vec<(String, String)> = Vec::new();
     for row in tag_rows {
@@ -291,7 +303,7 @@ pub fn agent_rule_refresh(
     })
 }
 
-fn list_enabled_connections(
+pub(super) fn list_enabled_connections(
     conn: &Connection,
     workspace_id: &str,
     agent_types: Option<&[String]>,
@@ -374,8 +386,6 @@ fn run_apply_job(
 
     let mut records = Vec::new();
     for target in targets {
-        let resolved =
-            resolve_rule_file_path(&target.root_dir, &target.rule_file, &target.agent_type);
         let mut record = AgentRuleApplyRecordDto {
             id: Uuid::new_v4().to_string(),
             agent_type: target.agent_type.clone(),
@@ -387,24 +397,45 @@ fn run_apply_job(
             used_mode: "copy".to_string(),
         };
 
-        match resolved {
-            Ok(path) => {
-                record.resolved_path = path.to_string_lossy().to_string();
-                match distribute_agents(&bundle.content, &bundle.content_hash, &path, "copy", true)
-                {
-                    Ok(exec) => {
-                        record.status = exec.status;
-                        record.message = exec.message;
-                        record.used_mode = exec.used_mode;
-                        record.actual_hash = exec.actual_hash;
-                    }
-                    Err(err) => {
-                        record.message = err.message;
+        let access = check_target_access(&target);
+        record.resolved_path = access.resolved_path.clone();
+        if access.status != "ready" {
+            record.message = apply_blocked_message(&access);
+        } else {
+            let resolved =
+                resolve_rule_file_path(&target.root_dir, &target.rule_file, &target.agent_type);
+            match resolved {
+                Ok(path) => {
+                    record.resolved_path = path.to_string_lossy().to_string();
+                    match distribute_agents(
+                        &bundle.content,
+                        &bundle.content_hash,
+                        &path,
+                        "copy",
+                        true,
+                    ) {
+                        Ok(exec) => {
+                            record.status = exec.status;
+                            record.message = exec.message;
+                            record.used_mode = exec.used_mode;
+                            record.actual_hash = exec.actual_hash;
+                        }
+                        Err(err) => {
+                            record.message = if is_permission_like_error(&err.message) {
+                                format!(
+                                    "规则文件不可写：{}。{}",
+                                    record.resolved_path,
+                                    write_failure_advice(&path)
+                                )
+                            } else {
+                                err.message
+                            };
+                        }
                     }
                 }
-            }
-            Err(err) => {
-                record.message = err.message;
+                Err(err) => {
+                    record.message = err.message;
+                }
             }
         }
 

@@ -26,7 +26,7 @@ type FormState = {
   caseId: string;
 };
 
-export function useChannelApiTestController(workspaceId: string | null) {
+export function useChannelApiTestController() {
   const [form, setForm] = useState<FormState>({
     protocol: "openai",
     model: "",
@@ -65,21 +65,17 @@ export function useChannelApiTestController(workspaceId: string | null) {
   }, [cases]);
 
   const loadCases = useCallback(async () => {
-    if (!workspaceId) {
-      setCases([]);
-      return;
-    }
     setCasesLoading(true);
     setError(null);
     try {
-      const result = await channelApiTestApi.listCases({ workspaceId });
+      const result = await channelApiTestApi.listCases({} as never);
       setCases(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "加载题库失败");
     } finally {
       setCasesLoading(false);
     }
-  }, [workspaceId]);
+  }, []);
 
   useEffect(() => {
     void loadCases();
@@ -93,19 +89,13 @@ export function useChannelApiTestController(workspaceId: string | null) {
 
   const loadRuns = useCallback(
     async (nextPage: number, nextPageSize: number) => {
-      if (!workspaceId) {
-        setItems([]);
-        setTotal(0);
-        return;
-      }
       setLoading(true);
       setError(null);
       try {
         const result = await channelApiTestApi.queryRuns({
-          workspaceId,
           page: nextPage,
           pageSize: nextPageSize,
-        });
+        } as never);
         setItems(result.items);
         setTotal(result.total);
         setPage(result.page);
@@ -116,7 +106,7 @@ export function useChannelApiTestController(workspaceId: string | null) {
         setLoading(false);
       }
     },
-    [workspaceId],
+    [],
   );
 
   useEffect(() => {
@@ -124,19 +114,17 @@ export function useChannelApiTestController(workspaceId: string | null) {
   }, [loadRuns, pageSize]);
 
   const canRun =
-    Boolean(workspaceId) &&
     form.model.trim() !== "" &&
     form.baseUrl.trim() !== "" &&
     form.apiKey.trim() !== "" &&
     selectedCase.id !== "";
 
   const run = useCallback(async () => {
-    if (!workspaceId || !canRun) {
+    if (!canRun) {
       return;
     }
     const testCase = form.caseMode === "random" ? getRandomChannelApiTestCase(cases, form.category) : findChannelApiTestCase(cases, form.caseId);
     const input: ChannelApiTestRunInput = {
-      workspaceId,
       protocol: form.protocol,
       model: form.model.trim(),
       baseUrl: form.baseUrl.trim(),
@@ -159,16 +147,15 @@ export function useChannelApiTestController(workspaceId: string | null) {
       .finally(() => {
         setRunning(false);
       });
-  }, [canRun, cases, form, loadRuns, pageSize, workspaceId]);
+  }, [canRun, cases, form, loadRuns, pageSize]);
 
   const runWithMode = useCallback(
     async (runMode: "diagnostic" | "sampling") => {
-      if (!workspaceId || !canRun) {
+      if (!canRun) {
         return;
       }
       const testCase = form.caseMode === "random" ? getRandomChannelApiTestCase(cases, form.category) : findChannelApiTestCase(cases, form.caseId);
-      const input: ChannelApiTestRunInput = {
-        workspaceId,
+      const input = {
         protocol: form.protocol,
         model: form.model.trim(),
         baseUrl: form.baseUrl.trim(),
@@ -192,7 +179,7 @@ export function useChannelApiTestController(workspaceId: string | null) {
           setRunning(false);
         });
     },
-    [canRun, cases, form, loadRuns, pageSize, workspaceId],
+    [canRun, cases, form, loadRuns, pageSize],
   );
 
   const runDiagnostic = useCallback(async () => {
@@ -205,11 +192,8 @@ export function useChannelApiTestController(workspaceId: string | null) {
 
   const saveCase = useCallback(
     async (input: Omit<ChannelApiTestCaseUpsertInput, "workspaceId">) => {
-      if (!workspaceId) {
-        return;
-      }
       setError(null);
-      const saved = await channelApiTestApi.upsertCase({ ...input, workspaceId });
+      const saved = await channelApiTestApi.upsertCase(input as never);
       await loadCases();
       setForm((current) => ({
         ...current,
@@ -218,19 +202,16 @@ export function useChannelApiTestController(workspaceId: string | null) {
         caseMode: "specific",
       }));
     },
-    [loadCases, workspaceId],
+    [loadCases],
   );
 
   const deleteCase = useCallback(
     async (caseId: string) => {
-      if (!workspaceId) {
-        return;
-      }
       setError(null);
-      await channelApiTestApi.deleteCase({ workspaceId, caseId });
+      await channelApiTestApi.deleteCase({ caseId } as never);
       await loadCases();
     },
-    [loadCases, workspaceId],
+    [loadCases],
   );
 
   return {

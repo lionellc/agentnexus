@@ -174,6 +174,36 @@ export interface AgentRuleApplyRefreshInput {
   platforms?: string[];
 }
 
+export interface AgentRuleAccessCheckInput {
+  workspaceId?: string;
+  agentTypes?: string[];
+  platforms?: string[];
+}
+
+export interface AgentRuleAccessTarget {
+  agentType: string;
+  rootDir: string;
+  ruleFile: string;
+  resolvedPath: string;
+  parentDir: string;
+  rootDirExists: boolean;
+  parentDirExists: boolean;
+  hiddenPath: boolean;
+  preparedDir: boolean;
+  canCreateFile: boolean;
+  fileWritable: boolean;
+  status: string;
+  message: string;
+  advice?: string | null;
+}
+
+export interface AgentRuleAccessCheck {
+  ok: boolean;
+  checkedAt: string;
+  summary: string;
+  targets: AgentRuleAccessTarget[];
+}
+
 export interface AgentRuleApplyRecord {
   id: string;
   jobId: string;

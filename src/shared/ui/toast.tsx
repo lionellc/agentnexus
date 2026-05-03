@@ -2,6 +2,7 @@ import * as React from "react";
 import { Toast as SemiToast } from "@douyinfe/semi-ui-19";
 
 type ToastVariant = "default" | "destructive";
+const DEFAULT_TOAST_DURATION_SECONDS = 3;
 
 export interface ToastOptions {
   id?: string;
@@ -27,21 +28,22 @@ function renderToastContent(options: ToastOptions) {
 }
 
 function useToast() {
-  return {
-    toast: (options: ToastOptions) => {
-      const id = options.id ?? crypto.randomUUID();
-      const toastOptions = {
-        id,
-        content: renderToastContent(options),
-        duration: options.duration ?? 3000,
-      };
-      if (options.variant === "destructive") {
-        return SemiToast.error(toastOptions);
-      }
-      return SemiToast.info(toastOptions);
-    },
-    dismiss: (id: string) => SemiToast.close(id),
-  };
+  const toast = React.useCallback((options: ToastOptions) => {
+    const id = options.id ?? crypto.randomUUID();
+    const toastOptions = {
+      id,
+      content: renderToastContent(options),
+      duration: options.duration ?? DEFAULT_TOAST_DURATION_SECONDS,
+    };
+    if (options.variant === "destructive") {
+      return SemiToast.error(toastOptions);
+    }
+    return SemiToast.info(toastOptions);
+  }, []);
+
+  const dismiss = React.useCallback((id: string) => SemiToast.close(id), []);
+
+  return React.useMemo(() => ({ toast, dismiss }), [dismiss, toast]);
 }
 
 interface ToastProviderProps {

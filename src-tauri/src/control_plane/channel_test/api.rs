@@ -6,8 +6,13 @@ pub fn channel_test_query_runs(
     input: ChannelApiTestRunsQueryInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    persistence::get_workspace(&conn, &input.workspace_id)?;
-    query::query_runs(&conn, &input.workspace_id, input.page, input.page_size)
+    persistence::get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    query::query_runs(
+        &conn,
+        crate::domain::models::APP_SCOPE_ID,
+        input.page,
+        input.page_size,
+    )
 }
 
 #[tauri::command]
@@ -16,9 +21,9 @@ pub fn channel_test_cases_list(
     input: ChannelApiTestCasesQueryInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    persistence::get_workspace(&conn, &input.workspace_id)?;
-    persistence::seed_default_cases_once(&conn, &input.workspace_id)?;
-    persistence::query_custom_cases(&conn, &input.workspace_id)
+    persistence::get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    persistence::seed_default_cases_once(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    persistence::query_custom_cases(&conn, crate::domain::models::APP_SCOPE_ID)
 }
 
 #[tauri::command]
@@ -27,7 +32,7 @@ pub fn channel_test_case_upsert(
     input: ChannelApiTestCaseUpsertInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    persistence::get_workspace(&conn, &input.workspace_id)?;
+    persistence::get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     validate_case_input(&input)?;
     persistence::upsert_custom_case(&conn, &input)
 }
@@ -38,11 +43,11 @@ pub fn channel_test_case_delete(
     input: ChannelApiTestCaseDeleteInput,
 ) -> Result<Value, AppError> {
     let conn = state.open()?;
-    persistence::get_workspace(&conn, &input.workspace_id)?;
+    persistence::get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     if input.case_id.trim().is_empty() {
         return Err(AppError::invalid_argument("题目 ID 不能为空"));
     }
-    persistence::delete_custom_case(&conn, &input.workspace_id, &input.case_id)
+    persistence::delete_custom_case(&conn, crate::domain::models::APP_SCOPE_ID, &input.case_id)
 }
 
 #[tauri::command]
@@ -58,7 +63,7 @@ pub async fn channel_test_run(
 
 fn run_and_persist(state: AppState, input: ChannelApiTestRunInput) -> Result<Value, AppError> {
     let conn = state.open()?;
-    persistence::get_workspace(&conn, &input.workspace_id)?;
+    persistence::get_workspace(&conn, crate::domain::models::APP_SCOPE_ID)?;
     validate_input(&input)?;
 
     let started_at = now_rfc3339();
@@ -230,7 +235,7 @@ fn run_single(
 
     ChannelApiTestRunRecord {
         id: Uuid::new_v4().to_string(),
-        workspace_id: input.workspace_id.clone(),
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         started_at,
         completed_at: now_rfc3339(),
         protocol: input.protocol.clone(),
@@ -378,7 +383,7 @@ fn run_followup(
 
     ChannelApiTestRunRecord {
         id: Uuid::new_v4().to_string(),
-        workspace_id: input.workspace_id.clone(),
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         started_at,
         completed_at: now_rfc3339(),
         protocol: input.protocol.clone(),
@@ -490,7 +495,7 @@ fn build_multi_response_record(
 
     ChannelApiTestRunRecord {
         id: Uuid::new_v4().to_string(),
-        workspace_id: input.workspace_id.clone(),
+        workspace_id: crate::domain::models::APP_SCOPE_ID.to_string(),
         started_at,
         completed_at: now_rfc3339(),
         protocol: input.protocol.clone(),

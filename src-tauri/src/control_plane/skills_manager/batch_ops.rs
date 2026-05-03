@@ -10,9 +10,9 @@ pub(super) fn run_batch_action(
     }
 
     let conn = state.open()?;
-    let workspace_root = get_workspace_root(&conn, &input.workspace_id)?;
-    let mut config = load_skills_manager_config(&conn, &input.workspace_id)?;
-    let tools = list_tool_targets(&conn, &input.workspace_id)?;
+    let workspace_root = get_workspace_root(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let mut config = load_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID)?;
+    let tools = list_tool_targets(&conn, crate::domain::models::APP_SCOPE_ID)?;
     let skills = list_skills(&conn)?;
 
     let skill_map: HashMap<String, SkillRuntime> = skills
@@ -52,7 +52,7 @@ pub(super) fn run_batch_action(
         }));
     }
 
-    save_skills_manager_config(&conn, &input.workspace_id, &config)?;
+    save_skills_manager_config(&conn, crate::domain::models::APP_SCOPE_ID, &config)?;
 
     let action = if is_link {
         "skills_manager_batch_link"
@@ -61,11 +61,11 @@ pub(super) fn run_batch_action(
     };
     append_audit_event(
         &conn,
-        Some(&input.workspace_id),
+        Some(crate::domain::models::APP_SCOPE_ID),
         action,
         input.operator.as_deref().unwrap_or("system"),
         json!({
-            "workspaceId": input.workspace_id,
+            "workspaceId": crate::domain::models::APP_SCOPE_ID.to_string(),
             "total": input.items.len(),
             "success": success,
             "failed": failed,

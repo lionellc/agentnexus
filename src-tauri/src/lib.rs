@@ -12,9 +12,10 @@ use tauri::Manager;
 use control_plane::agent_rules_v2::{
     agent_connection_delete, agent_connection_list, agent_connection_preview,
     agent_connection_redetect, agent_connection_restore_defaults, agent_connection_toggle,
-    agent_connection_upsert, agent_rule_apply, agent_rule_asset_create, agent_rule_asset_delete,
-    agent_rule_asset_list, agent_rule_asset_rename, agent_rule_publish_version, agent_rule_refresh,
-    agent_rule_retry, agent_rule_rollback, agent_rule_status, agent_rule_versions,
+    agent_connection_upsert, agent_rule_access_check, agent_rule_apply, agent_rule_asset_create,
+    agent_rule_asset_delete, agent_rule_asset_list, agent_rule_asset_rename,
+    agent_rule_publish_version, agent_rule_refresh, agent_rule_retry, agent_rule_rollback,
+    agent_rule_status, agent_rule_versions,
 };
 use control_plane::channel_test::{
     channel_test_case_delete, channel_test_case_upsert, channel_test_cases_list,
@@ -27,8 +28,7 @@ use control_plane::commands::{
     prompt_versions, release_create, release_list, release_rollback, runtime_flags_get,
     runtime_flags_update, security_check_external_source, skills_asset_detail, skills_distribute,
     skills_file_read, skills_files_tree, skills_list, skills_open, skills_scan, skills_uninstall,
-    target_delete, target_list, target_upsert, workspace_activate, workspace_create,
-    workspace_list, workspace_update,
+    target_delete, target_list, target_upsert,
 };
 use control_plane::local_agent_translation::{
     local_agent_profile_delete, local_agent_profile_list, local_agent_profile_upsert,
@@ -71,10 +71,6 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
-            workspace_create,
-            workspace_update,
-            workspace_activate,
-            workspace_list,
             runtime_flags_get,
             runtime_flags_update,
             target_upsert,
@@ -95,6 +91,7 @@ pub fn run() {
             agent_rule_versions,
             agent_rule_rollback,
             agent_rule_apply,
+            agent_rule_access_check,
             agent_rule_status,
             agent_rule_retry,
             agent_rule_refresh,

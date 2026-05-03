@@ -1,10 +1,11 @@
+import { Input } from "@douyinfe/semi-ui-19";
 import { ArrowLeft, ChevronRight, Copy, History, Save } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 
 import { EmptyState } from "../../common/components/EmptyState";
 import { SectionTitle } from "../../common/components/SectionTitle";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
-import { Button, Input } from "../../../shared/ui";
+import { Button } from "../../../shared/ui";
 import type { PromptAsset, PromptTranslationDto } from "../../../shared/types";
 
 type PromptTranslationStage = "idle" | "running" | "reviewing";
@@ -91,13 +92,15 @@ export function PromptDetail({
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <button
+          <Button
             type="button"
-            className="font-medium text-blue-600 hover:underline"
+            size="sm"
+            variant="ghost"
+            className="h-auto px-1 py-0 font-medium text-blue-600 hover:underline"
             onClick={leavePromptDetail}
           >
             Prompts
-          </button>
+          </Button>
           <ChevronRight className="h-4 w-4 text-slate-400" />
           <span className="max-w-[420px] truncate text-slate-700">
             {selectedPrompt?.name ?? l("未选择 Prompt", "No prompt selected")}
@@ -117,18 +120,18 @@ export function PromptDetail({
           <div className="space-y-3">
             <label className="block text-xs text-slate-500">
               {l("标题", "Title")}
-              <Input value={detailName} onChange={(event) => setDetailName(event.currentTarget.value)} />
+              <Input value={detailName} onChange={(value) => setDetailName(value)} />
             </label>
 
             <div className="grid gap-3 md:grid-cols-2">
               <label className="block text-xs text-slate-500">
                 {l("分类", "Category")}
-                <Input value={detailCategory} onChange={(event) => setDetailCategory(event.currentTarget.value)} />
+                <Input value={detailCategory} onChange={(value) => setDetailCategory(value)} />
               </label>
 
               <label className="block text-xs text-slate-500">
                 {l("标签（逗号分隔）", "Tags (comma separated)")}
-                <Input value={detailTagsInput} onChange={(event) => setDetailTagsInput(event.currentTarget.value)} />
+                <Input value={detailTagsInput} onChange={(value) => setDetailTagsInput(value)} />
               </label>
             </div>
 

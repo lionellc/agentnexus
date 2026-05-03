@@ -31,13 +31,29 @@ export type UseWorkbenchAgentsControllerInput = {
   clearAgentRulesError: () => void;
   loadAgentModuleData: (workspaceId: string) => Promise<void>;
   loadAgentVersions: (assetId: string) => Promise<void>;
-  createAgentAsset: (workspaceId: string, name: string, content: string) => Promise<AgentRuleAsset>;
-  renameAgentAsset: (workspaceId: string, assetId: string, name: string) => Promise<AgentRuleAsset>;
+  createAgentAsset: (
+    workspaceId: string,
+    name: string,
+    content: string,
+  ) => Promise<AgentRuleAsset>;
+  renameAgentAsset: (
+    workspaceId: string,
+    assetId: string,
+    name: string,
+  ) => Promise<AgentRuleAsset>;
   deleteAgentAsset: (workspaceId: string, assetId: string) => Promise<void>;
-  publishAgentVersion: (assetId: string, content: string) => Promise<AgentRuleVersion>;
-  rollbackAgentRuleVersion: (assetId: string, version: string) => Promise<AgentRuleVersion>;
+  publishAgentVersion: (
+    assetId: string,
+    content: string,
+  ) => Promise<AgentRuleVersion>;
+  rollbackAgentRuleVersion: (
+    assetId: string,
+    version: string,
+  ) => Promise<AgentRuleVersion>;
   refreshAgentAsset: (workspaceId: string, assetId: string) => Promise<unknown>;
-  runAgentDistribution: (input: AgentRuleDistributionRunInput) => Promise<{ records?: unknown[] }>;
+  runAgentDistribution: (
+    input: AgentRuleDistributionRunInput,
+  ) => Promise<{ records?: unknown[] }>;
   translationTargetLanguage: string;
   translationTargetLanguageOptions: TranslationTargetLanguageOption[];
   modelTestRunning: boolean;
@@ -48,6 +64,4 @@ export type UseWorkbenchAgentsControllerInput = {
     syncModelTestForm: boolean;
   }) => Promise<LocalAgentTranslationTestResult | null>;
   toLocalTime: (value: string | null | undefined) => string;
-  defaultAgentRuleFile: (platform: string) => string;
-  joinRuleFilePath: (rootDir: string, ruleFile: string) => string;
 };

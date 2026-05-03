@@ -12,10 +12,6 @@ import type {
 } from "../../../shared/types";
 import { buildStatusSummary } from "../utils/usageFormat";
 
-type UseUsageDashboardControllerInput = {
-  workspaceId: string | null;
-};
-
 const DEFAULT_LIMIT = 20;
 
 type LogCursor = { timestamp: string; id: string } | null;
@@ -33,7 +29,7 @@ function buildTimeWindow(days: number): { days?: number; startAt?: string; endAt
   };
 }
 
-export function useUsageDashboardController({ workspaceId }: UseUsageDashboardControllerInput) {
+export function useUsageDashboardController() {
   const [days, setDays] = useState(7);
   const [currency, setCurrency] = useState<ModelUsageCurrency>("USD");
   const [agent, setAgent] = useState<string>("");
@@ -56,16 +52,11 @@ export function useUsageDashboardController({ workspaceId }: UseUsageDashboardCo
   const [error, setError] = useState("");
 
   const loadDashboard = useCallback(async () => {
-    if (!workspaceId) {
-      setDashboard(null);
-      return;
-    }
     setLoading(true);
     setError("");
     try {
       const timeWindow = buildTimeWindow(days);
       const result = await modelUsageApi.queryDashboard({
-        workspaceId,
         days: timeWindow.days,
         startAt: timeWindow.startAt,
         endAt: timeWindow.endAt,
@@ -81,24 +72,15 @@ export function useUsageDashboardController({ workspaceId }: UseUsageDashboardCo
     } finally {
       setLoading(false);
     }
-  }, [agent, currency, days, model, status, workspaceId]);
+  }, [agent, currency, days, model, status]);
 
   const loadLogsPage = useCallback(
     async (pageIndex: number, cursor: LogCursor) => {
-      if (!workspaceId) {
-        setLogs([]);
-        setLogsTotal(0);
-        setLogsCursor(null);
-        setLogsPageIndex(0);
-        setLogsPageCursors([null]);
-        return;
-      }
       setLogsLoading(true);
       setError("");
       try {
         const timeWindow = buildTimeWindow(days);
         const result = await modelUsageApi.queryRequestLogs({
-          workspaceId,
           days: timeWindow.days,
           startAt: timeWindow.startAt,
           endAt: timeWindow.endAt,
@@ -132,7 +114,7 @@ export function useUsageDashboardController({ workspaceId }: UseUsageDashboardCo
         setLogsLoading(false);
       }
     },
-    [agent, currency, days, model, status, workspaceId],
+    [agent, currency, days, model, status],
   );
 
   const refreshAll = useCallback(async () => {
@@ -148,26 +130,20 @@ export function useUsageDashboardController({ workspaceId }: UseUsageDashboardCo
   }, [loadDashboard, loadLogsPage]);
 
   const syncUsage = useCallback(async () => {
-    if (!workspaceId) {
-      return;
-    }
     setError("");
     try {
-      const job = await modelUsageApi.syncStart({ workspaceId });
+      const job = await modelUsageApi.syncStart({});
       setSyncJob(job);
     } catch (err) {
       setError(err instanceof Error ? err.message : "启动同步失败");
     }
-  }, [workspaceId]);
+  }, []);
 
   const syncPricing = useCallback(async () => {
-    if (!workspaceId) {
-      return;
-    }
     setPricingSaving(true);
     setError("");
     try {
-      const result = await modelUsageApi.syncPricing({ workspaceId });
+      const result = await modelUsageApi.syncPricing({});
       setPricingSyncResult(result);
       await loadDashboard();
     } catch (err) {
@@ -175,18 +151,14 @@ export function useUsageDashboardController({ workspaceId }: UseUsageDashboardCo
     } finally {
       setPricingSaving(false);
     }
-  }, [loadDashboard, workspaceId]);
+  }, [loadDashboard]);
 
   const savePricingOverride = useCallback(
     async (input: Omit<ModelPricingOverrideUpsertInput, "workspaceId">) => {
-      if (!workspaceId) {
-        return;
-      }
       setPricingSaving(true);
       setError("");
       try {
         await modelUsageApi.upsertPricingOverride({
-          workspaceId,
           provider: input.provider,
           model: input.model,
           currency: input.currency,
@@ -200,24 +172,21 @@ export function useUsageDashboardController({ workspaceId }: UseUsageDashboardCo
         setPricingSaving(false);
       }
     },
-    [loadDashboard, workspaceId],
+    [loadDashboard],
   );
 
   useEffect(() => {
-    if (!workspaceId) {
-      return;
-    }
     void refreshAll();
-  }, [refreshAll, workspaceId]);
+  }, [refreshAll]);
 
   useEffect(() => {
-    if (!syncJob || syncJob.status !== "running" || !workspaceId) {
+    if (!syncJob || syncJob.status !== "running" ) {
       return;
     }
     let stopped = false;
     const timer = window.setInterval(() => {
       void modelUsageApi
-        .syncProgress({ workspaceId, jobId: syncJob.jobId })
+        .syncProgress({ jobId: syncJob.jobId })
         .then((next) => {
           if (stopped) {
             return;
@@ -245,7 +214,7 @@ export function useUsageDashboardController({ workspaceId }: UseUsageDashboardCo
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [refreshAll, syncJob, workspaceId]);
+  }, [refreshAll, syncJob]);
 
   const agentOptions = useMemo(() => {
     const set = new Set<string>();
