@@ -1,5 +1,4 @@
 import type {
-  ModelUsageCurrency,
   ModelUsageDashboardResult,
   ModelUsageStatus,
   ModelUsageSyncJobSnapshot,
@@ -16,18 +15,29 @@ export function formatInteger(value: number) {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 }).format(value);
 }
 
+export function formatTokenAmount(value: number) {
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    return `${formatFixed2(value / 1_000_000)}M`;
+  }
+  if (abs >= 1_000) {
+    return `${formatFixed2(value / 1_000)}K`;
+  }
+  return formatDecimal(value, 2);
+}
+
+function formatFixed2(value: number) {
+  return new Intl.NumberFormat("zh-CN", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 export function formatDecimal(value: number, digits = 4) {
   return new Intl.NumberFormat("zh-CN", {
     minimumFractionDigits: 0,
     maximumFractionDigits: digits,
   }).format(value);
-}
-
-export function formatCurrency(value: number, currency: ModelUsageCurrency) {
-  if (currency === "CNY") {
-    return `¥${formatDecimal(value, 2)}`;
-  }
-  return `$${formatDecimal(value, 2)}`;
 }
 
 export function formatTimestamp(timestamp: string) {
@@ -38,11 +48,14 @@ export function formatTimestamp(timestamp: string) {
   return date.toLocaleString("zh-CN", { hour12: false });
 }
 
-export function formatOptionalInteger(value: number | null | undefined) {
+export function formatDurationMs(value: number | null | undefined) {
   if (value === null || value === undefined) {
     return "-";
   }
-  return formatInteger(value);
+  if (value >= 1_000) {
+    return `${formatDecimal(value / 1_000, 2)}s`;
+  }
+  return `${formatInteger(value)}ms`;
 }
 
 export function formatUsageRange(days: number, l: (zh: string, en: string) => string) {

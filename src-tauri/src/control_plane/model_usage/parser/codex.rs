@@ -1,3 +1,4 @@
+use chrono::DateTime;
 use serde_json::Value;
 
 use super::{
@@ -17,7 +18,10 @@ pub(super) struct CodexSessionParseState {
     current_model: String,
     prev_total: Option<CumulativeTokens>,
     event_index: u64,
+    last_token_count_at_ms: Option<i64>,
 }
+
+const MAX_DERIVED_DURATION_MS: i64 = 30 * 60 * 1000;
 
 pub(super) fn extract_session_usage_event(
     value: &Value,
@@ -97,6 +101,7 @@ fn extract_token_count_event(
         state.current_model.clone()
     };
     let called_at = find_first_string(value, &["timestamp"]).unwrap_or_else(now_rfc3339);
+    let total_duration_ms = derive_duration_ms(&called_at, state);
 
     Some(ExtractedModelUsageEvent {
         called_at,
@@ -105,10 +110,30 @@ fn extract_token_count_event(
         status: STATUS_SUCCESS.to_string(),
         input_tokens: Some(delta.input_tokens),
         output_tokens: Some(delta.output_tokens),
+        total_duration_ms,
+        first_token_ms: None,
         request_id: Some(format!("codex_session:{session_id}:{}", state.event_index)),
         attempt_key: None,
         session_id: Some(session_id),
     })
+}
+
+fn derive_duration_ms(called_at: &str, state: &mut CodexSessionParseState) -> Option<i64> {
+    let current_ms = DateTime::parse_from_rfc3339(called_at)
+        .ok()
+        .map(|time| time.timestamp_millis());
+    let duration_ms = match (state.last_token_count_at_ms, current_ms) {
+        (Some(previous_ms), Some(current_ms)) if current_ms > previous_ms => {
+            Some(current_ms - previous_ms)
+        }
+        _ => None,
+    };
+
+    if let Some(current_ms) = current_ms {
+        state.last_token_count_at_ms = Some(current_ms);
+    }
+
+    duration_ms.filter(|value| *value <= MAX_DERIVED_DURATION_MS)
 }
 
 fn parse_cumulative_tokens(value: &Value) -> Option<CumulativeTokens> {

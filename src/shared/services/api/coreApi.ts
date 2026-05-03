@@ -7,11 +7,6 @@ import type {
   ChannelApiTestCaseDeleteInput,
   ChannelApiTestCasesQueryInput,
   ChannelApiTestCaseUpsertInput,
-  ModelPricingOverrideUpsertInput,
-  ModelPricingQueryInput,
-  ModelPricingQueryResult,
-  ModelPricingSyncInput,
-  ModelPricingSyncResult,
   ModelUsageDashboardQueryInput,
   ModelUsageDashboardResult,
   ModelUsageRequestLogsQueryInput,
@@ -152,12 +147,6 @@ export const modelUsageApi = {
     invokeCommand("model_usage_query_dashboard", { input: withoutWorkspaceId(input as unknown as Record<string, unknown>) }),
   queryRequestLogs: (input: ModelUsageRequestLogsQueryInput): Promise<ModelUsageRequestLogsResult> =>
     invokeCommand("model_usage_query_request_logs", { input: withoutWorkspaceId(input as unknown as Record<string, unknown>) }),
-  syncPricing: (input: ModelPricingSyncInput): Promise<ModelPricingSyncResult> =>
-    invokeCommand("model_pricing_sync_trigger", { input: withoutWorkspaceId(input as unknown as Record<string, unknown>) }),
-  queryPricing: (input: ModelPricingQueryInput): Promise<ModelPricingQueryResult> =>
-    invokeCommand("model_pricing_query", { input: withoutWorkspaceId(input as unknown as Record<string, unknown>) }),
-  upsertPricingOverride: (input: ModelPricingOverrideUpsertInput) =>
-    invokeCommand("model_pricing_override_upsert", { input: withoutWorkspaceId(input as unknown as Record<string, unknown>) }),
 };
 
 export const channelApiTestApi = {

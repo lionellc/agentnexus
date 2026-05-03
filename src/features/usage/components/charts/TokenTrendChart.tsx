@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import * as echarts from "echarts";
 
 import type { ModelUsageDashboardResult } from "../../../../shared/types";
+import { formatTokenAmount } from "../../utils/usageFormat";
 
 type TokenTrendChartProps = {
   l: (zh: string, en: string) => string;
@@ -32,7 +33,10 @@ export function TokenTrendChart({ l, rows }: TokenTrendChartProps) {
         },
         yAxis: {
           type: "value",
-          axisLabel: { color: "#64748b" },
+          axisLabel: {
+            color: "#64748b",
+            formatter: (value: number) => formatTokenAmount(value),
+          },
         },
         series: [
           {

@@ -1,19 +1,18 @@
 import { useEffect, useRef } from "react";
 import * as echarts from "echarts";
 
-import type { ModelUsageCurrency, ModelUsageDashboardResult } from "../../../../shared/types";
+import type { ModelUsageDashboardResult } from "../../../../shared/types";
+import { formatTokenAmount } from "../../utils/usageFormat";
 
-type ModelCostDistributionChartProps = {
+type ModelTokenDistributionChartProps = {
   l: (zh: string, en: string) => string;
-  rows: ModelUsageDashboardResult["trends"]["modelCostDistribution"];
-  currency: ModelUsageCurrency;
+  rows: ModelUsageDashboardResult["trends"]["modelTokenDistribution"];
 };
 
-export function ModelCostDistributionChart({
+export function ModelTokenDistributionChart({
   l,
   rows,
-  currency,
-}: ModelCostDistributionChartProps) {
+}: ModelTokenDistributionChartProps) {
   const chartRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -34,7 +33,7 @@ export function ModelCostDistributionChart({
           type: "value",
           axisLabel: {
             color: "#64748b",
-            formatter: (value: number) => (currency === "CNY" ? `¥${value.toFixed(2)}` : `$${value.toFixed(2)}`),
+            formatter: (value: number) => formatTokenAmount(value),
           },
         },
         yAxis: {
@@ -45,7 +44,7 @@ export function ModelCostDistributionChart({
         series: [
           {
             type: "bar",
-            data: top.map((item) => (currency === "CNY" ? item.costCny : item.costUsd)),
+            data: top.map((item) => item.tokens),
           },
         ],
       });
@@ -58,11 +57,11 @@ export function ModelCostDistributionChart({
       window.removeEventListener("resize", handleResize);
       chart?.dispose();
     };
-  }, [currency, rows]);
+  }, [rows]);
 
   return (
     <div className="rounded-lg border border-border bg-card p-3">
-      <h3 className="mb-2 text-sm font-semibold text-slate-900">{l("模型成本分布", "Model Cost Distribution")}</h3>
+      <h3 className="mb-2 text-sm font-semibold text-slate-900">{l("模型 Token 分布", "Model Token Distribution")}</h3>
       <div ref={chartRef} className="h-56 w-full" />
     </div>
   );

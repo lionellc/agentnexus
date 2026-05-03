@@ -282,6 +282,8 @@ pub(super) const INITIAL_SCHEMA_SQL: &str = r#"
             status TEXT NOT NULL,
             input_tokens INTEGER,
             output_tokens INTEGER,
+            total_duration_ms INTEGER,
+            first_token_ms INTEGER,
             total_tokens INTEGER NOT NULL DEFAULT 0,
             is_complete INTEGER NOT NULL DEFAULT 0,
             source TEXT NOT NULL,
@@ -328,48 +330,6 @@ pub(super) const INITIAL_SCHEMA_SQL: &str = r#"
 
         CREATE INDEX IF NOT EXISTS idx_model_call_parse_failures_created_at
             ON model_call_parse_failures(created_at DESC);
-
-        CREATE TABLE IF NOT EXISTS model_pricing_snapshots (
-            id TEXT PRIMARY KEY,
-            workspace_id TEXT NOT NULL,
-            provider TEXT NOT NULL,
-            model TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            input_cost_per_million REAL NOT NULL,
-            output_cost_per_million REAL NOT NULL,
-            effective_from TEXT NOT NULL,
-            snapshot_version TEXT NOT NULL,
-            source TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            UNIQUE(workspace_id, provider, model, currency, effective_from),
-            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_model_pricing_snapshots_workspace_model_effective
-            ON model_pricing_snapshots(workspace_id, provider, model, currency, effective_from DESC);
-
-        CREATE TABLE IF NOT EXISTS model_pricing_overrides (
-            id TEXT PRIMARY KEY,
-            workspace_id TEXT NOT NULL,
-            provider TEXT NOT NULL,
-            model TEXT NOT NULL,
-            currency TEXT NOT NULL,
-            input_cost_per_million REAL NOT NULL,
-            output_cost_per_million REAL NOT NULL,
-            updated_at TEXT NOT NULL,
-            UNIQUE(workspace_id, provider, model, currency),
-            FOREIGN KEY(workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
-        );
-
-        CREATE TABLE IF NOT EXISTS fx_snapshots (
-            id TEXT PRIMARY KEY,
-            base_currency TEXT NOT NULL,
-            quote_currency TEXT NOT NULL,
-            rate REAL NOT NULL,
-            source TEXT NOT NULL,
-            fetched_at TEXT NOT NULL,
-            UNIQUE(base_currency, quote_currency, fetched_at)
-        );
 
         CREATE TABLE IF NOT EXISTS audit_events (
             id TEXT PRIMARY KEY,

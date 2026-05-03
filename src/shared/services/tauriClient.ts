@@ -62,11 +62,6 @@ import type {
   PromptTranslationRetranslateInput,
   PromptTranslationRunInput,
   PromptUpdateInput,
-  ModelPricingOverrideUpsertInput,
-  ModelPricingQueryInput,
-  ModelPricingQueryResult,
-  ModelPricingSyncInput,
-  ModelPricingSyncResult,
   ModelUsageDashboardQueryInput,
   ModelUsageDashboardResult,
   ModelUsageRequestLogsQueryInput,
@@ -401,27 +396,6 @@ type CommandMap = {
   model_usage_query_request_logs: {
     args: { input: ModelUsageRequestLogsQueryInput };
     result: ModelUsageRequestLogsResult;
-  };
-  model_pricing_sync_trigger: {
-    args: { input: ModelPricingSyncInput };
-    result: ModelPricingSyncResult;
-  };
-  model_pricing_query: {
-    args: { input: ModelPricingQueryInput };
-    result: ModelPricingQueryResult;
-  };
-  model_pricing_override_upsert: {
-    args: { input: ModelPricingOverrideUpsertInput };
-    result: {
-      workspaceId: string;
-      provider: string;
-      model: string;
-      currency: string;
-      inputCostPerMillion: number;
-      outputCostPerMillion: number;
-      updatedAt: string;
-      source: string;
-    };
   };
   channel_test_run: {
     args: { input: ChannelApiTestRunInput };
