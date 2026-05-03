@@ -171,7 +171,10 @@ mod openai;
 mod persistence;
 mod probes;
 mod query;
+mod report;
+mod runner;
 mod sampling;
+mod validation;
 
 pub use api::{
     channel_test_case_delete, channel_test_case_upsert, channel_test_cases_list,

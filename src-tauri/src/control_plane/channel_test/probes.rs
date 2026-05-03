@@ -1,4 +1,4 @@
-use super::api::run_protocol;
+use super::runner::run_protocol;
 use super::*;
 
 pub(super) fn run_probe(

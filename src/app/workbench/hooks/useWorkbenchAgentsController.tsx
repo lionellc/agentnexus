@@ -3,6 +3,8 @@ import { useAgentRulesStore } from "../../../shared/stores";
 import { useAgentVersionsCompare } from "./useAgentVersionsCompare";
 import type { UseWorkbenchAgentsControllerInput } from "./useWorkbenchAgentsController.types";
 import { useWorkbenchAgentsModuleView } from "./useWorkbenchAgentsModuleView";
+import { createWorkbenchAgentAssetActions } from "./useWorkbenchAgentAssetActions";
+import { createWorkbenchAgentRefreshAction } from "./useWorkbenchAgentRefreshAction";
 import type { AgentRuleAccessTarget } from "../../../shared/types";
 const AGENT_RULES_PAGE_SIZE = 8;
 
@@ -290,96 +292,26 @@ export function useWorkbenchAgentsController({
       });
     }
   }
-  async function handleDeleteAgentRuleAsset(
-    assetId: string,
-    assetName: string,
-  ) {
-    if (!activeWorkspaceId) {
-      toast({ title: projectBootingMessage, variant: "destructive" });
-      return;
-    }
-    try {
-      await deleteAgentAsset(activeWorkspaceId, assetId);
-      setDeleteConfirmAssetId(null);
-      if (selectedAssetId === assetId) {
-        setAgentRuleEditorModalOpen(false);
-      }
-      toast({
-        title: l("删除成功", "Deleted"),
-        description: l(`${assetName} 已删除`, `${assetName} deleted`),
-      });
-    } catch (error) {
-      toast({
-        title: l("删除失败", "Delete failed"),
-        description:
-          error instanceof Error
-            ? error.message
-            : l("未知错误", "Unknown error"),
-        variant: "destructive",
-      });
-    }
-  }
-  async function handleSaveAgentRuleVersion() {
-    if (!activeWorkspaceId) {
-      toast({ title: projectBootingMessage, variant: "destructive" });
-      return;
-    }
-    const nextTitle = agentAssetNameInput.trim();
-    if (!nextTitle) {
-      toast({
-        title: l("请输入规则文件名称", "Please enter a rule file name"),
-        variant: "destructive",
-      });
-      return;
-    }
-    try {
-      if (!selectedAgentAsset || creatingAgentAsset) {
-        const created = await createAgentAsset(
-          activeWorkspaceId,
-          nextTitle,
-          agentEditorContent,
-        );
-        setCreatingAgentAsset(false);
-        setSelectedAssetId(created.id);
-        setAgentRuleEditorModalOpen(false);
-        toast({
-          title: l("规则文件已创建", "Rule file created"),
-          description: l(
-            `${created.name} 已创建并生成首个版本`,
-            `${created.name} created with the first version`,
-          ),
-        });
-        return;
-      }
-      if (nextTitle !== selectedAgentAsset.name) {
-        await renameAgentAsset(
-          activeWorkspaceId,
-          selectedAgentAsset.id,
-          nextTitle,
-        );
-      }
-      const version = await publishAgentVersion(
-        selectedAgentAsset.id,
-        agentEditorContent,
-      );
-      toast({
-        title: l("保存成功", "Saved"),
-        description: l(
-          `${nextTitle} 已生成版本 ${version.version}`,
-          `${nextTitle} generated version ${version.version}`,
-        ),
-      });
-    } catch (error) {
-      toast({
-        title: l("保存失败", "Save failed"),
-        description:
-          error instanceof Error
-            ? error.message
-            : l("未知错误", "Unknown error"),
-        variant: "destructive",
-      });
-    }
-  }
+  const { handleDeleteAgentRuleAsset, handleSaveAgentRuleVersion } =
+    createWorkbenchAgentAssetActions({
+      activeWorkspaceId,
+      projectBootingMessage,
+      selectedAssetId,
+      selectedAgentAsset,
+      creatingAgentAsset,
+      agentAssetNameInput,
+      agentEditorContent,
+      setCreatingAgentAsset,
+      setSelectedAssetId,
+      setAgentRuleEditorModalOpen,
+      setDeleteConfirmAssetId,
+      createAgentAsset,
+      renameAgentAsset,
+      deleteAgentAsset,
+      publishAgentVersion,
+      l,
+      toast,
+    });
   async function handleRunAgentDistribution() {
     if (!activeWorkspaceId) {
       toast({ title: projectBootingMessage, variant: "destructive" });
@@ -467,120 +399,17 @@ export function useWorkbenchAgentsController({
       });
     }
   }
-  async function handleRefreshAgentModule() {
-    if (!activeWorkspaceId) {
-      toast({ title: projectBootingMessage, variant: "destructive" });
-      return;
-    }
-    try {
-      await loadAgentModuleData(activeWorkspaceId);
+  const handleRefreshAgentModule = createWorkbenchAgentRefreshAction({
+    activeWorkspaceId,
+    projectBootingMessage,
+    loadAgentModuleData: async (workspaceId: string) => {
+      await loadAgentModuleData(workspaceId);
       setDeleteConfirmAssetId(null);
-      const latestState = useAgentRulesStore.getState();
-      const boundAssetIds = latestState.assets
-        .filter((asset) => {
-          const tags = latestState.tagsByAsset[asset.id] ?? asset.tags ?? [];
-          return tags.length > 0;
-        })
-        .map((asset) => asset.id)
-        .filter(Boolean);
-      if (boundAssetIds.length === 0) {
-        toast({
-          title: l("规则检查完成", "Rule check complete"),
-          description: l(
-            "暂无已应用的规则，已刷新列表。",
-            "No applied rules yet. List refreshed.",
-          ),
-        });
-        return;
-      }
-      const driftResults = await Promise.allSettled(
-        boundAssetIds.map((assetId) =>
-          refreshAgentAsset(activeWorkspaceId, assetId),
-        ),
-      );
-      await loadAgentModuleData(activeWorkspaceId);
-      const failedCount = driftResults.filter(
-        (result) => result.status === "rejected",
-      ).length;
-      const byAgent = new Map<
-        string,
-        { clean: number; drifted: number; error: number; other: number }
-      >();
-      for (const result of driftResults) {
-        if (result.status !== "fulfilled") {
-          continue;
-        }
-        const records = Array.isArray(
-          (result.value as { records?: unknown[] } | null)?.records,
-        )
-          ? ((result.value as { records?: unknown[] }).records ?? [])
-          : [];
-        for (const raw of records) {
-          const row = (raw ?? {}) as Record<string, unknown>;
-          const agent = String(
-            row.agentType ?? row.agent_type ?? row.targetId ?? "unknown",
-          );
-          const status = String(row.status ?? "");
-          const stat = byAgent.get(agent) ?? {
-            clean: 0,
-            drifted: 0,
-            error: 0,
-            other: 0,
-          };
-          if (status === "clean") {
-            stat.clean += 1;
-          } else if (status === "drifted") {
-            stat.drifted += 1;
-          } else if (status === "error") {
-            stat.error += 1;
-          } else {
-            stat.other += 1;
-          }
-          byAgent.set(agent, stat);
-        }
-      }
-      const summary = Array.from(byAgent.entries())
-        .map(([agent, stat]) => {
-          if (stat.error > 0) {
-            return l(`${agent} 检查异常`, `${agent} check error`);
-          }
-          if (stat.drifted > 0) {
-            return l(`${agent} 检测到规则变更`, `${agent} drift detected`);
-          }
-          if (stat.clean > 0) {
-            return l(`${agent} 正常`, `${agent} clean`);
-          }
-          return l(`${agent} 已检查`, `${agent} checked`);
-        })
-        .join(l("，", ", "));
-      const failedPart =
-        failedCount > 0
-          ? l(
-              `。有 ${failedCount} 个规则检查失败，可重试。`,
-              `. ${failedCount} rule checks failed and can be retried.`,
-            )
-          : "";
-      const description = `${
-        summary
-          ? l(`规则检查完成：${summary}`, `Rule check complete: ${summary}`)
-          : l("规则检查完成。", "Rule check complete.")
-      }${failedPart}`;
-      toast({
-        title: l("规则检查完成", "Rule check complete"),
-        description,
-        variant: failedCount > 0 ? "destructive" : "default",
-      });
-    } catch (error) {
-      toast({
-        title: l("刷新失败", "Refresh failed"),
-        description:
-          error instanceof Error
-            ? error.message
-            : l("未知错误", "Unknown error"),
-        variant: "destructive",
-      });
-    }
-  }
+    },
+    refreshAgentAsset,
+    l,
+    toast,
+  });
   const { module } = useWorkbenchAgentsModuleView({
     l,
     isZh,

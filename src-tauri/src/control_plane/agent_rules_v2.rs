@@ -2,9 +2,11 @@ use serde::{Deserialize, Serialize};
 
 mod api;
 mod apply;
+mod connection_defaults;
 mod normalize;
 mod permissions;
 mod publish;
+mod status_summary;
 
 pub use api::{
     agent_connection_delete, agent_connection_list, agent_connection_preview,
