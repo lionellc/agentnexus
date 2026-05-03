@@ -1,7 +1,6 @@
+import { Button, Card } from "@douyinfe/semi-ui-19";
 import { Input } from "@douyinfe/semi-ui-19";
 import { RefreshCw } from "lucide-react";
-
-import { Button, Card, CardContent, CardHeader, CardTitle } from "../../../shared/ui";
 
 export type PromptTranslationItem = {
   id: string;
@@ -19,7 +18,7 @@ export function PromptTranslationPanel({
   targetLanguage,
   onTargetLanguageChange,
   runLoading,
-  applyMode,
+  applyMode: _applyMode,
   onApplyModeChange,
   onRunTranslation,
   onRefresh,
@@ -52,16 +51,16 @@ export function PromptTranslationPanel({
 
   return (
     <Card>
-      <CardHeader className="space-y-2">
+      <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <CardTitle>{isZh ? "翻译侧栏" : "Translation"}</CardTitle>
-          <Button size="sm" variant="outline" onClick={onRefresh} disabled={loading}>
+          <h3>{isZh ? "翻译侧栏" : "Translation"}</h3>
+          <Button onClick={onRefresh} disabled={loading}>
             <RefreshCw className={`mr-1 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             {isZh ? "刷新" : "Refresh"}
           </Button>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      </div>
+      <div className="space-y-3 text-sm">
         <label className="block text-xs text-slate-500">
           {isZh ? "目标语言" : "Target Language"}
           <Input
@@ -75,15 +74,11 @@ export function PromptTranslationPanel({
           {isZh ? "应用模式" : "Apply Mode"}
           <div className="mt-1 grid grid-cols-2 gap-2">
             <Button
-              size="sm"
-              variant={applyMode === "immersive" ? "default" : "outline"}
               onClick={() => onApplyModeChange("immersive")}
             >
               {isZh ? "沉浸式" : "Immersive"}
             </Button>
             <Button
-              size="sm"
-              variant={applyMode === "overwrite" ? "default" : "outline"}
               onClick={() => onApplyModeChange("overwrite")}
             >
               {isZh ? "覆盖原文" : "Overwrite"}
@@ -106,8 +101,7 @@ export function PromptTranslationPanel({
                 return (
                   <Button
                     key={item.id}
-                    type="button"
-                    variant="outline"
+                    htmlType="button"
                     className={`h-auto w-full justify-start px-2 py-2 text-left text-xs ${
                       active
                         ? "border-blue-300 bg-blue-50 text-blue-700"
@@ -132,14 +126,14 @@ export function PromptTranslationPanel({
             </div>
 
             <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={onRetranslate}>
+              <Button onClick={onRetranslate}>
                 {isZh ? "重翻译" : "Retranslate"}
               </Button>
-              <Button size="sm" variant="outline" onClick={onApplyOverwrite}>
+              <Button onClick={onApplyOverwrite}>
                 {isZh ? "应用为原文" : "Use as Source"}
               </Button>
             </div>
-            <Button size="sm" className="w-full" variant="outline" onClick={onApplyImmersive}>
+            <Button className="w-full" onClick={onApplyImmersive}>
               {isZh ? "沉浸式预览" : "Immersive Preview"}
             </Button>
           </div>
@@ -151,7 +145,7 @@ export function PromptTranslationPanel({
             <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words">{immersivePreview}</pre>
           </div>
         ) : null}
-      </CardContent>
+      </div>
     </Card>
   );
 }

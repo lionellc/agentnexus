@@ -1,6 +1,5 @@
+import { Button } from "@douyinfe/semi-ui-19";
 import { useEffect, useRef } from "react";
-
-import { Button } from "../../shared/ui";
 
 type RichTextEditorLanguage = "zh" | "en";
 
@@ -55,27 +54,25 @@ export function RichTextEditor({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-2">
-        <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("bold")}>
+        <Button htmlType="button" onClick={() => applyCommand("bold")}>
           {effectiveLabels.bold}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("italic")}>
+        <Button htmlType="button" onClick={() => applyCommand("italic")}>
           {effectiveLabels.italic}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("underline")}>
+        <Button htmlType="button" onClick={() => applyCommand("underline")}>
           {effectiveLabels.underline}
         </Button>
         <Button
-          type="button"
-          size="sm"
-          variant="outline"
+          htmlType="button"
           onClick={() => applyCommand("insertUnorderedList")}
         >
           {effectiveLabels.unorderedList}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("formatBlock", "h2")}>
+        <Button htmlType="button" onClick={() => applyCommand("formatBlock", "h2")}>
           {effectiveLabels.heading}
         </Button>
-        <Button type="button" size="sm" variant="outline" onClick={() => applyCommand("formatBlock", "p")}>
+        <Button htmlType="button" onClick={() => applyCommand("formatBlock", "p")}>
           {effectiveLabels.paragraph}
         </Button>
       </div>

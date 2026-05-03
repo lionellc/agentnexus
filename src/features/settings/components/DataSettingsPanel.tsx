@@ -1,23 +1,6 @@
+import { Button, Card, Select, Modal } from "@douyinfe/semi-ui-19";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Input } from "@douyinfe/semi-ui-19";
-
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DirectoryPathField,
-  FormField,
-  FormFieldset,
-  FormLabel,
-  Select,
-} from "../../../shared/ui";
 
 import { AgentConnectionsSection } from "./data-settings/AgentConnectionsSection";
 import { CreateTargetDialog } from "./data-settings/CreateTargetDialog";
@@ -216,34 +199,39 @@ export function DataSettingsPanel({
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader>
-          <CardTitle>{l("存储位置", "Storage")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        <div>
+          <h3>{l("存储位置", "Storage")}</h3>
+        </div>
+        <div className="space-y-3 text-sm">
           <div className="text-xs text-slate-500">
             {l(
               "应用首次启动会自动初始化默认目录；你也可以手动改为其它绝对路径。",
               "The app initializes a default directory on first launch. You can also set another absolute path.",
             )}
           </div>
-          <DirectoryPathField
-            label={l("目录路径（绝对路径）", "Directory Path (Absolute)")}
-            value={storageDirDraft}
-            onChange={onStorageDirDraftChange}
-            placeholder="/Users/you/Library/Application Support/agentnexus"
-            onPickDirectory={onPickStorageDirectory}
-            pickButtonLabel={l("选择文件夹", "Choose Folder")}
-          />
+          <div>
+                <label>{l("目录路径（绝对路径）", "Directory Path (Absolute)")}</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={storageDirDraft}
+                    onChange={onStorageDirDraftChange}
+                    placeholder="/Users/you/Library/Application Support/agentnexus"
+                  />
+                  <Button type="tertiary" onClick={onPickStorageDirectory}>
+                    {l("选择文件夹", "Choose Folder")}
+                  </Button>
+                </div>
+              </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={onSaveStorageDirectory}>{l("保存目录", "Save")}</Button>
-            <Button variant="outline" onClick={onUseDefaultStorageDirectory}>
+            <Button theme="solid" type="primary" onClick={onSaveStorageDirectory}>{l("保存目录", "Save")}</Button>
+            <Button type="tertiary" onClick={onUseDefaultStorageDirectory}>
               {l("使用默认目录", "Use Default")}
             </Button>
-            <Button variant="outline" onClick={onOpenStorageDirectoryInFinder}>
+            <Button type="tertiary" onClick={onOpenStorageDirectoryInFinder}>
               {l("在 Finder 中打开", "Open in Finder")}
             </Button>
           </div>
-        </CardContent>
+        </div>
       </Card>
 
       <TargetsSection
@@ -290,55 +278,52 @@ export function DataSettingsPanel({
         }}
       />
 
-      <Dialog
-        open={Boolean(editingTargetId && editDraft)}
-        onOpenChange={(open) => {
-          if (open || !editingTargetId) {
-            return;
-          }
-          onCancelDistributionTargetEdit(editingTargetId);
-          setEditingTargetId(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{l("编辑目标", "Edit Target")}</DialogTitle>
-          </DialogHeader>
+      <Modal visible={Boolean(editingTargetId && editDraft)} onCancel={() => { if (!editingTargetId) return; onCancelDistributionTargetEdit(editingTargetId); setEditingTargetId(null); }} footer={null} title={null} width={680}>
+        <div className="space-y-6 px-1 pb-1 pt-1">
+          <div className="pr-10">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{l("编辑目标", "Edit Target")}</h2>
+          </div>
           {editingTargetId && editDraft ? (
-            <FormFieldset className="space-y-3 text-sm">
-              <FormField>
-                <FormLabel>{l("名称", "Name")}</FormLabel>
+            <div className="grid gap-5 text-sm">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{l("名称", "Name")}</label>
                 <Input
                   value={editDraft.platform}
                   onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "platform", value)}
                   placeholder=".codex"
                 />
-              </FormField>
-              <FormField>
-                <FormLabel>{l("安装模式", "Install Mode")}</FormLabel>
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{l("安装模式", "Install Mode")}</label>
                 <Select
+                  className="w-44"
                   value={editDraft.installMode}
-                  onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "installMode", value)}
-                  options={[
+                  onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "installMode", String(value ?? ""))}
+                  optionList={[
                     { value: "copy", label: "copy" },
                     { value: "symlink", label: "symlink" },
                   ]}
                 />
-              </FormField>
-              <DirectoryPathField
-                label={l("目标目录", "Target Directory")}
-                value={editDraft.targetPath}
-                onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "targetPath", value)}
-                placeholder="/Users/you/.codex"
-                onPickDirectory={() => onPickDistributionTargetDirectory(editingTargetId)}
-                pickButtonLabel={l("从 Finder 选择文件夹", "Choose Folder in Finder")}
-                disabled={distributionTargetSavingId === editingTargetId}
-              />
-            </FormFieldset>
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{l("目标目录", "Target Directory")}</label>
+                <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+                  <Input
+                    value={editDraft.targetPath}
+                    onChange={(value) => onDistributionTargetFieldChange(editingTargetId, "targetPath", value)}
+                    placeholder="/Users/you/.codex"
+                    disabled={distributionTargetSavingId === editingTargetId}
+                  />
+                  <Button className="whitespace-nowrap" type="tertiary" onClick={() => onPickDistributionTargetDirectory(editingTargetId)} disabled={distributionTargetSavingId === editingTargetId}>
+                    {l("从 Finder 选择文件夹", "Choose Folder in Finder")}
+                  </Button>
+                </div>
+              </div>
+            </div>
           ) : null}
-          <DialogFooter>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
             <Button
-              variant="outline"
+              type="tertiary"
               onClick={() => {
                 if (!editingTargetId) {
                   return;
@@ -351,6 +336,8 @@ export function DataSettingsPanel({
               {l("取消", "Cancel")}
             </Button>
             <Button
+              theme="solid"
+              type="primary"
               onClick={() => {
                 if (!editingTargetId) {
                   return;
@@ -361,67 +348,63 @@ export function DataSettingsPanel({
             >
               {distributionTargetSavingId === editingTargetId ? l("保存中...", "Saving...") : l("保存", "Save")}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </Modal>
 
-      <Dialog
-        open={Boolean(editingAgentPlatform && editingAgent)}
-        onOpenChange={(open) => {
-          if (open || !editingAgentPlatform) {
-            return;
-          }
-          onCancelAgentConnectionEdit(editingAgentPlatform);
-          setEditingAgentPlatform(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{l("编辑 Agent", "Edit Agent")}</DialogTitle>
-          </DialogHeader>
+      <Modal visible={Boolean(editingAgentPlatform && editingAgent)} onCancel={() => { if (!editingAgentPlatform) return; onCancelAgentConnectionEdit(editingAgentPlatform); setEditingAgentPlatform(null); }} footer={null} title={null}>
+        <div>
+          <div>
+            <h2>{l("编辑 Agent", "Edit Agent")}</h2>
+          </div>
           {editingAgentPlatform && editingAgent ? (
-            <FormFieldset className="space-y-3 text-sm">
-              <FormField>
-                <FormLabel>{l("平台", "Platform")}</FormLabel>
+            <div className="space-y-3 text-sm">
+              <div>
+                <label>{l("平台", "Platform")}</label>
                 <Input value={editingAgent.displayName} disabled />
-              </FormField>
-              <DirectoryPathField
-                label={l("Global Config 目录（绝对路径）", "Global Config Directory (Absolute Path)")}
-                value={editingAgent.rootDir}
-                onChange={(value) => onAgentConnectionFieldChange(editingAgentPlatform, "rootDir", value)}
-                placeholder="/Users/you/.codex"
-                onPickDirectory={() => onPickAgentConnectionRootDir(editingAgentPlatform)}
-                pickButtonLabel={l("选择", "Choose")}
+              </div>
+              <div>
+                <label>{l("Global Config 目录（绝对路径）", "Global Config Directory (Absolute Path)")}</label>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={editingAgent.rootDir}
+                    onChange={(value) => onAgentConnectionFieldChange(editingAgentPlatform, "rootDir", value)}
+                    placeholder="/Users/you/.codex"
                 disabled={agentConnectionSavingId === editingAgentPlatform}
-              />
-              <FormField>
-                <FormLabel>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</FormLabel>
+                  />
+                  <Button type="tertiary" onClick={() => onPickAgentConnectionRootDir(editingAgentPlatform)} disabled={agentConnectionSavingId === editingAgentPlatform}>
+                    {l("选择", "Choose")}
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <label>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</label>
                 <Input
                   value={editingAgent.ruleFile}
                   onChange={(value) => onAgentConnectionFieldChange(editingAgentPlatform, "ruleFile", value)}
                   placeholder="AGENTS.md"
                   disabled={agentConnectionSavingId === editingAgentPlatform}
                 />
-              </FormField>
+              </div>
               <div className="rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-600 dark:border-slate-800">
                 <div>{l("检测状态", "Detection")}: {editingAgent.detectionStatus}</div>
                 <div>{l("目录来源", "Root Source")}: {editingAgent.rootDirSource}</div>
                 <div>{l("规则来源", "Rule Source")}: {editingAgent.ruleFileSource}</div>
               </div>
-            </FormFieldset>
+            </div>
           ) : null}
-          <DialogFooter>
+          <div>
             {editingAgentPlatform ? (
               <>
                 <Button
-                  variant="outline"
+                  type="tertiary"
                   onClick={() => onRedetectAgentConnection(editingAgentPlatform)}
                   disabled={agentConnectionSavingId === editingAgentPlatform}
                 >
                   {l("重新检测", "Redetect")}
                 </Button>
                 <Button
-                  variant="outline"
+                  type="tertiary"
                   onClick={() => onRestoreAgentConnectionDefaults(editingAgentPlatform)}
                   disabled={agentConnectionSavingId === editingAgentPlatform}
                 >
@@ -430,7 +413,7 @@ export function DataSettingsPanel({
               </>
             ) : null}
             <Button
-              variant="outline"
+              type="tertiary"
               onClick={() => {
                 if (!editingAgentPlatform) {
                   return;
@@ -443,6 +426,8 @@ export function DataSettingsPanel({
               {l("取消", "Cancel")}
             </Button>
             <Button
+              theme="solid"
+              type="primary"
               onClick={() => {
                 if (!editingAgentPlatform) {
                   return;
@@ -453,9 +438,9 @@ export function DataSettingsPanel({
             >
               {agentConnectionSavingId === editingAgentPlatform ? l("保存中...", "Saving...") : l("保存", "Save")}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

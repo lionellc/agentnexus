@@ -1,20 +1,7 @@
+import { Button, Select, Modal } from "@douyinfe/semi-ui-19";
 import { useMemo } from "react";
 import { Checkbox } from "@douyinfe/semi-ui-19";
 import { AlertTriangle } from "lucide-react";
-
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FormField,
-  FormFieldset,
-  FormLabel,
-  Select,
-} from "../../../shared/ui";
 import type { AgentRuleAccessCheck } from "../../../shared/types";
 
 type AgentAssetItem = {
@@ -106,25 +93,25 @@ export function AgentDistributionDialog({
   const showAccessNotice = checkingAgentRuleAccess || hasBlockedTargets;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{l("应用规则", "Apply Rule")}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div className="max-w-3xl">
+        <div>
+          <h2>{l("应用规则", "Apply Rule")}</h2>
+          <p>
             {l(
               "确认规则资产与目标 Agent 后立即应用。",
               "Apply immediately after confirming rule asset and target agents.",
             )}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         <div className="space-y-3 text-sm">
-          <FormFieldset>
-            <FormField>
-              <FormLabel>{l("规则资产", "Rule Asset")}</FormLabel>
+          <div>
+            <div>
+              <label>{l("规则资产", "Rule Asset")}</label>
               <Select
                 value={selectedAssetId ?? ""}
-                onChange={(nextValue) => setSelectedAssetId(nextValue || null)}
-                options={[
+                onChange={(nextValue) => setSelectedAssetId(String(nextValue ?? "") || null)}
+                optionList={[
                   {
                     value: "",
                     label: l("请选择规则资产", "Select a rule asset"),
@@ -134,13 +121,13 @@ export function AgentDistributionDialog({
                     label: `${asset.name} · v${asset.latestVersion ?? "-"}`,
                   })),
                 ]}
-                buttonClassName="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
               />
-            </FormField>
-          </FormFieldset>
-          <FormFieldset>
-            <FormField>
-              <FormLabel>{l("目标 Agent", "Target Agents")}</FormLabel>
+            </div>
+          </div>
+          <div>
+            <div>
+              <label>{l("目标 Agent", "Target Agents")}</label>
               {enabledAgentConnections.length === 0 ? (
                 <div className="rounded-md border border-slate-200 px-3 py-2 text-xs text-slate-500">
                   {l(
@@ -194,8 +181,8 @@ export function AgentDistributionDialog({
                   })}
                 </div>
               )}
-            </FormField>
-          </FormFieldset>
+            </div>
+          </div>
           {showAccessNotice ? (
             <div
               className={[
@@ -242,8 +229,8 @@ export function AgentDistributionDialog({
             </div>
           ) : null}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div>
+          <Button onClick={() => onOpenChange(false)}>
             {l("取消", "Cancel")}
           </Button>
           <Button
@@ -259,8 +246,8 @@ export function AgentDistributionDialog({
               ? l("检查中...", "Checking...")
               : l("应用", "Apply")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

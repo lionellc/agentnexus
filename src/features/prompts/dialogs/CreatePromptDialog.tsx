@@ -1,18 +1,6 @@
-import { Input } from "@douyinfe/semi-ui-19";
+import { Button, Input, Modal } from "@douyinfe/semi-ui-19";
 
 import { MarkdownEditor, type MarkdownMode } from "../../common/components/MarkdownEditor";
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FormField,
-  FormFieldset,
-  FormLabel,
-} from "../../../shared/ui";
 
 export type CreatePromptDialogProps = {
   open: boolean;
@@ -54,36 +42,36 @@ export function CreatePromptDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl" size="large">
-        <DialogHeader>
-          <DialogTitle>{isZh ? "新建 Prompt" : "New Prompt"}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null} width={860}>
+      <div className="flex max-h-[82vh] flex-col px-1 pb-1 pt-1">
+        <div className="shrink-0 pr-10">
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{isZh ? "新建 Prompt" : "New Prompt"}</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             {isZh ? "创建并立即加入列表。" : "Create and add it to the list immediately."}
-          </DialogDescription>
-        </DialogHeader>
-        <FormFieldset>
-          <FormField>
-            <FormLabel>{isZh ? "名称" : "Name"}</FormLabel>
+          </p>
+        </div>
+        <div className="mt-5 min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
+          <div className="grid gap-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "名称" : "Name"}</label>
             <Input value={name} onChange={(value) => onNameChange(value)} />
-          </FormField>
-          <FormField>
-            <FormLabel>{isZh ? "内容（Markdown）" : "Content (Markdown)"}</FormLabel>
+          </div>
+          <div className="grid min-h-0 gap-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "内容（Markdown）" : "Content (Markdown)"}</label>
             <MarkdownEditor
               value={content}
               onChange={onContentChange}
-              minHeight={editorMinHeight}
+              minHeight={Math.max(editorMinHeight, 360)}
               placeholder={isZh ? "使用 Markdown 编写 Prompt 内容..." : "Write prompt content with Markdown..."}
               language={language}
               modeLabels={markdownModeLabels}
             />
-          </FormField>
-        </FormFieldset>
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>{isZh ? "取消" : "Cancel"}</Button>
-          <Button disabled={createDisabled} onClick={onCreate}>{isZh ? "创建" : "Create"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </div>
+        <div className="mt-5 flex shrink-0 justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+          <Button type="tertiary" onClick={handleCancel}>{isZh ? "取消" : "Cancel"}</Button>
+          <Button theme="solid" type="primary" disabled={createDisabled} onClick={onCreate}>{isZh ? "创建" : "Create"}</Button>
+        </div>
+      </div>
+    </Modal>
   );
 }

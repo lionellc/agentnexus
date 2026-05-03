@@ -1,7 +1,5 @@
+import { Button, Card } from "@douyinfe/semi-ui-19";
 import { useMemo, useState } from "react";
-import { Tag } from "@douyinfe/semi-ui-19";
-
-import { Button, Card, CardContent, CardHeader, CardTitle } from "../../../shared/ui";
 import type { SkillManagerStatus } from "../../../shared/types";
 
 export type SkillStatusAction = {
@@ -28,22 +26,6 @@ export type SkillStatusPopoverProps = {
 
 function isPendingLinkStatus(status: SkillManagerStatus): boolean {
   return status === "wrong" || status === "directory";
-}
-
-function statusTagColor(status: SkillManagerStatus): "green" | "orange" | "red" | "grey" {
-  if (status === "linked") {
-    return "green";
-  }
-  if (isPendingLinkStatus(status)) {
-    return "orange";
-  }
-  if (status === "manual") {
-    return "orange";
-  }
-  if (status === "blocked") {
-    return "red";
-  }
-  return "grey";
 }
 
 function statusLabel(status: SkillManagerStatus, l: (zh: string, en: string) => string): string {
@@ -92,29 +74,24 @@ export function SkillStatusPopover({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/20 p-4" onClick={() => onOpenChange(false)}>
-      <Card
-        className="w-full max-w-md"
-        onClick={(event) => {
-          event.stopPropagation();
-        }}
-      >
-        <CardHeader className="space-y-3 pb-3">
+      <Card className="w-full max-w-md">
+        <div className="space-y-3 pb-3" onClick={(event) => event.stopPropagation()}>
           <div className="flex items-center justify-between gap-3">
-            <Tag color={statusTagColor(status)} type="light">
+            <span>
               {statusLabel(status, l)}
-            </Tag>
-            <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)} aria-label={l("关闭", "Close")}>
+            </span>
+            <Button onClick={() => onOpenChange(false)} aria-label={l("关闭", "Close")}>
               {l("关闭", "Close")}
             </Button>
           </div>
-          <CardTitle className="text-sm leading-5">
+          <h3 className="text-sm leading-5">
             <span className="font-semibold text-slate-900">{skillName}</span>
             <span className="mx-1 text-slate-400">@</span>
             <span className="font-normal text-slate-600">{targetLabel}</span>
-          </CardTitle>
-        </CardHeader>
+          </h3>
+        </div>
 
-        <CardContent className="space-y-4">
+        <div className="space-y-4">
           <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
             {detailLines.map((line, index) => (
               <p key={`${line}-${index}`} className="text-sm leading-5 text-slate-700">
@@ -128,13 +105,13 @@ export function SkillStatusPopover({
               className="flex-1"
               onClick={primaryAction.onClick}
               disabled={primaryAction.disabled}
-              type="button"
+              htmlType="button"
             >
               {primaryAction.label}
             </Button>
 
             <div className="relative">
-              <Button variant="outline" type="button" onClick={() => setMoreOpen((value) => !value)}>
+              <Button htmlType="button" onClick={() => setMoreOpen((value) => !value)}>
                 {l("更多操作", "More")}
               </Button>
               {moreOpen ? (
@@ -143,8 +120,7 @@ export function SkillStatusPopover({
                     secondaryActions.map((action) => (
                       <Button
                         key={action.key}
-                        type="button"
-                        variant="ghost"
+                        htmlType="button"
                         className="h-auto w-full justify-start px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={() => {
                           action.onClick();
@@ -162,7 +138,7 @@ export function SkillStatusPopover({
               ) : null}
             </div>
           </div>
-        </CardContent>
+        </div>
       </Card>
     </div>
   );

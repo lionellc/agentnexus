@@ -1,4 +1,3 @@
-import { Badge } from "../../../shared/ui";
 import type { ModelUsageDashboardResult, ModelUsageDashboardSummary } from "../../../shared/types";
 import { formatInteger, formatTimestamp } from "../utils/usageFormat";
 
@@ -14,20 +13,20 @@ export function SourceCoverageBar({ l, sourceCoverage, summary }: SourceCoverage
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-xs font-medium text-slate-500">{l("数据可信度", "Data Trust")}</span>
         {sourceCoverage.length === 0 ? (
-          <Badge variant="outline">{l("暂无来源覆盖", "No source coverage")}</Badge>
+          <span>{l("暂无来源覆盖", "No source coverage")}</span>
         ) : (
           sourceCoverage.map((item) => (
-            <Badge key={`${item.source}-${item.status}`} variant={item.status === "failed" ? "destructive" : "secondary"}>
+            <span key={`${item.source}-${item.status}`}>
               {item.source} · {item.status} · {formatInteger(item.count)}
-            </Badge>
+            </span>
           ))
         )}
-        <Badge variant={summary.incompleteCount > 0 ? "outline" : "secondary"}>
+        <span>
           {l("不完整", "Incomplete")} · {formatInteger(summary.incompleteCount)}
-        </Badge>
-        <Badge variant={summary.fxStale ? "outline" : "secondary"}>
+        </span>
+        <span>
           {summary.fxStale ? l("汇率过期", "Stale FX") : l("汇率可用", "FX fresh")}
-        </Badge>
+        </span>
       </div>
       <p className="text-xs text-slate-500">
         {l("来源、完整性和汇率会影响成本可信度；缺 model 或 token 的记录不会被估算进成本。", "Source coverage, completeness, and FX freshness affect cost trust; incomplete records are not estimated into cost.")}

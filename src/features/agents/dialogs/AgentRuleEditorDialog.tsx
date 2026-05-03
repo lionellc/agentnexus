@@ -1,19 +1,8 @@
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import { Input } from "@douyinfe/semi-ui-19";
 import { Save } from "lucide-react";
 
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FormField,
-  FormFieldset,
-  FormLabel,
-} from "../../../shared/ui";
 
 type AgentAssetSummary = {
   name: string;
@@ -73,29 +62,29 @@ export function AgentRuleEditorDialog({
   handleSaveAgentRuleVersion,
 }: AgentRuleEditorDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden" overlayClassName="agent-rule-editor-overlay">
-        <DialogHeader>
-          <DialogTitle>{creatingAgentAsset ? l("创建规则文件", "Create Rule File") : l("规则编辑/预览", "Rule Edit/Preview")}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden">
+        <div>
+          <h2>{creatingAgentAsset ? l("创建规则文件", "Create Rule File") : l("规则编辑/预览", "Rule Edit/Preview")}</h2>
+          <p>
             {creatingAgentAsset
               ? l("新建规则文件", "Create a new rule file")
               : selectedAgentAsset
                 ? `${selectedAgentAsset.name} · v${selectedAgentAsset.latestVersion ?? "-"}`
                 : l("请选择规则文件", "Please select a rule file")}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         <div className="flex-1 space-y-3 overflow-auto pr-1 text-sm">
-          <FormFieldset>
-            <FormField>
-              <FormLabel>{l("规则文件名称", "Rule File Name")}</FormLabel>
+          <div>
+            <div>
+              <label>{l("规则文件名称", "Rule File Name")}</label>
               <Input
                 value={agentAssetNameInput}
                 onChange={(value) => setAgentAssetNameInput(value)}
                 placeholder={l("例如：团队规范A", "e.g. Team Policy A")}
               />
-            </FormField>
-          </FormFieldset>
+            </div>
+          </div>
           {!creatingAgentAsset ? (
             <div className="text-xs text-slate-500">
               {l("最后更新时间", "Last Updated")}: {toLocalTime(selectedAgentAsset?.updatedAt)}
@@ -132,12 +121,11 @@ export function AgentRuleEditorDialog({
             sourceViewModeResetKey={selectedAssetId ?? (creatingAgentAsset ? "new" : "")}
           />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div>
+          <Button onClick={() => onOpenChange(false)}>
             {l("关闭", "Close")}
           </Button>
           <Button
-            variant="outline"
             onClick={() => setAgentDistributionModalOpen(true)}
             disabled={creatingAgentAsset}
           >
@@ -147,8 +135,8 @@ export function AgentRuleEditorDialog({
             <Save className="mr-1 h-4 w-4" />
             {creatingAgentAsset ? l("创建规则文件", "Create Rule File") : l("保存并生成新版本", "Save and Create New Version")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

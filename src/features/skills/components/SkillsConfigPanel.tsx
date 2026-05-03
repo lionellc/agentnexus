@@ -1,12 +1,6 @@
+import { Button, Card } from "@douyinfe/semi-ui-19";
 import { useEffect, useMemo, useState } from "react";
-import { Tag } from "@douyinfe/semi-ui-19";
 import { ChevronRight } from "lucide-react";
-
-import {
-  Button,
-  Card,
-  CardContent,
-} from "../../../shared/ui";
 import type { SkillsManagerDiffEntry, SkillsManagerDiffStatus } from "../../../shared/types";
 
 export type SkillsConfigGroupItem = {
@@ -87,14 +81,14 @@ export function SkillsConfigPanel({
   return (
     <div className="space-y-3">
       <Card>
-        <CardContent className="space-y-3 pt-3">
+        <div className="space-y-3 pt-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-xs text-slate-600">
               {scanPhase === "loading"
                 ? l("扫描进行中...", "Scanning...")
                 : scanMessage || l("扫描后的 skills 会自动导入本项目。", "Scanned skills will be automatically imported into this project.")}
             </div>
-            <Button size="sm" variant="outline" onClick={onScanSkills} disabled={scanPhase === "loading"}>
+            <Button onClick={onScanSkills} disabled={scanPhase === "loading"}>
               {scanPhase === "loading" ? l("扫描中...", "Scanning...") : l("重新扫描", "Rescan")}
             </Button>
           </div>
@@ -130,9 +124,9 @@ export function SkillsConfigPanel({
                   <summary className="list-none cursor-pointer px-3 py-2 text-sm font-medium text-slate-800 marker:content-none [&::-webkit-details-marker]:hidden">
                     <div className="flex items-center gap-2">
                       <span className="min-w-0 truncate">{group.label}</span>
-                      <Tag color="grey" type="light" className="whitespace-nowrap">
+                      <span className="whitespace-nowrap">
                         {group.total} {l("项", "items")} · {group.pendingCount} {l("待处理", "pending")}
-                      </Tag>
+                      </span>
                       <ChevronRight
                         aria-hidden="true"
                         className="ml-auto h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-90"
@@ -145,14 +139,14 @@ export function SkillsConfigPanel({
                         <div className="flex items-center gap-2">
                           <span className="font-medium text-slate-800">{item.name}</span>
                           {item.isSymlink ? (
-                            <Tag color="blue" type="light" size="small">
+                            <span>
                               {l("软链", "Symlink")}
-                            </Tag>
+                            </span>
                           ) : null}
                           {item.conflict ? (
-                            <Tag color="orange" type="light" size="small">
+                            <span>
                               {l("冲突", "Conflict")}
-                            </Tag>
+                            </span>
                           ) : null}
                         </div>
                         <div className="mt-1 truncate text-slate-500" title={item.localPath}>
@@ -170,8 +164,6 @@ export function SkillsConfigPanel({
                         </span>
                         <div className="flex items-center gap-2">
                           <Button
-                            size="sm"
-                            variant="outline"
                             disabled={currentPage <= 1}
                             onClick={() =>
                               setScanGroupItemPageByKey((previous) => ({
@@ -186,8 +178,6 @@ export function SkillsConfigPanel({
                             {currentPage} / {totalItemPages}
                           </span>
                           <Button
-                            size="sm"
-                            variant="outline"
                             disabled={currentPage >= totalItemPages}
                             onClick={() =>
                               setScanGroupItemPageByKey((previous) => ({
@@ -215,8 +205,6 @@ export function SkillsConfigPanel({
                   </span>
                   <div className="flex items-center gap-2">
                     <Button
-                      size="sm"
-                      variant="outline"
                       disabled={scanGroupPage <= 1}
                       onClick={() => setScanGroupPage((previous) => Math.max(1, previous - 1))}
                     >
@@ -226,8 +214,6 @@ export function SkillsConfigPanel({
                       {scanGroupPage} / {totalScanGroupPages}
                     </span>
                     <Button
-                      size="sm"
-                      variant="outline"
                       disabled={scanGroupPage >= totalScanGroupPages}
                       onClick={() => setScanGroupPage((previous) => Math.min(totalScanGroupPages, previous + 1))}
                     >
@@ -238,7 +224,7 @@ export function SkillsConfigPanel({
               ) : null}
             </div>
           )}
-        </CardContent>
+        </div>
       </Card>
     </div>
   );

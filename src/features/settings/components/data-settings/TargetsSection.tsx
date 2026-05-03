@@ -1,5 +1,5 @@
-import { Button, Card, CardContent, CardHeader, CardTitle, DeleteIconButton } from "../../../../shared/ui";
-
+import { Button, Card } from "@douyinfe/semi-ui-19";
+import { Trash2 } from "lucide-react";
 import type { DistributionTarget, Translator } from "./types";
 
 type TargetsSectionProps = {
@@ -21,49 +21,51 @@ export function TargetsSection({
 }: TargetsSectionProps) {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0">
-        <CardTitle>{l("Skills 目录配置", "Skills Directory Settings")}</CardTitle>
-        <Button size="sm" onClick={onOpenCreate}>
+      <div className="mb-4 flex flex-row items-center justify-between gap-4">
+        <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{l("Skills 目录配置", "Skills Directory Settings")}</h3>
+        <Button theme="solid" type="primary" onClick={onOpenCreate}>
           {l("新增目录", "Add Directory")}
         </Button>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
+      </div>
+      <div className="space-y-4 text-sm">
         {distributionTargets.length === 0 ? (
           <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500 dark:border-slate-700">
             {l("暂无分发目录，请先新增一条。", "No distribution directories yet. Add one.")}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             {distributionTargets.map((target) => {
               const isDeleting = distributionTargetSavingId === `delete:${target.id}`;
               return (
-                <div key={target.id} className="rounded-md border border-slate-200 px-3 py-3 dark:border-slate-800">
-                  <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                    <div className="grid gap-2 md:grid-cols-3">
-                      <div className="text-xs text-slate-500">
+                <div key={target.id} className="rounded-md border border-slate-200 px-4 py-4 dark:border-slate-800">
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                    <div className="grid gap-4 md:grid-cols-[160px_140px_minmax(0,1fr)]">
+                      <div className="space-y-1 text-xs text-slate-500">
                         <div>{l("名称", "Name")}</div>
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{target.platform}</div>
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{target.platform}</div>
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="space-y-1 text-xs text-slate-500">
                         <div>{l("安装模式", "Install Mode")}</div>
-                        <div className="font-medium text-slate-800 dark:text-slate-100">{target.installMode}</div>
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{target.installMode}</div>
                       </div>
-                      <div className="min-w-0 text-xs text-slate-500">
+                      <div className="min-w-0 space-y-1 text-xs text-slate-500">
                         <div>{l("目标目录", "Target Directory")}</div>
-                        <div className="truncate font-mono text-slate-700 dark:text-slate-200">{target.targetPath}</div>
+                        <div className="truncate font-mono text-sm text-slate-700 dark:text-slate-200" title={target.targetPath}>{target.targetPath}</div>
                       </div>
                     </div>
                     <div className="flex items-center justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => onStartEdit(target.id)} disabled={isDeleting}>
+                      <Button type="tertiary" onClick={() => onStartEdit(target.id)} disabled={isDeleting}>
                         {l("编辑", "Edit")}
                       </Button>
-                      <DeleteIconButton
-                        size="sm"
-                        variant="outline"
-                        label={l("删除目录", "Delete directory")}
+                      <Button
+                        type="danger"
+                        aria-label={l("删除目录", "Delete directory")}
+                        title={l("删除目录", "Delete directory")}
                         onClick={() => onDeleteDistributionTarget(target.id)}
                         disabled={isDeleting}
-                      />
+                      >
+                        <Trash2 className="h-4 w-4 text-red-600" />
+                      </Button>
                     </div>
                   </div>
                 </div>
@@ -71,7 +73,7 @@ export function TargetsSection({
             })}
           </div>
         )}
-      </CardContent>
+      </div>
     </Card>
   );
 }

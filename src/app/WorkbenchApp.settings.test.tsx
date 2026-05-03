@@ -313,20 +313,38 @@ vi.mock("../shared/stores", () => {
   };
 });
 
-vi.mock("../shared/ui", async () => {
-  const actual = await vi.importActual<typeof import("../shared/ui")>("../shared/ui");
+vi.mock("@douyinfe/semi-ui-19", async () => {
+  const actual = await vi.importActual<typeof import("@douyinfe/semi-ui-19")>("@douyinfe/semi-ui-19");
   return {
     ...actual,
-    useToast: () => ({
-      toast: toastMock,
-      dismiss: vi.fn(),
-    }),
+    Toast: {
+      ...actual.Toast,
+      info: (options: { content?: unknown }) => toastMock(extractToastOptions(options)),
+      error: (options: { content?: unknown }) => toastMock(extractToastOptions(options)),
+      close: vi.fn(),
+    },
   };
 });
 
 vi.mock("@tauri-apps/plugin-dialog", () => ({
   open: pickDialogOpenMock,
 }));
+
+function extractToastOptions(options: { content?: unknown }) {
+  const content = options.content;
+  if (typeof content === "string") {
+    return { title: content };
+  }
+  if (content && typeof content === "object" && "props" in content) {
+    const children = (content as { props?: { children?: unknown[] } }).props?.children;
+    if (Array.isArray(children)) {
+      const title = (children[0] as { props?: { children?: string } } | undefined)?.props?.children;
+      const description = (children[1] as { props?: { children?: string } } | undefined)?.props?.children;
+      return { title, description };
+    }
+  }
+  return {};
+}
 
 import { WorkbenchApp } from "./WorkbenchApp";
 

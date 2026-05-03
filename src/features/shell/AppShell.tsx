@@ -1,8 +1,7 @@
+import { Button, SideSheet } from "@douyinfe/semi-ui-19";
 import type { MouseEvent, ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-
-import { Button, Sheet, SheetContent } from "../../shared/ui";
 import { Sidebar } from "./Sidebar";
 import type { AppLanguage, MainModule } from "./types";
 
@@ -86,15 +85,8 @@ export function AppShell({
           />
         </div>
 
-        <Sheet
-          open={mobileSheetEnabled ? sidebarOpen : false}
-          onOpenChange={(open) => {
-            if (mobileSheetEnabled) {
-              onSidebarOpen(open);
-            }
-          }}
-        >
-          <SheetContent side="left" className="p-0 lg:hidden">
+        <SideSheet visible={mobileSheetEnabled ? sidebarOpen : false} onCancel={() => { if (mobileSheetEnabled) onSidebarOpen(false); }} footer={null} title={null}>
+          <div className="p-0 lg:hidden">
             <Sidebar
               activeModule={activeModule}
               language={language}
@@ -110,12 +102,12 @@ export function AppShell({
                 onSidebarOpen(false);
               }}
             />
-          </SheetContent>
-        </Sheet>
+          </div>
+        </SideSheet>
 
         <div className="flex h-full min-h-0 min-w-0 flex-col border-r border-border bg-background">
           <div className="border-b border-border bg-background/85 px-4 py-2 backdrop-blur-sm lg:hidden">
-            <Button variant="outline" size="icon" onClick={() => onSidebarOpen(true)}>
+            <Button onClick={() => onSidebarOpen(true)}>
               <Menu className="h-4 w-4" />
             </Button>
           </div>
@@ -124,18 +116,11 @@ export function AppShell({
 
         {showDetailPanel ? (
           <>
-            <Sheet
-              open={mobileSheetEnabled ? mobileDetailOpen : false}
-              onOpenChange={(open) => {
-                if (mobileSheetEnabled) {
-                  onMobileDetailOpen(open);
-                }
-              }}
-            >
-              <SheetContent side="right" className="w-full max-w-[92vw] p-0 lg:hidden">
+            <SideSheet visible={mobileSheetEnabled ? mobileDetailOpen : false} onCancel={() => { if (mobileSheetEnabled) onMobileDetailOpen(false); }} footer={null} title={null}>
+              <div className="w-full max-w-[92vw] p-0 lg:hidden">
                 <div className="h-full overflow-auto bg-card">{detail}</div>
-              </SheetContent>
-            </Sheet>
+              </div>
+            </SideSheet>
 
             <aside className="hidden h-full min-h-0 overflow-y-auto bg-card lg:block">{detail}</aside>
           </>

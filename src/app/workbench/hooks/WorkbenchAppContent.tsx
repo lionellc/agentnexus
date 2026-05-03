@@ -1,4 +1,7 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
+import { LocaleProvider, Toast as SemiToast } from "@douyinfe/semi-ui-19";
+import enUS from "@douyinfe/semi-ui-19/lib/es/locale/source/en_US";
+import zhCN from "@douyinfe/semi-ui-19/lib/es/locale/source/zh_CN";
 
 import { AppShell } from "../../../features/shell/AppShell";
 import type { SettingsCategory } from "../../../features/shell/types";
@@ -50,11 +53,44 @@ import {
   unknownToMessage,
   waitForUiPaint,
 } from "../utils";
-import { SemiAppProvider, useToast } from "../../../shared/ui";
+import type { WorkbenchToastOptions } from "../types";
 import { extractTemplateVariables } from "../../../shared/utils/template";
 
+const DEFAULT_TOAST_DURATION_SECONDS = 3;
+
+function renderToastContent(options: WorkbenchToastOptions) {
+  if (!options.title) {
+    return options.description ?? "";
+  }
+  if (!options.description) {
+    return options.title;
+  }
+  return (
+    <div className="space-y-1">
+      <div className="font-medium">{options.title}</div>
+      <div>{options.description}</div>
+    </div>
+  );
+}
+
 export function WorkbenchAppContent() {
-  const { toast } = useToast();
+  const toast = useMemo(
+    () => (options: WorkbenchToastOptions) => {
+      const id = options.id ?? crypto.randomUUID();
+      const toastOptions = {
+        id,
+        content: renderToastContent(options),
+        duration: options.duration ?? DEFAULT_TOAST_DURATION_SECONDS,
+      };
+      if (options.variant === "destructive") {
+        SemiToast.error(toastOptions);
+      } else {
+        SemiToast.info(toastOptions);
+      }
+      return id;
+    },
+    [],
+  );
   const {
     APP_LANGUAGE_STORAGE_KEY,
     APP_THEME_STORAGE_KEY,
@@ -1088,9 +1124,17 @@ export function WorkbenchAppContent() {
     />
   ) : null;
   const detail = <div className="h-full" />;
+  const semiLocale = language === "zh-CN" ? zhCN : enUS;
+
+  useEffect(() => {
+    document.body.setAttribute("theme-mode", theme);
+    return () => {
+      document.body.removeAttribute("theme-mode");
+    };
+  }, [theme]);
 
   return (
-    <SemiAppProvider language={language} theme={theme}>
+    <LocaleProvider locale={semiLocale}>
       <AppShell
         activeModule={activeModule}
         language={language}
@@ -1121,6 +1165,6 @@ export function WorkbenchAppContent() {
       {skillsModuleController.linkConfirmDialog}
       {skillsModuleController.usageTimelineDialog}
       {modelTestOutputSheetView}
-    </SemiAppProvider>
+    </LocaleProvider>
   );
 }

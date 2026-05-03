@@ -1,3 +1,4 @@
+import type { WorkbenchToastOptions as ToastOptions } from "../types";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { SkillsConfigDiffView } from "../../../features/skills/components/SkillsConfigPanel";
@@ -8,7 +9,6 @@ import type {
   SkillsManagerLinkPreviewResult,
   SkillsManagerState,
 } from "../../../shared/types";
-import { type ToastOptions } from "../../../shared/ui";
 
 const DIFF_RUNNING_STATUSES = new Set(["running", "cancelling"]);
 const DIFF_TERMINAL_STATUSES = new Set(["completed", "cancelled", "failed"]);

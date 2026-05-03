@@ -1,13 +1,5 @@
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import { VersionDiffViewer } from "../../common/components/VersionDiffViewer";
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  Tag,
-} from "../../../shared/ui";
 
 export type PromptVersionListItem = {
   version: number;
@@ -90,11 +82,11 @@ export function PromptVersionDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] max-w-6xl flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>{isZh ? "历史版本" : "History Versions"}</DialogTitle>
-        </DialogHeader>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div className="flex max-h-[90vh] max-w-6xl flex-col overflow-hidden">
+        <div>
+          <h2>{isZh ? "历史版本" : "History Versions"}</h2>
+        </div>
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-hidden pt-1 md:grid-cols-[280px_minmax(0,1fr)]">
           <div className="min-h-0 space-y-2 overflow-auto border-r border-slate-200 pr-3">
             <div className="px-1 text-sm text-slate-500">
@@ -118,8 +110,7 @@ export function PromptVersionDialog({
               return (
                 <Button
                   key={`prompt-version-${version}`}
-                  type="button"
-                  variant="outline"
+                  htmlType="button"
                   className={`h-auto w-full justify-start rounded-xl px-3 py-3 text-left ${colorClass}`}
                   onClick={() => {
                     if (compareMode) {
@@ -159,17 +150,17 @@ export function PromptVersionDialog({
                 <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2 text-sm">
-                      <Tag tone="danger" className="rounded-md px-2 py-1">
+                      <span className="rounded-md px-2 py-1">
                         {compareData.leftVersion !== null
                           ? `v${compareData.leftVersion}`
                           : (isZh ? "未选择" : "N/A")}
-                      </Tag>
+                      </span>
                       <span className="text-slate-500">→</span>
-                      <Tag tone="success" className="rounded-md px-2 py-1">
+                      <span className="rounded-md px-2 py-1">
                         {compareData.rightVersion !== null
                           ? `v${compareData.rightVersion}`
                           : (isZh ? "未选择" : "N/A")}
-                      </Tag>
+                      </span>
                     </div>
                     <div className="text-sm text-slate-500">
                       {compareData.leftCreatedAt && compareData.rightCreatedAt
@@ -198,13 +189,13 @@ export function PromptVersionDialog({
             )}
           </div>
         </div>
-        <DialogFooter className="mt-2 border-t border-slate-200 pt-3">
+        <div className="mt-2 border-t border-slate-200 pt-3">
           <div className="flex w-full items-center justify-between gap-2">
-            <Button variant="outline" onClick={onToggleCompareMode}>
+            <Button onClick={onToggleCompareMode}>
               {compareMode ? (isZh ? "退出对比" : "Exit Compare") : (isZh ? "版本对比" : "Compare Versions")}
             </Button>
             <div className="flex items-center gap-2">
-              <Button variant="ghost" onClick={handleCancel}>
+              <Button onClick={handleCancel}>
                 {isZh ? "取消" : "Cancel"}
               </Button>
               {!compareMode ? (
@@ -222,8 +213,8 @@ export function PromptVersionDialog({
               ) : null}
             </div>
           </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

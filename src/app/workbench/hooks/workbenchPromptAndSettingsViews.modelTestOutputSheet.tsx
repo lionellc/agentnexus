@@ -1,12 +1,5 @@
+import { SideSheet } from "@douyinfe/semi-ui-19";
 import type { RefObject } from "react";
-
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "../../../shared/ui";
 
 type ModelTestOutputSheetState = {
   open: boolean;
@@ -31,17 +24,17 @@ export function buildModelTestOutputSheetView({
   modelTestOutputSheet,
 }: BuildModelTestOutputSheetViewInput) {
   return (
-    <Sheet open={modelTestOutputSheet.open} onOpenChange={modelTestOutputSheet.setOpen}>
-      <SheetContent side="right" className="w-[min(94vw,560px)] overflow-hidden sm:max-w-[560px]">
+    <SideSheet visible={modelTestOutputSheet.open} onCancel={() => modelTestOutputSheet.setOpen(false)} footer={null} title={null}>
+      <div className="w-[min(94vw,560px)] overflow-hidden sm:max-w-[560px]">
         <div className="flex h-full flex-col overflow-hidden">
-          <SheetHeader className="pr-8">
-            <SheetTitle>{l("运行输出", "Runtime Output")}</SheetTitle>
-            <SheetDescription>
+          <div className="pr-8">
+            <h2>{l("运行输出", "Runtime Output")}</h2>
+            <p>
               {modelTestOutputSheet.running
                 ? l("正在运行，输出会实时刷新。", "Running, output updates in real time.")
                 : l("查看最近一次运行输出。", "Inspect latest runtime output.")}
-            </SheetDescription>
-          </SheetHeader>
+            </p>
+          </div>
           <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
             {modelTestOutputSheet.lifecycleText ? (
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-700">
@@ -76,7 +69,7 @@ export function buildModelTestOutputSheetView({
             </div>
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </SideSheet>
   );
 }

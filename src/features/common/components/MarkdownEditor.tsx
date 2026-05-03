@@ -1,7 +1,6 @@
+import { TextArea } from "@douyinfe/semi-ui-19";
 import { Fragment, useMemo, useState, type ReactNode } from "react";
 import { Tabs as SemiTabs } from "@douyinfe/semi-ui-19";
-
-import { Textarea } from "../../../shared/ui";
 
 export type MarkdownMode = "edit" | "preview" | "split";
 type MarkdownLanguage = "zh" | "en";
@@ -310,7 +309,6 @@ export function MarkdownEditor({
           activeKey={currentMode}
           onChange={(activeKey) => setCurrentMode(activeKey as MarkdownMode)}
           preventScroll
-          size="small"
           tabList={modeTabList}
           type="button"
         />
@@ -318,10 +316,10 @@ export function MarkdownEditor({
 
       <div className={showEditor && showPreview ? "grid gap-3 lg:grid-cols-2" : ""}>
         {showEditor ? (
-          <Textarea
+          <TextArea
             rows={textareaRows}
             value={value}
-            onChange={(event) => onChange?.(event.currentTarget.value)}
+            onChange={(value) => onChange?.(value)}
             placeholder={placeholder}
             readOnly={readOnly}
             className="box-border overflow-auto"

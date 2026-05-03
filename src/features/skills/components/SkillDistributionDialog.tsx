@@ -1,19 +1,6 @@
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import { useEffect, useMemo, useState } from "react";
-import { Checkbox, Tag } from "@douyinfe/semi-ui-19";
-
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FormDescription,
-  FormField,
-  FormFieldset,
-  FormLegend,
-} from "../../../shared/ui";
+import { Checkbox } from "@douyinfe/semi-ui-19";
 
 type SkillDistributionTarget = {
   id: string;
@@ -45,16 +32,6 @@ export type SkillDistributionDialogProps = {
 };
 
 type Step = "select" | "preview";
-
-function kindTagColor(kind: SkillDistributionPreviewItem["kind"]): "green" | "orange" | "red" {
-  if (kind === "safe") {
-    return "green";
-  }
-  if (kind === "conflict") {
-    return "orange";
-  }
-  return "red";
-}
 
 function kindLabel(kind: SkillDistributionPreviewItem["kind"], l: (zh: string, en: string) => string): string {
   if (kind === "safe") {
@@ -112,27 +89,27 @@ export function SkillDistributionDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{l("链接技能", "Link Skill")}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div className="max-w-2xl">
+        <div>
+          <h2>{l("链接技能", "Link Skill")}</h2>
+          <p>
             {step === "select"
               ? l(`为 ${skillName} 选择目标目录。`, `Select target directories for ${skillName}.`)
               : l(`确认 ${skillName} 链接预览。`, `Confirm link preview for ${skillName}.`)}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
         {step === "select" ? (
-          <FormFieldset className="space-y-3 text-sm">
-            <FormLegend className="text-xs text-slate-500">
+          <div className="space-y-3 text-sm">
+            <legend className="text-xs text-slate-500">
               {l("目标目录", "Target Directories")}
-            </FormLegend>
+            </legend>
             <div className="grid gap-2">
               {targets.map((target) => {
                 const checked = selectedSet.has(target.id);
                 return (
-                  <FormField key={target.id} className="space-y-0">
+                  <div key={target.id} className="space-y-0">
                     <label className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2">
                       <Checkbox
                         checked={checked}
@@ -140,18 +117,18 @@ export function SkillDistributionDialog({
                       />
                       <span>{target.label}</span>
                     </label>
-                  </FormField>
+                  </div>
                 );
               })}
             </div>
             {!hasSelection ? (
-              <FormField>
-                <FormDescription className="text-amber-600">
+              <div>
+                <p className="text-amber-600">
                   {l("请至少选择一个目标目录后继续。", "Select at least one target directory to continue.")}
-                </FormDescription>
-              </FormField>
+                </p>
+              </div>
             ) : null}
-          </FormFieldset>
+          </div>
         ) : (
           <div className="space-y-3 text-sm">
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
@@ -170,9 +147,9 @@ export function SkillDistributionDialog({
                   <div key={item.id} className="rounded-md border border-slate-200 px-3 py-2">
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm text-slate-900">{item.label}</span>
-                      <Tag color={kindTagColor(item.kind)} type="light">
+                      <span>
                         {kindLabel(item.kind, l)}
-                      </Tag>
+                      </span>
                     </div>
                     {item.message ? <div className="mt-1 text-xs text-slate-600">{item.message}</div> : null}
                   </div>
@@ -182,10 +159,10 @@ export function SkillDistributionDialog({
           </div>
         )}
 
-        <DialogFooter>
+        <div>
           {step === "select" ? (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
+              <Button onClick={() => onOpenChange(false)}>
                 {l("取消", "Cancel")}
               </Button>
               <Button onClick={() => void handleNext()} disabled={!hasSelection || previewLoading}>
@@ -194,10 +171,10 @@ export function SkillDistributionDialog({
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitLoading}>
+              <Button onClick={() => onOpenChange(false)} disabled={submitLoading}>
                 {l("取消", "Cancel")}
               </Button>
-              <Button variant="outline" onClick={() => setStep("select")} disabled={submitLoading}>
+              <Button onClick={() => setStep("select")} disabled={submitLoading}>
                 {l("上一步", "Back")}
               </Button>
               <Button onClick={() => void onSubmit()} disabled={submitLoading}>
@@ -205,8 +182,8 @@ export function SkillDistributionDialog({
               </Button>
             </>
           )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

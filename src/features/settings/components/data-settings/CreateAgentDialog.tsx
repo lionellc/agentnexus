@@ -1,17 +1,5 @@
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import { Input } from "@douyinfe/semi-ui-19";
-
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DirectoryPathField,
-  FormField,
-  FormFieldset,
-  FormLabel,
-} from "../../../../shared/ui";
 
 import type { AgentConnectionDraft, Translator } from "./types";
 
@@ -37,47 +25,52 @@ export function CreateAgentDialog({
   onSubmit,
 }: CreateAgentDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{l("新增 Agent", "Add Agent")}</DialogTitle>
-        </DialogHeader>
-        <FormFieldset className="space-y-3 text-sm">
-          <FormField>
-            <FormLabel>{l("名称", "Name")}</FormLabel>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div>
+        <div>
+          <h2>{l("新增 Agent", "Add Agent")}</h2>
+        </div>
+        <div className="space-y-3 text-sm">
+          <div>
+            <label>{l("名称", "Name")}</label>
             <Input
               value={draft.platform}
               onChange={(value) => onDraftChange("platform", value)}
               placeholder="cursor"
             />
-          </FormField>
-          <DirectoryPathField
-            label={l("Global Config 目录（绝对路径）", "Global Config Directory (Absolute Path)")}
-            value={draft.rootDir}
-            onChange={(value) => onDraftChange("rootDir", value)}
-            placeholder="/Users/you/.cursor"
-            onPickDirectory={onPickRootDir}
-            pickButtonLabel={l("从 Finder 选择文件夹", "Choose Folder in Finder")}
-            disabled={saving}
-          />
-          <FormField>
-            <FormLabel>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</FormLabel>
+          </div>
+          <div>
+            <label>{l("Global Config 目录（绝对路径）", "Global Config Directory (Absolute Path)")}</label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={draft.rootDir}
+                onChange={(value) => onDraftChange("rootDir", value)}
+                placeholder="/Users/you/.cursor"
+                disabled={saving}
+              />
+              <Button type="tertiary" onClick={onPickRootDir} disabled={saving}>
+                {l("从 Finder 选择文件夹", "Choose Folder in Finder")}
+              </Button>
+            </div>
+          </div>
+          <div>
+            <label>{l("规则文件（相对路径）", "Rule File (Relative Path)")}</label>
             <Input
               value={draft.ruleFile}
               onChange={(value) => onDraftChange("ruleFile", value)}
               placeholder="AGENTS.md"
             />
-          </FormField>
-        </FormFieldset>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          </div>
+        </div>
+        <div>
+          <Button type="tertiary" onClick={() => onOpenChange(false)}>
             {l("取消", "Cancel")}
           </Button>
-          <Button onClick={onSubmit} disabled={saving}>
+          <Button theme="solid" type="primary" onClick={onSubmit} disabled={saving}>
             {saving ? l("保存中...", "Saving...") : l("保存", "Save")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

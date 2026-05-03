@@ -1,8 +1,7 @@
+import { Button } from "@douyinfe/semi-ui-19";
 import { useEffect, useState } from "react";
 import { Input } from "@douyinfe/semi-ui-19";
 import { Menu, Moon, Plus, Search, Sun } from "lucide-react";
-
-import { Button } from "../../shared/ui";
 import type { GlobalSearchHit } from "../../shared/stores";
 
 type TopBarLanguage = "zh" | "en";
@@ -48,7 +47,7 @@ export function TopBar({
   return (
     <header className="border-b border-slate-200 bg-white px-4 py-3">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" className="lg:hidden" onClick={onToggleSidebar}>
+        <Button className="lg:hidden" onClick={onToggleSidebar}>
           <Menu className="h-4 w-4" />
         </Button>
 
@@ -125,7 +124,7 @@ export function TopBar({
           {effectiveLabels.createButton}
         </Button>
 
-        <Button variant="ghost" size="icon" onClick={onToggleTheme}>
+        <Button onClick={onToggleTheme}>
           <Sun className="h-4 w-4 dark:hidden" />
           <Moon className="hidden h-4 w-4 dark:block" />
         </Button>

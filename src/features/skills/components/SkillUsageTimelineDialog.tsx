@@ -1,18 +1,6 @@
-import { Tag } from "@douyinfe/semi-ui-19";
-
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../shared/ui";
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import type {
   SkillsUsageCallItem,
-  SkillsUsageEvidenceSource,
-  SkillsUsageResultStatus,
   SkillsUsageSyncJobSnapshot,
 } from "../../../shared/types";
 
@@ -28,20 +16,6 @@ export type SkillUsageTimelineDialogProps = {
   onRefresh: () => void | Promise<void>;
   l: (zh: string, en: string) => string;
 };
-
-function resultColor(status: SkillsUsageResultStatus): "green" | "red" | "grey" {
-  if (status === "success") {
-    return "green";
-  }
-  if (status === "failed") {
-    return "red";
-  }
-  return "grey";
-}
-
-function evidenceColor(source: SkillsUsageEvidenceSource): "green" | "grey" {
-  return source === "observed" ? "green" : "grey";
-}
 
 function progressPercent(job: SkillsUsageSyncJobSnapshot | null): number {
   if (!job || job.totalFiles <= 0) {
@@ -75,18 +49,18 @@ export function SkillUsageTimelineDialog({
   const percent = progressPercent(syncJob);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{l("调用记录", "Call History")}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div className="max-w-3xl">
+        <div>
+          <h2>{l("调用记录", "Call History")}</h2>
+          <p>
             {l("Skill", "Skill")}：{skillName} · {l("总计", "Total")} {total}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
         <div className="space-y-3">
           <div className="flex items-center justify-end">
-            <Button size="sm" variant="outline" onClick={() => void onRefresh()} disabled={syncRunning}>
+            <Button onClick={() => void onRefresh()} disabled={syncRunning}>
               {syncRunning ? l("分析中...", "Analyzing...") : l("刷新分析", "Refresh Analysis")}
             </Button>
           </div>
@@ -139,10 +113,10 @@ export function SkillUsageTimelineDialog({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="text-sm font-medium text-slate-800">{formatTime(item.calledAt)}</span>
                     <div className="flex flex-wrap items-center gap-1">
-                      <Tag color="grey" type="light">{item.agent}</Tag>
-                      <Tag color="grey" type="light">{item.source}</Tag>
-                      <Tag color={resultColor(item.resultStatus)} type="light">{item.resultStatus}</Tag>
-                      <Tag color={evidenceColor(item.evidenceSource)} type="light">{item.evidenceSource}</Tag>
+                      <span>{item.agent}</span>
+                      <span>{item.source}</span>
+                      <span>{item.resultStatus}</span>
+                      <span>{item.evidenceSource}</span>
                     </div>
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
@@ -158,12 +132,12 @@ export function SkillUsageTimelineDialog({
           )}
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div>
+          <Button onClick={() => onOpenChange(false)}>
             {l("关闭", "Close")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

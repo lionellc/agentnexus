@@ -1,3 +1,4 @@
+import type { WorkbenchToastOptions as ToastOptions } from "../types";
 import { useEffect, useMemo, useState } from "react";
 
 import { open as pickDialog } from "@tauri-apps/plugin-dialog";
@@ -23,7 +24,6 @@ import type {
   AgentPresetRow,
   AgentSkillSearchDirRow,
 } from "../../../features/settings/components/data-settings/types";
-import type { ToastOptions } from "../../../shared/ui";
 
 type SettingsConnection = {
   platform: string;

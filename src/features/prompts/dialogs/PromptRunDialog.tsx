@@ -1,15 +1,6 @@
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import { Input } from "@douyinfe/semi-ui-19";
 import { Copy } from "lucide-react";
-
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "../../../shared/ui";
 
 export type PromptRunDialogProps = {
   open: boolean;
@@ -45,11 +36,11 @@ export function PromptRunDialog({
   copyDisabled = false,
 }: PromptRunDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
-        <DialogHeader>
-          <DialogTitle>{isZh ? "复制 Prompt" : "Copy Prompt"}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div className="max-w-4xl">
+        <div>
+          <h2>{isZh ? "复制 Prompt" : "Copy Prompt"}</h2>
+          <p>
             {fromDetail
               ? (isZh
                   ? `当前基于详情草稿复制：${promptName || "-"}`
@@ -57,8 +48,8 @@ export function PromptRunDialog({
               : (isZh
                   ? `当前基于列表项复制：${promptName || "-"}`
                   : `Copying from list item: ${promptName || "-"}`)}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         <div className="space-y-4">
           <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
             <div className="mb-2 text-xs font-medium text-slate-500">{isZh ? "变量输入" : "Variables"}</div>
@@ -82,8 +73,6 @@ export function PromptRunDialog({
                           placeholder={isZh ? `请输入 ${variableName}` : `Enter ${variableName}`}
                         />
                         <Button
-                          size="sm"
-                          variant="outline"
                           disabled={history.length === 0}
                           onClick={() => onApplyHistory(variableName)}
                         >
@@ -110,16 +99,16 @@ export function PromptRunDialog({
             </pre>
           </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
+        <div>
+          <Button onClick={onCancel}>
             {isZh ? "取消" : "Cancel"}
           </Button>
-          <Button variant="outline" disabled={copyDisabled} onClick={onCopyPreview}>
+          <Button disabled={copyDisabled} onClick={onCopyPreview}>
             <Copy className="mr-1 h-4 w-4" />
             {isZh ? "复制预览内容" : "Copy Preview"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

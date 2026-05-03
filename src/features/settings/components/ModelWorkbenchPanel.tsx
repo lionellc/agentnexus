@@ -1,24 +1,7 @@
+import { Button, Card, Select, TextArea, Modal } from "@douyinfe/semi-ui-19";
+import { Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Input } from "@douyinfe/semi-ui-19";
-
-import {
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  DeleteIconButton,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FormField,
-  FormFieldset,
-  FormLabel,
-  Select,
-  Textarea,
-} from "../../../shared/ui";
 
 export type ModelProfileSourceType = "localAgent" | "api";
 
@@ -83,7 +66,7 @@ export function ModelWorkbenchPanel({
   const sourceTypeOptions = [
     { value: "localAgent", label: isZh ? "本地 Agent" : "Local Agent" },
     { value: "api", label: "API" },
-  ] as const;
+  ];
   const sourceLabel = (sourceType: ModelProfileSourceType | undefined): string => {
     if (sourceType === "api") {
       return "API";
@@ -98,11 +81,17 @@ export function ModelWorkbenchPanel({
   return (
     <div className="space-y-4">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0">
-          <CardTitle>{isZh ? "AI 模型配置" : "AI Model Settings"}</CardTitle>
+        <div className="mb-4 flex flex-row items-start justify-between gap-4">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{isZh ? "AI 模型配置" : "AI Model Settings"}</h3>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              {isZh ? "管理本地 Agent 模型与场景默认模型。" : "Manage local agent models and scenario defaults."}
+            </p>
+          </div>
           <Button
-            type="button"
-            size="sm"
+            htmlType="button"
+            theme="solid"
+            type="primary"
             onClick={() => {
               setCreateSourceType("localAgent");
               setCreateDialogOpen(true);
@@ -110,39 +99,38 @@ export function ModelWorkbenchPanel({
           >
             {isZh ? "新增模型" : "Add Model"}
           </Button>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
+        </div>
+        <div className="space-y-4 text-sm">
           {profiles.length === 0 ? (
-            <div className="rounded-md border border-dashed border-slate-300 px-3 py-3 text-xs text-slate-500">
+            <div className="rounded-md border border-dashed border-slate-300 px-4 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
               {isZh ? "暂无模型配置，请先新增一条。" : "No model profiles yet. Add one."}
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {profiles.map((profile) => (
                 <div
                   key={profile.profileKey}
                   data-testid={`model-profile-row-${profile.profileKey}`}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-3"
+                  className="rounded-md border border-slate-200 bg-white px-4 py-4 dark:border-slate-800 dark:bg-slate-950/30"
                 >
-                  <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                    <div className="grid gap-2 md:grid-cols-3">
-                      <div className="text-xs text-slate-500">
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+                    <div className="grid gap-4 md:grid-cols-[minmax(140px,1fr)_140px_minmax(0,2fr)]">
+                      <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
                         <div>{isZh ? "名称" : "Name"}</div>
-                        <div className="font-medium text-slate-800">{profile.name || "-"}</div>
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{profile.name || "-"}</div>
                       </div>
-                      <div className="text-xs text-slate-500">
+                      <div className="space-y-1 text-xs text-slate-500 dark:text-slate-400">
                         <div>{isZh ? "来源" : "Source"}</div>
-                        <div className="font-medium text-slate-800">{sourceLabel(profile.sourceType)}</div>
+                        <div className="text-sm font-medium text-slate-800 dark:text-slate-100">{sourceLabel(profile.sourceType)}</div>
                       </div>
-                      <div className="min-w-0 text-xs text-slate-500">
+                      <div className="min-w-0 space-y-1 text-xs text-slate-500 dark:text-slate-400">
                         <div>{isZh ? "可执行程序" : "Executable"}</div>
-                        <div className="truncate font-mono text-slate-700">{profile.executable || "-"}</div>
+                        <div className="truncate font-mono text-sm text-slate-700 dark:text-slate-200">{profile.executable || "-"}</div>
                       </div>
                     </div>
                     <div className="flex items-center justify-end gap-2">
                       <Button
-                        size="sm"
-                        variant="outline"
+                        type="tertiary"
                         data-testid={`model-profile-edit-${profile.profileKey}`}
                         onClick={() => {
                           onSelectProfile(profile.profileKey);
@@ -152,13 +140,15 @@ export function ModelWorkbenchPanel({
                         {isZh ? "编辑" : "Edit"}
                       </Button>
                       {!profile.isBuiltin ? (
-                        <DeleteIconButton
-                          size="sm"
-                          variant="outline"
-                          label={isZh ? "删除模型" : "Delete model"}
+                        <Button
+                          type="danger"
+                          aria-label={isZh ? "删除模型" : "Delete model"}
+                          title={isZh ? "删除模型" : "Delete model"}
                           data-testid={`model-profile-delete-${profile.profileKey}`}
                           onClick={() => onDeleteProfile(profile.profileKey)}
-                        />
+                        >
+                          <Trash2 className="h-4 w-4 text-red-600" />
+                        </Button>
                       ) : null}
                     </div>
                   </div>
@@ -167,78 +157,73 @@ export function ModelWorkbenchPanel({
             </div>
           )}
 
-          <div className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
-            <div className="text-xs font-medium text-slate-500">{isZh ? "场景设置" : "Scenario Settings"}</div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-800 dark:bg-slate-950/30">
+            <div className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "场景设置" : "Scenario Settings"}</div>
+            <div className="rounded-md border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900/60">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="space-y-1">
-                  <div className="text-sm font-medium text-slate-900">{isZh ? "翻译场景" : "Translation Scenario"}</div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-sm font-medium text-slate-900 dark:text-slate-100">{isZh ? "翻译场景" : "Translation Scenario"}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {isZh ? "默认模型：" : "Default Model: "}
-                    <span className="font-medium text-slate-700">
+                    <span className="font-medium text-slate-700 dark:text-slate-200">
                       {defaultModelText}
                     </span>
                   </div>
-                  <div className="text-xs text-slate-500">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     {isZh ? "Prompt 翻译 / 双语处理使用该模板配置。" : "Used by Prompt translation / bilingual processing."}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button variant="outline" onClick={onOpenTranslationScenarioSettings}>
+                  <Button type="tertiary" onClick={onOpenTranslationScenarioSettings}>
                     {isZh ? "设置" : "Settings"}
                   </Button>
-                  <Button onClick={onOpenTranslationScenarioTest} disabled={testRunning}>
+                  <Button type="tertiary" onClick={onOpenTranslationScenarioTest} disabled={testRunning}>
                     {testRunning ? (isZh ? "测试中..." : "Testing...") : (isZh ? "测试运行" : "Run Test")}
                   </Button>
                 </div>
               </div>
             </div>
           </div>
-        </CardContent>
+        </div>
       </Card>
 
-      <Dialog
-        open={createDialogOpen}
-        onOpenChange={(open) => {
-          setCreateDialogOpen(open);
-          if (!open) {
-            setCreateSourceType("localAgent");
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isZh ? "新增模型" : "Add Model"}</DialogTitle>
-          </DialogHeader>
-          <FormFieldset className="space-y-3 text-sm">
-            <FormField>
-              <FormLabel>{isZh ? "模型类型" : "Model Type"}</FormLabel>
+      <Modal visible={createDialogOpen} onCancel={() => { setCreateDialogOpen(false); setCreateSourceType("localAgent"); }} footer={null} title={null} width={640}>
+        <div className="space-y-6 px-1 pb-1 pt-1">
+          <div className="pr-10">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{isZh ? "新增模型" : "Add Model"}</h2>
+          </div>
+          <div className="grid gap-5 text-sm">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "模型类型" : "Model Type"}</label>
               <Select
+                className="max-w-md"
                 value={createSourceType}
                 onChange={(value) => setCreateSourceType(value as ModelProfileSourceType)}
-                options={sourceTypeOptions}
+                optionList={sourceTypeOptions}
               />
-            </FormField>
-            <FormField>
-              <FormLabel>{isZh ? "名称" : "Name"}</FormLabel>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "名称" : "Name"}</label>
               <Input
                 value={newProfileName}
                 onChange={(value) => onNewProfileNameChange(value)}
                 placeholder={isZh ? "新模型名称" : "New model name"}
               />
-            </FormField>
+            </div>
             {createSourceType === "api" ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
                 {isZh ? "API 模型暂未支持。" : "API model is not supported yet."}
               </div>
             ) : null}
-          </FormFieldset>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <Button htmlType="button" type="tertiary" onClick={() => setCreateDialogOpen(false)}>
               {isZh ? "取消" : "Cancel"}
             </Button>
             <Button
-              type="button"
+              htmlType="button"
+              theme="solid"
+              type="primary"
               onClick={async () => {
                 const created = await Promise.resolve(onAddProfile(createSourceType));
                 if (created) {
@@ -250,65 +235,59 @@ export function ModelWorkbenchPanel({
             >
               {isZh ? "保存" : "Save"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </Modal>
 
-      <Dialog
-        open={Boolean(editingProfileKey)}
-        onOpenChange={(open) => {
-          if (open) {
-            return;
-          }
-          setEditingProfileKey(null);
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{isZh ? "编辑模型" : "Edit Model"}</DialogTitle>
-          </DialogHeader>
-          <FormFieldset className="space-y-3 text-sm">
-            <FormField>
-              <FormLabel>{isZh ? "模型类型" : "Model Type"}</FormLabel>
-              <Select value={editingSourceType} onChange={() => undefined} options={sourceTypeOptions} disabled />
-            </FormField>
+      <Modal visible={Boolean(editingProfileKey)} onCancel={() => setEditingProfileKey(null)} footer={null} title={null} width={720}>
+        <div className="space-y-6 px-1 pb-1 pt-1">
+          <div className="pr-10">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{isZh ? "编辑模型" : "Edit Model"}</h2>
+          </div>
+          <div className="grid gap-5 text-sm">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "模型类型" : "Model Type"}</label>
+              <Select className="max-w-md" value={editingSourceType} onChange={() => undefined} optionList={sourceTypeOptions} disabled />
+            </div>
             {editingSourceType === "api" ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
                 {isZh ? "API 模型暂未支持。" : "API model is not supported yet."}
               </div>
             ) : null}
-            <FormField>
-              <FormLabel>{isZh ? "名称" : "Name"}</FormLabel>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "名称" : "Name"}</label>
               <Input value={profileName} onChange={(value) => onProfileNameChange(value)} />
-            </FormField>
-            <FormField>
-              <FormLabel>{isZh ? "可执行程序" : "Executable"}</FormLabel>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "可执行程序" : "Executable"}</label>
               <Input
                 value={executable}
                 onChange={(value) => onExecutableChange(value)}
                 placeholder="codex / claude / custom-cli"
               />
-            </FormField>
-            <FormField>
-              <FormLabel>{isZh ? "参数模板（JSON 数组）" : "Args Template (JSON array)"}</FormLabel>
-              <Textarea
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{isZh ? "参数模板（JSON 数组）" : "Args Template (JSON array)"}</label>
+              <TextArea
                 value={argsTemplateText}
-                onChange={(event) => onArgsTemplateTextChange(event.currentTarget.value)}
+                onChange={(value) => onArgsTemplateTextChange(value)}
                 rows={4}
               />
-            </FormField>
-          </FormFieldset>
-          <DialogFooter>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
             <Button
-              type="button"
-              variant="outline"
+              htmlType="button"
+              type="tertiary"
               onClick={() => setEditingProfileKey(null)}
               disabled={loading}
             >
               {isZh ? "取消" : "Cancel"}
             </Button>
             <Button
-              type="button"
+              htmlType="button"
+              theme="solid"
+              type="primary"
               onClick={() => {
                 onSaveProfile();
                 setEditingProfileKey(null);
@@ -317,9 +296,9 @@ export function ModelWorkbenchPanel({
             >
               {isZh ? "保存" : "Save"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

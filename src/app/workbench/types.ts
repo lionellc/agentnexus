@@ -29,6 +29,14 @@ export type AppUpdateProgress = {
   totalBytes?: number;
 };
 
+export type WorkbenchToastOptions = {
+  id?: string;
+  title?: string;
+  description?: string;
+  variant?: "default" | "destructive";
+  duration?: number;
+};
+
 export type PromptBatchJumpSuggestion =
   | { type: "favorites" }
   | { type: "category"; categoryKey: string };

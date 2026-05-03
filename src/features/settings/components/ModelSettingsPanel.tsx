@@ -1,20 +1,7 @@
+import { Button, Select, TextArea, Modal } from "@douyinfe/semi-ui-19";
 import { type ReactNode } from "react";
 
 import { ModelWorkbenchPanel, type LocalAgentProfileItem, type ModelProfileSourceType } from "./ModelWorkbenchPanel";
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FormField,
-  FormFieldset,
-  FormLabel,
-  Select,
-  Textarea,
-} from "../../../shared/ui";
 import { TranslatableTextViewer } from "../../common/components/TranslatableTextViewer";
 
 type ModelTestResult = {
@@ -177,70 +164,71 @@ export function ModelSettingsPanel({
         testRunning={modelTestRunning}
       />
 
-      <Dialog open={modelScenarioSettingsOpen} onOpenChange={onModelScenarioSettingsOpenChange}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{l("翻译场景设置", "Translation Scenario Settings")}</DialogTitle>
-            <DialogDescription>
+      <Modal visible={modelScenarioSettingsOpen} onCancel={() => onModelScenarioSettingsOpenChange(false)} footer={null} title={null}>
+        <div className="max-w-3xl space-y-5">
+          <div className="pr-10">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{l("翻译场景设置", "Translation Scenario Settings")}</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {l(
                 "配置翻译场景的默认 Agent 和 Prompt 模板。",
                 "Configure default agent and prompt template for translation scenario.",
               )}
-            </DialogDescription>
-          </DialogHeader>
-          <FormFieldset>
-            <FormField>
-              <FormLabel>{l("Agent", "Agent")}</FormLabel>
+            </p>
+          </div>
+          <div className="grid gap-5">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{l("Agent", "Agent")}</label>
               <Select
+                className="max-w-md"
                 value={translationDefaultProfileKey}
-                onChange={onTranslationDefaultProfileKeyChange}
-                options={allDefaultAgentOptions}
+                onChange={(value) => onTranslationDefaultProfileKeyChange(String(value ?? ""))}
+                optionList={allDefaultAgentOptions}
                 placeholder={l("请选择 Agent", "Select agent")}
               />
-            </FormField>
-            <FormField>
-              <FormLabel>{l("模板配置", "Prompt Template")}</FormLabel>
-              <Textarea
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{l("模板配置", "Prompt Template")}</label>
+              <TextArea
                 value={translationPromptTemplate}
-                onChange={(event) => onTranslationPromptTemplateChange(event.currentTarget.value)}
+                onChange={(value) => onTranslationPromptTemplateChange(value)}
                 rows={12}
               />
-            </FormField>
-          </FormFieldset>
-          <DialogFooter>
-            <Button variant="outline" onClick={onRestoreDefaultTranslationConfig}>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <Button type="tertiary" onClick={onRestoreDefaultTranslationConfig}>
               {l("恢复默认配置", "Restore Defaults")}
             </Button>
-            <Button onClick={onSaveTranslationConfigFromDialog} disabled={modelLoading}>
+            <Button theme="solid" type="primary" onClick={onSaveTranslationConfigFromDialog} disabled={modelLoading}>
               {l("保存模板配置", "Save Template Config")}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </Modal>
 
-      <Dialog open={modelScenarioTestOpen} onOpenChange={onModelScenarioTestOpenChange}>
-        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden">
-          <DialogHeader>
-            <DialogTitle>{l("翻译场景测试", "Translation Scenario Test")}</DialogTitle>
-            <DialogDescription>
+      <Modal visible={modelScenarioTestOpen} onCancel={() => onModelScenarioTestOpenChange(false)} footer={null} title={null}>
+        <div className="flex max-h-[90vh] max-w-2xl flex-col overflow-hidden">
+          <div className="pr-10">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{l("翻译场景测试", "Translation Scenario Test")}</h2>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {l(
                 "填写测试文本后点击运行，输出会在右侧面板实时展示。",
                 "Run a test and inspect streaming output in the right-side panel.",
               )}
-            </DialogDescription>
-          </DialogHeader>
+            </p>
+          </div>
           <div className="mt-3 flex-1 space-y-3 overflow-y-auto pr-1">
-            <FormFieldset>
-              <FormField>
-                <FormLabel>{l("测试原文", "Source Text")}</FormLabel>
-              <Textarea
+            <div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{l("测试原文", "Source Text")}</label>
+              <TextArea
                 value={modelTestSourceText}
-                onChange={(event) => onModelTestSourceTextChange(event.currentTarget.value)}
+                onChange={(value) => onModelTestSourceTextChange(value)}
                 rows={6}
                 placeholder={l("输入测试原文", "Input source text")}
               />
-              </FormField>
-            </FormFieldset>
+              </div>
+            </div>
             <TranslatableTextViewer
               isZh={isZh}
               sourceText={modelTestSourceText}
@@ -253,13 +241,13 @@ export function ModelSettingsPanel({
             />
             {resultFeedback}
           </div>
-          <DialogFooter className="shrink-0">
-            <Button variant="outline" onClick={onOpenModelTestOutputSheet}>
+          <div className="shrink-0 border-t border-slate-200 pt-3 dark:border-slate-800">
+            <Button type="tertiary" onClick={onOpenModelTestOutputSheet}>
               {l("查看运行输出", "View Runtime Output")}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

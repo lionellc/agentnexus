@@ -1,6 +1,6 @@
+import { Button, Modal } from "@douyinfe/semi-ui-19";
 import { MarkdownPreview } from "../../common/components/MarkdownEditor";
 import type { AppLanguage } from "../../shell/types";
-import { Button, Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../../shared/ui";
 
 export type AgentMappingPreviewDialogProps = {
   l: (zh: string, en: string) => string;
@@ -28,16 +28,16 @@ export function AgentMappingPreviewDialog({
   const markdownLanguage = uiLanguage === "zh-CN" ? "zh" : "en";
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>{l("平台文件预览", "Platform File Preview")}</DialogTitle>
-          <DialogDescription>
+    <Modal visible={open} onCancel={() => onOpenChange(false)} footer={null} title={null}>
+      <div className="flex max-h-[85vh] max-w-3xl flex-col overflow-hidden">
+        <div>
+          <h2>{l("平台文件预览", "Platform File Preview")}</h2>
+          <p>
             {mappingPreviewPlatform}
             {" · "}
             {mappingPreviewPath || "-"}
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
         <div className="space-y-2 text-sm">
           <div className={mappingPreviewExists ? "text-green-700" : "text-amber-700"}>
             {mappingPreviewMessage}
@@ -52,12 +52,12 @@ export function AgentMappingPreviewDialog({
             language={markdownLanguage}
           />
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <div>
+          <Button onClick={() => onOpenChange(false)}>
             {l("关闭", "Close")}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 }

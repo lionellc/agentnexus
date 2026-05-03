@@ -1,5 +1,7 @@
-import { Select, type SelectOption } from "../../../shared/ui";
+import { Select } from "@douyinfe/semi-ui-19";
 import type { ModelUsageCurrency, ModelUsageStatus } from "../../../shared/types";
+
+type SelectOption = { value: string; label: string };
 
 type UsageFiltersBarProps = {
   l: (zh: string, en: string) => string;
@@ -61,35 +63,35 @@ export function UsageFiltersBar({
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             <Select
               value={String(days)}
-              options={dayOptions(l)}
+              optionList={dayOptions(l)}
               onChange={(value) => onDaysChange(Number(value))}
               aria-label={l("时间范围", "Range")}
               disabled={loading}
             />
             <Select
               value={currency}
-              options={currencyOptions}
+              optionList={currencyOptions}
               onChange={(value) => onCurrencyChange(value as ModelUsageCurrency)}
               aria-label={l("币种", "Currency")}
               disabled={loading}
             />
             <Select
               value={agent}
-              options={[
+              optionList={[
                 { value: "", label: l("全部 Agent", "All Agents") },
                 ...agentOptions.map((item) => ({ value: item, label: item })),
               ]}
-              onChange={onAgentChange}
+              onChange={(value) => onAgentChange(String(value ?? ""))}
               aria-label={l("Agent", "Agent")}
               disabled={loading}
             />
             <Select
               value={model}
-              options={[
+              optionList={[
                 { value: "", label: l("全部模型", "All Models") },
                 ...modelOptions.map((item) => ({ value: item, label: item })),
               ]}
-              onChange={onModelChange}
+              onChange={(value) => onModelChange(String(value ?? ""))}
               aria-label={l("模型", "Model")}
               disabled={loading}
             />
@@ -99,7 +101,7 @@ export function UsageFiltersBar({
           <p className="text-xs font-medium text-slate-500">{l("定位异常", "Find Issues")}</p>
           <Select
             value={status}
-            options={statusOptions(l)}
+            optionList={statusOptions(l)}
             onChange={(value) => onStatusChange(value as ModelUsageStatus)}
             aria-label={l("状态", "Status")}
             disabled={loading}
