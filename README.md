@@ -5,6 +5,9 @@
 AgentNexus is a local-first Agent control plane.
 It brings rules, prompts, and skills scattered across multiple Agent tools into one place, so migration and daily operations become faster and safer.
 
+
+![Channel API Testbench](./docs/screenshots/09-channel-api-test-bench.png)
+
 ---
 
 ## What Problem It Solves

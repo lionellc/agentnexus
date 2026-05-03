@@ -5,6 +5,8 @@
 AgentNexus 是一个本地优先的 Agent 控制台（Control Plane）。
 它把分散在不同 Agent 工具里的规则、提示词和技能配置，收敛到一个统一入口，帮助你更快完成迁移、日常维护与稳定分发。
 
+![Channel API Testbench](./screenshots/zh/09-channel-api-test-bench.png)
+
 ---
 
 ## 这个产品解决什么问题
