@@ -127,35 +127,35 @@ pnpm build        # 构建
 
 ### 1. 全局 Agent 规则页
 
-![全局 Agent 规则页](./screenshots/01-agent-rules.png)
+![全局 Agent 规则页](./screenshots/zh/01-agent-rules.png)
 
 ### 2. Skills 中控
 
-![Skills 中控](./screenshots/07-skills-hub.png)
+![Skills 中控](./screenshots/zh/07-skills-hub.png)
 
 ### 3. Skills 扫描页
 
-![Skills 扫描页](./screenshots/08-skills-scan.png)
+![Skills 扫描页](./screenshots/zh/08-skills-scan.png)
 
 ### 4. Skill 详情
 
-![Skill 详情](./screenshots/06-skill-detail.png)
+![Skill 详情](./screenshots/zh/06-skill-detail.png)
 
 ### 5. Prompts（All / Categories / Favorites）
 
-![Prompts](./screenshots/05-prompts.png)
+![Prompts](./screenshots/zh/05-prompts.png)
 
 ### 6. Settings - Basic
 
-![Settings Basic](./screenshots/03-settings-basic.png)
+![Settings Basic](./screenshots/zh/03-settings-basic.png)
 
 ### 7. Settings - AI Models
 
-![Settings AI Models](./screenshots/04-settings-model.png)
+![Settings AI Models](./screenshots/zh/04-settings-model.png)
 
 ### 8. Settings - General
 
-![Settings General](./screenshots/02-settings-general.png)
+![Settings General](./screenshots/zh/02-settings-general.png)
 
 ---
 
