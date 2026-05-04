@@ -20,7 +20,6 @@ pub(super) fn run_and_persist(
     Ok(persistence::record_to_value(&record))
 }
 
-
 fn run_probe(
     input: &ChannelApiTestRunInput,
     started_at: String,
@@ -74,11 +73,7 @@ fn run_single(
         .map(|item| item.content.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    let input_usage_field = if input.protocol == PROTOCOL_ANTHROPIC {
-        "input_tokens"
-    } else {
-        "prompt_tokens"
-    };
+    let input_usage_field = input_usage_field(input.protocol.as_str());
     let (input_size, input_source) =
         checks::size_from_usage_or_chars(response.usage.as_ref(), input_usage_field, &input_text);
     let (output_size, output_source) = output_size(
@@ -160,6 +155,7 @@ fn run_followup(
         first_text_delta_ms: None,
         completed_ms: None,
         response_headers: Value::Null,
+        bedrock: None,
     };
     let mut round_responses = Vec::new();
 
@@ -171,11 +167,7 @@ fn run_followup(
         let round_started = Instant::now();
         let response = run_protocol(input, &messages);
         round_responses.push(response.clone());
-        let input_usage_field = if input.protocol == PROTOCOL_ANTHROPIC {
-            "input_tokens"
-        } else {
-            "prompt_tokens"
-        };
+        let input_usage_field = input_usage_field(input.protocol.as_str());
         let (input_size, input_source) = checks::size_from_usage_or_chars(
             response.usage.as_ref(),
             input_usage_field,
@@ -313,6 +305,7 @@ fn build_multi_response_record(
             first_text_delta_ms: None,
             completed_ms: None,
             response_headers: Value::Null,
+            bedrock: None,
         });
     let checks = checks::build_checks(&final_response, &input.model);
     let failed_count = responses
@@ -331,11 +324,7 @@ fn build_multi_response_record(
         .map(|item| item.content.as_str())
         .collect::<Vec<_>>()
         .join("\n");
-    let input_usage_field = if input.protocol == PROTOCOL_ANTHROPIC {
-        "input_tokens"
-    } else {
-        "prompt_tokens"
-    };
+    let input_usage_field = input_usage_field(input.protocol.as_str());
     let (input_size, input_source) = checks::size_from_usage_or_chars(
         final_response.usage.as_ref(),
         input_usage_field,
@@ -348,8 +337,9 @@ fn build_multi_response_record(
     );
     let response_text = checks::sanitize_text(&final_response.text, &input.api_key);
     let raw_excerpt = checks::sanitize_text(&final_response.raw_excerpt, &input.api_key);
-    let conversation_json =
-        report::build_conversation_json_with_details(input, &messages, &responses, None, details, run_mode);
+    let conversation_json = report::build_conversation_json_with_details(
+        input, &messages, &responses, None, details, run_mode,
+    );
     let error_excerpt = final_response
         .error_reason
         .as_ref()
@@ -398,6 +388,7 @@ pub(super) fn run_protocol(
     match input.protocol.as_str() {
         PROTOCOL_OPENAI => openai::run_openai(input, messages),
         PROTOCOL_ANTHROPIC => anthropic::run_anthropic(input, messages),
+        PROTOCOL_BEDROCK => bedrock::run_bedrock(input, messages),
         _ => ProtocolResponse {
             http_status: None,
             model: None,
@@ -415,15 +406,24 @@ pub(super) fn run_protocol(
             first_text_delta_ms: None,
             completed_ms: Some(0),
             response_headers: Value::Null,
+            bedrock: None,
         },
     }
 }
 
 fn output_size(protocol: &str, usage: Option<&Value>, text: &str) -> (i64, String) {
-    let usage_field = if protocol == PROTOCOL_ANTHROPIC {
-        "output_tokens"
-    } else {
-        "completion_tokens"
+    let usage_field = match protocol {
+        PROTOCOL_ANTHROPIC => "output_tokens",
+        PROTOCOL_BEDROCK => "outputTokens",
+        _ => "completion_tokens",
     };
     checks::size_from_usage_or_chars(usage, usage_field, text)
+}
+
+fn input_usage_field(protocol: &str) -> &'static str {
+    match protocol {
+        PROTOCOL_ANTHROPIC => "input_tokens",
+        PROTOCOL_BEDROCK => "inputTokens",
+        _ => "prompt_tokens",
+    }
 }

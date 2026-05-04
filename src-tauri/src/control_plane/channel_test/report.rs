@@ -67,10 +67,16 @@ pub(super) fn build_conversation_json_with_details(
             "httpHeadersMs": response.header_ms,
             "firstSseEventMs": response.first_event_ms,
             "firstTextDeltaMs": response.first_text_delta_ms,
+            "bedrockLatencyMs": response
+                .bedrock
+                .as_ref()
+                .and_then(|value| value.get("latencyMs"))
+                .and_then(Value::as_i64),
             "completedMs": response.completed_ms,
             "displayFirstMs": response.first_token_ms,
             "displayTotalMs": response.completed_ms,
         })).collect::<Vec<_>>(),
+        "bedrock": responses.iter().find_map(|response| response.bedrock.clone()).unwrap_or(Value::Null),
         "connectionDiagnostics": build_connection_diagnostics(input, responses),
         "diagnosticDetails": diagnostic_details,
         "attributionReport": attribution::build_attribution_report(input, responses, diagnostic_details_for_attribution(run_mode, &diagnostic_details)),

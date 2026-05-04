@@ -26,7 +26,15 @@ export function sizeSourceLabel(source: ChannelApiTestSizeSource) {
 }
 
 export function protocolLabel(protocol: ChannelApiTestProtocol) {
-  return protocol === "anthropic" ? "Anthropic" : "OpenAI";
+  switch (protocol) {
+    case "anthropic":
+      return "Anthropic";
+    case "bedrock":
+      return "Bedrock";
+    case "openai":
+    default:
+      return "OpenAI";
+  }
 }
 
 export function categoryLabel(category: ChannelApiTestCategory) {

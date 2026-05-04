@@ -89,4 +89,21 @@ describe("ChannelApiTestModule", () => {
     expect(document.body.textContent).toContain("算术短答");
     expect(document.body.textContent).toContain("返回测试台");
   });
+
+  it("Bedrock 表单展示第三协议入口", async () => {
+    await act(async () => {
+      root.render(<ChannelApiTestModule l={l} workspaceId="workspace-1" />);
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const selects = Array.from(document.body.querySelectorAll(".semi-select"));
+    await act(async () => {
+      selects[0]?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+
+    expect(document.body.textContent).toContain("AWS Bedrock Converse Stream");
+  });
 });

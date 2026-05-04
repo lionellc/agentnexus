@@ -71,7 +71,75 @@ pub(super) fn build_checks(
         },
         response.finish_reason.clone(),
     ));
+    if response.bedrock.is_some() {
+        checks.extend(build_bedrock_checks(response));
+    }
     checks
+}
+
+fn build_bedrock_checks(response: &ProtocolResponse) -> Vec<ChannelApiTestCheck> {
+    let details = response.bedrock.as_ref().unwrap_or(&Value::Null);
+    vec![
+        check(
+            "bedrock_event_stream",
+            "Bedrock event-stream",
+            if details
+                .get("eventStreamParsed")
+                .and_then(Value::as_bool)
+                .unwrap_or(false)
+            {
+                "pass"
+            } else {
+                "fail"
+            },
+            details
+                .get("parseError")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+        ),
+        check(
+            "bedrock_latency_metadata",
+            "Bedrock latency metadata",
+            if details.get("latencyMs").and_then(Value::as_i64).is_some() {
+                "pass"
+            } else {
+                "warn"
+            },
+            details
+                .get("latencyMs")
+                .and_then(Value::as_i64)
+                .map(|value| value.to_string()),
+        ),
+        check(
+            "bedrock_stream_exception",
+            "Bedrock stream exception",
+            if details
+                .get("streamException")
+                .is_some_and(|value| !value.is_null())
+            {
+                "fail"
+            } else {
+                "pass"
+            },
+            details
+                .get("streamException")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+        ),
+        check(
+            "region_model",
+            "Region/Model",
+            if response.error_reason.as_deref().is_some_and(|value| {
+                let lower = value.to_ascii_lowercase();
+                lower.contains("region") || lower.contains("model")
+            }) {
+                "warn"
+            } else {
+                "pass"
+            },
+            response.error_reason.clone(),
+        ),
+    ]
 }
 
 fn model_rewrite_check(response_model: Option<&str>, expected_model: &str) -> ChannelApiTestCheck {

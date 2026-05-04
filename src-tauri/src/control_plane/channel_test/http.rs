@@ -4,8 +4,16 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue, CONTENT_TYPE};
 use serde_json::Map;
 
 pub(super) fn build_client() -> Result<Client, AppError> {
+    build_client_with_timeout(None)
+}
+
+pub(super) fn build_client_with_timeout(timeout_ms: Option<i64>) -> Result<Client, AppError> {
+    let timeout = timeout_ms
+        .filter(|value| *value > 0)
+        .map(|value| Duration::from_millis(value as u64))
+        .unwrap_or_else(|| Duration::from_secs(120));
     Client::builder()
-        .timeout(Duration::from_secs(120))
+        .timeout(timeout)
         .build()
         .map_err(|err| AppError::internal(err.to_string()))
 }

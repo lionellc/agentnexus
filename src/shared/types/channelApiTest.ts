@@ -1,4 +1,4 @@
-export type ChannelApiTestProtocol = "openai" | "anthropic";
+export type ChannelApiTestProtocol = "openai" | "anthropic" | "bedrock";
 export type ChannelApiTestCategory = "small" | "medium" | "large" | "followup";
 export type ChannelApiTestStatus = "success" | "failed" | "partial_failed";
 export type ChannelApiTestRunMode = "standard" | "diagnostic" | "sampling";
@@ -52,6 +52,9 @@ export interface ChannelApiTestRunInput {
   baseUrl: string;
   apiKey: string;
   stream: boolean;
+  region?: string;
+  maxTokens?: number;
+  timeoutMs?: number;
   category: ChannelApiTestCategory;
   caseId: string;
   runMode?: ChannelApiTestRunMode;

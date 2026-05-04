@@ -48,6 +48,9 @@ export function ChannelApiTestModule({ l }: ChannelApiTestModuleProps) {
         baseUrl={controller.form.baseUrl}
         apiKey={controller.form.apiKey}
         stream={controller.form.stream}
+        region={controller.form.region}
+        maxTokens={controller.form.maxTokens}
+        timeoutMs={controller.form.timeoutMs}
         category={controller.form.category}
         caseMode={controller.form.caseMode}
         caseId={controller.form.caseId}

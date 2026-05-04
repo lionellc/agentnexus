@@ -20,18 +20,7 @@ pub(super) fn run_anthropic(
         Ok(headers) => headers,
         Err(err) => return protocol_error(started, None, err.message, Value::Null),
     };
-    let body = json!({
-        "model": input.model,
-        "max_tokens": 512,
-        "messages": messages.iter()
-            .filter(|message| message.role != "system")
-            .map(|message| json!({
-                "role": message.role,
-                "content": message.content,
-            }))
-            .collect::<Vec<_>>(),
-        "stream": input.stream,
-    });
+    let body = request_body(input, messages);
 
     let response = client.post(url).headers(headers).json(&body).send();
     let Ok(response) = response else {
@@ -105,6 +94,7 @@ fn parse_anthropic_json(
             first_text_delta_ms: None,
             completed_ms,
             response_headers,
+            bedrock: None,
         };
     };
     let error_reason = value
@@ -146,6 +136,7 @@ fn parse_anthropic_json(
         first_text_delta_ms: None,
         completed_ms,
         response_headers,
+        bedrock: None,
     }
 }
 
@@ -241,6 +232,7 @@ fn parse_anthropic_stream(
                     first_text_delta_ms: first_token_ms,
                     completed_ms: Some(elapsed_ms(started)),
                     response_headers,
+                    bedrock: None,
                 };
             }
         }
@@ -267,6 +259,7 @@ fn parse_anthropic_stream(
         first_text_delta_ms: first_token_ms,
         completed_ms: Some(completed_ms),
         response_headers,
+        bedrock: None,
     }
 }
 
@@ -293,6 +286,7 @@ fn protocol_error(
         first_text_delta_ms: None,
         completed_ms: Some(elapsed_ms(started)),
         response_headers: Value::Null,
+        bedrock: None,
     }
 }
 
@@ -312,4 +306,27 @@ pub(super) fn parse_anthropic_json_for_test(raw: &str) -> ProtocolResponse {
         Some(1),
         json!({}),
     )
+}
+
+#[cfg(test)]
+pub(super) fn request_body_for_test(
+    input: &ChannelApiTestRunInput,
+    messages: &[ChannelApiTestMessageInput],
+) -> Value {
+    request_body(input, messages)
+}
+
+fn request_body(input: &ChannelApiTestRunInput, messages: &[ChannelApiTestMessageInput]) -> Value {
+    json!({
+        "model": input.model,
+        "max_tokens": input.max_tokens.unwrap_or(1024),
+        "messages": messages.iter()
+            .filter(|message| message.role != "system")
+            .map(|message| json!({
+                "role": message.role,
+                "content": message.content,
+            }))
+            .collect::<Vec<_>>(),
+        "stream": input.stream,
+    })
 }
