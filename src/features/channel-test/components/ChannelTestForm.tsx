@@ -9,6 +9,9 @@ type ChannelTestFormProps = {
   baseUrl: string;
   apiKey: string;
   stream: boolean;
+  region: string;
+  maxTokens: string;
+  timeoutMs: string;
   category: ChannelApiTestCategory;
   caseMode: "specific" | "random";
   caseId: string;
@@ -23,6 +26,9 @@ type ChannelTestFormProps = {
     baseUrl: string;
     apiKey: string;
     stream: boolean;
+    region: string;
+    maxTokens: string;
+    timeoutMs: string;
     category: ChannelApiTestCategory;
     caseMode: "specific" | "random";
     caseId: string;
@@ -38,6 +44,9 @@ export function ChannelTestForm({
   baseUrl,
   apiKey,
   stream,
+  region,
+  maxTokens,
+  timeoutMs,
   category,
   caseMode,
   caseId,
@@ -51,6 +60,7 @@ export function ChannelTestForm({
   onRunDiagnostic,
   onRunSampling,
 }: ChannelTestFormProps) {
+  const isBedrock = protocol === "bedrock";
   return (
     <section className="rounded-lg border border-border bg-card p-4">
       <div className="grid gap-4 lg:grid-cols-[180px_1fr_1fr_1fr]">
@@ -62,6 +72,7 @@ export function ChannelTestForm({
             optionList={[
               { label: "OpenAI-compatible", value: "openai" },
               { label: "Anthropic-compatible", value: "anthropic" },
+              { label: "AWS Bedrock Converse Stream", value: "bedrock" },
             ]}
             onChange={(value) => onChange({ protocol: value as ChannelApiTestProtocol })}
           />
@@ -71,11 +82,15 @@ export function ChannelTestForm({
           <Input value={model} placeholder="gpt-4.1-mini / claude-sonnet-4-5" onChange={(value) => onChange({ model: value })} />
         </label>
         <label className="space-y-1 text-sm">
-          <span className="font-medium text-foreground">Base URL</span>
-          <Input value={baseUrl} placeholder="https://api.example.com" onChange={(value) => onChange({ baseUrl: value })} />
+          <span className="font-medium text-foreground">{isBedrock ? "Region" : "Base URL"}</span>
+          {isBedrock ? (
+            <Input value={region} placeholder="us-east-1" onChange={(value) => onChange({ region: value })} />
+          ) : (
+            <Input value={baseUrl} placeholder="https://api.example.com" onChange={(value) => onChange({ baseUrl: value })} />
+          )}
         </label>
         <label className="space-y-1 text-sm">
-          <span className="font-medium text-foreground">API Key</span>
+          <span className="font-medium text-foreground">{isBedrock ? "Bearer Token" : "API Key"}</span>
           <Input mode="password" value={apiKey} placeholder={l("仅用于本次测试", "Only used for this test")} onChange={(value) => onChange({ apiKey: value })} />
         </label>
       </div>
@@ -120,21 +135,35 @@ export function ChannelTestForm({
             onChange={(value) => onChange({ caseId: String(value) })}
           />
         </label>
+        <label className="w-28 space-y-1 text-sm">
+          <span className="font-medium text-foreground">Max Tokens</span>
+          <Input value={maxTokens} placeholder="1024" onChange={(value) => onChange({ maxTokens: value })} />
+        </label>
+        {isBedrock ? (
+          <label className="w-32 space-y-1 text-sm">
+            <span className="font-medium text-foreground">Timeout (ms)</span>
+            <Input value={timeoutMs} placeholder="120000" onChange={(value) => onChange({ timeoutMs: value })} />
+          </label>
+        ) : null}
         <div className="flex items-center gap-2 pb-2 text-sm">
-          <Switch checked={stream} onChange={(checked) => onChange({ stream: Boolean(checked) })} />
+          <Switch checked={isBedrock ? true : stream} disabled={isBedrock} onChange={(checked) => onChange({ stream: Boolean(checked) })} />
           <span className="text-foreground">{l("流式请求", "Streaming")}</span>
-          {stream ? <Tag color="blue">{l("流", "Stream")}</Tag> : null}
+          {isBedrock || stream ? <Tag color="blue">{l("流", "Stream")}</Tag> : null}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button theme="solid" type="primary" loading={running} disabled={!canRun || running} onClick={onRun}>
             {running ? l("测试中", "Running") : l("运行测试", "Run Test")}
           </Button>
-          <Button disabled={!canRun || running} onClick={onRunDiagnostic}>
-            {l("诊断探针", "Probe")}
-          </Button>
-          <Button disabled={!canRun || running} onClick={onRunSampling}>
-            {l("路由采样", "Sampling")}
-          </Button>
+          {!isBedrock ? (
+            <>
+              <Button disabled={!canRun || running} onClick={onRunDiagnostic}>
+                {l("诊断探针", "Probe")}
+              </Button>
+              <Button disabled={!canRun || running} onClick={onRunSampling}>
+                {l("路由采样", "Sampling")}
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
       <div className="mt-3 rounded-md border border-border bg-muted/30 p-3 text-sm text-muted-foreground">

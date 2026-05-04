@@ -3,9 +3,11 @@ use super::*;
 pub(super) fn validate_input(input: &ChannelApiTestRunInput) -> Result<(), AppError> {
     if !matches!(
         input.protocol.as_str(),
-        PROTOCOL_OPENAI | PROTOCOL_ANTHROPIC
+        PROTOCOL_OPENAI | PROTOCOL_ANTHROPIC | PROTOCOL_BEDROCK
     ) {
-        return Err(AppError::invalid_argument("协议只支持 openai 或 anthropic"));
+        return Err(AppError::invalid_argument(
+            "协议只支持 openai、anthropic 或 bedrock",
+        ));
     }
     if !matches!(
         input.category.as_str(),
@@ -13,10 +15,27 @@ pub(super) fn validate_input(input: &ChannelApiTestRunInput) -> Result<(), AppEr
     ) {
         return Err(AppError::invalid_argument("未知测试题型"));
     }
+    let base_url_value = if input.protocol == PROTOCOL_BEDROCK {
+        input.region.as_deref().unwrap_or_default()
+    } else {
+        input.base_url.as_str()
+    };
+    let api_key_label = if input.protocol == PROTOCOL_BEDROCK {
+        "bearerToken"
+    } else {
+        "apiKey"
+    };
     for (label, value) in [
         ("model", input.model.as_str()),
-        ("baseUrl", input.base_url.as_str()),
-        ("apiKey", input.api_key.as_str()),
+        (
+            if input.protocol == PROTOCOL_BEDROCK {
+                "region"
+            } else {
+                "baseUrl"
+            },
+            base_url_value,
+        ),
+        (api_key_label, input.api_key.as_str()),
         ("caseId", input.case_id.as_str()),
     ] {
         if value.trim().is_empty() {
@@ -80,4 +99,3 @@ pub(super) fn validate_case_input(input: &ChannelApiTestCaseUpsertInput) -> Resu
     }
     Ok(())
 }
-

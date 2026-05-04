@@ -1,6 +1,7 @@
 use super::*;
 use rusqlite::Connection;
 use serde_json::json;
+use std::{io::Read, thread, time::Duration};
 
 fn setup_conn() -> Connection {
     let conn = Connection::open_in_memory().expect("open sqlite");
@@ -244,6 +245,156 @@ fn parse_anthropic_json_extracts_usage_and_text() {
 }
 
 #[test]
+fn openai_and_anthropic_request_bodies_include_max_tokens() {
+    let input = ChannelApiTestRunInput {
+        max_tokens: Some(2048),
+        ..test_input("claude-sonnet-4-5")
+    };
+    let messages = input.messages.as_ref().expect("messages");
+
+    let openai_body = openai::request_body_for_test(&input, messages);
+    let anthropic_body = anthropic::request_body_for_test(&input, messages);
+
+    assert_eq!(
+        openai_body.get("max_tokens").and_then(Value::as_i64),
+        Some(2048)
+    );
+    assert_eq!(
+        anthropic_body.get("max_tokens").and_then(Value::as_i64),
+        Some(2048)
+    );
+}
+
+#[test]
+fn parse_bedrock_event_stream_extracts_timeline_usage_and_text() {
+    let bytes = [
+        bedrock_frame(
+            "messageStart",
+            json!({ "messageStart": { "role": "assistant" } }),
+        ),
+        bedrock_frame(
+            "contentBlockDelta",
+            json!({
+                "contentBlockDelta": { "delta": { "text": "pong" } }
+            }),
+        ),
+        bedrock_frame(
+            "messageStop",
+            json!({ "messageStop": { "stopReason": "end_turn" } }),
+        ),
+        bedrock_frame(
+            "metadata",
+            json!({
+                "metadata": {
+                    "usage": { "inputTokens": 3, "outputTokens": 5, "totalTokens": 8 },
+                    "metrics": { "latencyMs": 321 }
+                }
+            }),
+        ),
+    ]
+    .concat();
+
+    let events = bedrock::parse_event_stream_for_test(&bytes).expect("parse");
+    let response = bedrock::response_from_events_for_test(events);
+
+    assert_eq!(response.text, "pong");
+    assert_eq!(response.first_metric_kind, FIRST_TOKEN);
+    assert_eq!(response.finish_reason.as_deref(), Some("end_turn"));
+    assert_eq!(
+        response
+            .usage
+            .as_ref()
+            .and_then(|value| value.get("outputTokens"))
+            .and_then(Value::as_i64),
+        Some(5)
+    );
+    let bedrock = response.bedrock.as_ref().expect("bedrock details");
+    assert_eq!(bedrock.get("latencyMs").and_then(Value::as_i64), Some(321));
+    assert_eq!(
+        bedrock
+            .get("eventCounts")
+            .and_then(|value| value.get("contentBlockDelta"))
+            .and_then(Value::as_i64),
+        Some(1)
+    );
+}
+
+#[test]
+fn bedrock_stream_timestamps_events_while_reading() {
+    let bytes = [
+        bedrock_frame(
+            "messageStart",
+            json!({ "messageStart": { "role": "assistant" } }),
+        ),
+        bedrock_frame(
+            "contentBlockDelta",
+            json!({
+                "contentBlockDelta": { "delta": { "text": "pong" } }
+            }),
+        ),
+        bedrock_frame(
+            "messageStop",
+            json!({ "messageStop": { "stopReason": "end_turn" } }),
+        ),
+    ]
+    .concat();
+    let mut reader = SlowChunks::new(bytes, 28, Duration::from_millis(8));
+
+    let response = bedrock::response_from_reader_for_test(&mut reader).expect("stream response");
+
+    let first = response.first_token_ms.expect("first token");
+    let completed = response.completed_ms.expect("completed");
+    assert!(first < completed, "first={first} completed={completed}");
+    let bedrock = response.bedrock.as_ref().expect("bedrock details");
+    let timeline = bedrock
+        .get("timeline")
+        .and_then(Value::as_array)
+        .expect("timeline");
+    let first_event = timeline
+        .first()
+        .and_then(|item| item.get("observedMs"))
+        .and_then(Value::as_i64)
+        .expect("first event");
+    let last_event = timeline
+        .last()
+        .and_then(|item| item.get("observedMs"))
+        .and_then(Value::as_i64)
+        .expect("last event");
+    assert!(first_event <= first);
+    assert!(last_event <= completed);
+}
+
+#[test]
+fn parse_bedrock_event_stream_rejects_invalid_frame_length() {
+    let mut bytes = bedrock_frame("messageStart", json!({ "messageStart": {} }));
+    bytes[0] = 0;
+    bytes[1] = 0;
+    bytes[2] = 0;
+    bytes[3] = 4;
+
+    let result = bedrock::parse_event_stream_for_test(&bytes);
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn bedrock_stream_exception_returns_failed_response_without_token() {
+    let bytes = bedrock_frame(
+        "modelStreamErrorException",
+        json!({ "message": "upstream failed without secret" }),
+    );
+    let events = bedrock::parse_event_stream_for_test(&bytes).expect("parse");
+    let response = bedrock::response_from_events_for_test(events);
+
+    assert!(response
+        .error_reason
+        .as_deref()
+        .unwrap_or_default()
+        .contains("modelStreamErrorException"));
+    assert!(!response.raw_excerpt.contains("bedrock-secret"));
+}
+
+#[test]
 fn build_checks_marks_empty_response_failed() {
     let response = ProtocolResponse {
         http_status: Some(200),
@@ -262,6 +413,7 @@ fn build_checks_marks_empty_response_failed() {
         first_text_delta_ms: None,
         completed_ms: Some(1),
         response_headers: Value::Null,
+        bedrock: None,
     };
     let checks = checks::build_checks(&response, "gpt");
     assert!(checks
@@ -288,6 +440,7 @@ fn build_checks_flags_model_rewrite() {
         first_text_delta_ms: None,
         completed_ms: Some(1),
         response_headers: Value::Null,
+        bedrock: None,
     };
     let checks = checks::build_checks(&response, "claude-sonnet");
 
@@ -353,6 +506,9 @@ fn test_input(model: &str) -> ChannelApiTestRunInput {
         base_url: "https://api.openai.com".to_string(),
         api_key: "sk-secret".to_string(),
         stream: false,
+        region: None,
+        max_tokens: None,
+        timeout_ms: None,
         category: CATEGORY_SMALL.to_string(),
         case_id: "small-basic".to_string(),
         run_mode: None,
@@ -362,6 +518,29 @@ fn test_input(model: &str) -> ChannelApiTestRunInput {
         }]),
         rounds: None,
     }
+}
+
+fn bedrock_frame(event_type: &str, payload: Value) -> Vec<u8> {
+    let mut headers = Vec::new();
+    push_header(&mut headers, ":event-type", event_type);
+    let payload = payload.to_string().into_bytes();
+    let total_len = 12 + headers.len() + payload.len() + 4;
+    let mut bytes = Vec::new();
+    bytes.extend_from_slice(&(total_len as u32).to_be_bytes());
+    bytes.extend_from_slice(&(headers.len() as u32).to_be_bytes());
+    bytes.extend_from_slice(&[0, 0, 0, 0]);
+    bytes.extend_from_slice(&headers);
+    bytes.extend_from_slice(&payload);
+    bytes.extend_from_slice(&[0, 0, 0, 0]);
+    bytes
+}
+
+fn push_header(bytes: &mut Vec<u8>, name: &str, value: &str) {
+    bytes.push(name.len() as u8);
+    bytes.extend_from_slice(name.as_bytes());
+    bytes.push(7);
+    bytes.extend_from_slice(&(value.len() as u16).to_be_bytes());
+    bytes.extend_from_slice(value.as_bytes());
 }
 
 fn test_response(model: Option<&str>, response_headers: Value) -> ProtocolResponse {
@@ -382,5 +561,40 @@ fn test_response(model: Option<&str>, response_headers: Value) -> ProtocolRespon
         first_text_delta_ms: None,
         completed_ms: Some(1),
         response_headers,
+        bedrock: None,
+    }
+}
+
+struct SlowChunks {
+    bytes: Vec<u8>,
+    offset: usize,
+    chunk_size: usize,
+    delay: Duration,
+}
+
+impl SlowChunks {
+    fn new(bytes: Vec<u8>, chunk_size: usize, delay: Duration) -> Self {
+        Self {
+            bytes,
+            offset: 0,
+            chunk_size,
+            delay,
+        }
+    }
+}
+
+impl Read for SlowChunks {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if self.offset >= self.bytes.len() {
+            return Ok(0);
+        }
+        thread::sleep(self.delay);
+        let size = self
+            .chunk_size
+            .min(buf.len())
+            .min(self.bytes.len() - self.offset);
+        buf[..size].copy_from_slice(&self.bytes[self.offset..self.offset + size]);
+        self.offset += size;
+        Ok(size)
     }
 }

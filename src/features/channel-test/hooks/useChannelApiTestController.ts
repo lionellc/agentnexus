@@ -21,10 +21,16 @@ type FormState = {
   baseUrl: string;
   apiKey: string;
   stream: boolean;
+  region: string;
+  maxTokens: string;
+  timeoutMs: string;
   category: ChannelApiTestCategory;
   caseMode: "specific" | "random";
   caseId: string;
 };
+
+const DEFAULT_MAX_TOKENS = "1024";
+const BEDROCK_DEFAULT_TIMEOUT_MS = "120000";
 
 export function useChannelApiTestController() {
   const [form, setForm] = useState<FormState>({
@@ -33,6 +39,9 @@ export function useChannelApiTestController() {
     baseUrl: "",
     apiKey: "",
     stream: true,
+    region: "",
+    maxTokens: DEFAULT_MAX_TOKENS,
+    timeoutMs: BEDROCK_DEFAULT_TIMEOUT_MS,
     category: "small",
     caseMode: "specific",
     caseId: "",
@@ -52,15 +61,23 @@ export function useChannelApiTestController() {
 
   const updateForm = useCallback((patch: Partial<FormState>) => {
     setForm((current) => {
+      const protocolPatch = patch.protocol && patch.protocol !== current.protocol
+        ? {
+          stream: patch.protocol === "bedrock" ? true : current.stream,
+          maxTokens: current.maxTokens || DEFAULT_MAX_TOKENS,
+          timeoutMs: current.timeoutMs || BEDROCK_DEFAULT_TIMEOUT_MS,
+        }
+        : {};
       if (patch.category && patch.category !== current.category) {
         const nextCases = getChannelApiTestCasesByCategory(cases, patch.category);
         return {
           ...current,
+          ...protocolPatch,
           ...patch,
           caseId: nextCases[0]?.id ?? current.caseId,
         };
       }
-      return { ...current, ...patch };
+      return { ...current, ...protocolPatch, ...patch };
     });
   }, [cases]);
 
@@ -115,27 +132,39 @@ export function useChannelApiTestController() {
 
   const canRun =
     form.model.trim() !== "" &&
-    form.baseUrl.trim() !== "" &&
+    (form.protocol === "bedrock" ? form.region.trim() !== "" : form.baseUrl.trim() !== "") &&
     form.apiKey.trim() !== "" &&
     selectedCase.id !== "";
+
+  const buildRunInput = useCallback(
+    (runMode: "standard" | "diagnostic" | "sampling"): ChannelApiTestRunInput => {
+      const testCase = form.caseMode === "random" ? getRandomChannelApiTestCase(cases, form.category) : findChannelApiTestCase(cases, form.caseId);
+      const region = form.region.trim();
+      const isBedrock = form.protocol === "bedrock";
+      return {
+        protocol: form.protocol,
+        model: form.model.trim(),
+        baseUrl: isBedrock ? `https://bedrock-runtime.${region}.amazonaws.com` : form.baseUrl.trim(),
+        apiKey: form.apiKey,
+        stream: isBedrock ? true : form.stream,
+        region: isBedrock ? region : undefined,
+        maxTokens: parsePositiveInt(form.maxTokens),
+        timeoutMs: isBedrock ? parsePositiveInt(form.timeoutMs) : undefined,
+        category: testCase.category,
+        caseId: testCase.id,
+        runMode,
+        messages: testCase.messages,
+        rounds: testCase.rounds,
+      };
+    },
+    [cases, form],
+  );
 
   const run = useCallback(async () => {
     if (!canRun) {
       return;
     }
-    const testCase = form.caseMode === "random" ? getRandomChannelApiTestCase(cases, form.category) : findChannelApiTestCase(cases, form.caseId);
-    const input: ChannelApiTestRunInput = {
-      protocol: form.protocol,
-      model: form.model.trim(),
-      baseUrl: form.baseUrl.trim(),
-      apiKey: form.apiKey,
-      stream: form.stream,
-      category: testCase.category,
-      caseId: testCase.id,
-      runMode: "standard",
-      messages: testCase.messages,
-      rounds: testCase.rounds,
-    };
+    const input = buildRunInput("standard");
     setRunning(true);
     setError(null);
     void channelApiTestApi
@@ -147,26 +176,14 @@ export function useChannelApiTestController() {
       .finally(() => {
         setRunning(false);
       });
-  }, [canRun, cases, form, loadRuns, pageSize]);
+  }, [buildRunInput, canRun, loadRuns, pageSize]);
 
   const runWithMode = useCallback(
     async (runMode: "diagnostic" | "sampling") => {
       if (!canRun) {
         return;
       }
-      const testCase = form.caseMode === "random" ? getRandomChannelApiTestCase(cases, form.category) : findChannelApiTestCase(cases, form.caseId);
-      const input = {
-        protocol: form.protocol,
-        model: form.model.trim(),
-        baseUrl: form.baseUrl.trim(),
-        apiKey: form.apiKey,
-        stream: form.stream,
-        category: testCase.category,
-        caseId: testCase.id,
-        runMode,
-        messages: testCase.messages,
-        rounds: testCase.rounds,
-      };
+      const input = buildRunInput(runMode);
       setRunning(true);
       setError(null);
       void channelApiTestApi
@@ -179,7 +196,7 @@ export function useChannelApiTestController() {
           setRunning(false);
         });
     },
-    [canRun, cases, form, loadRuns, pageSize],
+    [buildRunInput, canRun, loadRuns, pageSize],
   );
 
   const runDiagnostic = useCallback(async () => {
@@ -237,4 +254,9 @@ export function useChannelApiTestController() {
     saveCase,
     deleteCase,
   };
+}
+
+function parsePositiveInt(value: string) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }

@@ -40,6 +40,9 @@ describe("ChannelTestForm", () => {
           baseUrl=""
           apiKey=""
           stream
+          region=""
+          maxTokens="1024"
+          timeoutMs="120000"
           category="small"
           caseMode="specific"
           caseId="small-basic"
@@ -72,6 +75,9 @@ describe("ChannelTestForm", () => {
           baseUrl="https://api.example.com"
           apiKey="sk-secret"
           stream
+          region=""
+          maxTokens="1024"
+          timeoutMs="120000"
           category="small"
           caseMode="specific"
           caseId="small-basic"
@@ -108,6 +114,9 @@ describe("ChannelTestForm", () => {
           baseUrl="https://api.example.com"
           apiKey="sk-secret"
           stream
+          region=""
+          maxTokens="1024"
+          timeoutMs="120000"
           category="small"
           caseMode="specific"
           caseId="small-basic"
@@ -138,6 +147,38 @@ describe("ChannelTestForm", () => {
     expect(onRunSampling).toHaveBeenCalled();
   });
 
+  it("OpenAI 和 Anthropic 协议也展示 Max Tokens", () => {
+    act(() => {
+      root.render(
+        <ChannelTestForm
+          protocol="anthropic"
+          model="claude-sonnet-4-5"
+          baseUrl="https://api.example.com"
+          apiKey="sk-secret"
+          stream
+          region=""
+          maxTokens="2048"
+          timeoutMs="120000"
+          category="small"
+          caseMode="specific"
+          caseId="small-basic"
+          categoryCases={testCases}
+          selectedCase={testCases[0]}
+          running={false}
+          canRun
+          l={(zh) => zh}
+          onChange={vi.fn()}
+          onRun={vi.fn()}
+          onRunDiagnostic={vi.fn()}
+          onRunSampling={vi.fn()}
+        />,
+      );
+    });
+
+    expect(document.body.textContent).toContain("Max Tokens");
+    expect(document.body.textContent).not.toContain("Timeout (ms)");
+  });
+
   it("展示当前题目名称", () => {
     const testCase = {
       ...testCases[0],
@@ -152,6 +193,9 @@ describe("ChannelTestForm", () => {
           baseUrl="https://api.example.com"
           apiKey="sk-secret"
           stream
+          region=""
+          maxTokens="1024"
+          timeoutMs="120000"
           category="small"
           caseMode="specific"
           caseId="case-1"
@@ -169,5 +213,43 @@ describe("ChannelTestForm", () => {
     });
 
     expect(document.body.textContent).toContain("我的短答题");
+  });
+
+  it("Bedrock 协议展示 region、Bearer Token 和单次流式字段", () => {
+    act(() => {
+      root.render(
+        <ChannelTestForm
+          protocol="bedrock"
+          model="anthropic.claude-3-5-sonnet-20240620-v1:0"
+          baseUrl=""
+          apiKey="bedrock-token"
+          stream={false}
+          region="us-east-1"
+          maxTokens="2048"
+          timeoutMs="90000"
+          category="small"
+          caseMode="specific"
+          caseId="small-basic"
+          categoryCases={testCases}
+          selectedCase={testCases[0]}
+          running={false}
+          canRun
+          l={(zh) => zh}
+          onChange={vi.fn()}
+          onRun={vi.fn()}
+          onRunDiagnostic={vi.fn()}
+          onRunSampling={vi.fn()}
+        />,
+      );
+    });
+
+    expect(document.body.textContent).toContain("Region");
+    expect(document.body.textContent).toContain("Bearer Token");
+    expect(document.body.textContent).toContain("Max Tokens");
+    expect(document.body.textContent).toContain("Timeout (ms)");
+    expect(document.body.textContent).not.toContain("Base URL");
+    expect(document.body.textContent).not.toContain("诊断探针");
+    expect(document.body.textContent).not.toContain("路由采样");
+    expect(document.body.textContent).toContain("流");
   });
 });

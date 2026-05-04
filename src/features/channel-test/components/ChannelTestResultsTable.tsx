@@ -83,7 +83,7 @@ export function ChannelTestResultsTable({
       render: (_value, record) => (
         <div>
           <div className="text-base text-foreground">{record.inputSize}</div>
-          <div className="text-xs text-muted-foreground">{sizeSourceLabel(record.inputSizeSource, l)}</div>
+          <CacheUsageLines run={record} l={l} />
         </div>
       ),
     },
@@ -94,7 +94,6 @@ export function ChannelTestResultsTable({
       render: (_value, record) => (
         <div>
           <div className="text-base text-foreground">{record.outputSize}</div>
-          <div className="text-xs text-muted-foreground">{sizeSourceLabel(record.outputSizeSource, l)}</div>
         </div>
       ),
     },
@@ -165,6 +164,48 @@ function statusEnglishLabel(status: ChannelApiTestRunItem["status"]) {
   }
 }
 
-function sizeSourceLabel(source: ChannelApiTestRunItem["inputSizeSource"], l: (zh: string, en: string) => string) {
-  return source === "usage" ? "usage" : l("字符", "chars");
+function CacheUsageLines({ run, l }: { run: ChannelApiTestRunItem; l: (zh: string, en: string) => string }) {
+  const usage = parseUsage(run);
+  const write = numberValue(usage?.cache_creation_input_tokens ?? usage?.cacheCreationInputTokens);
+  const read = numberValue(usage?.cache_read_input_tokens ?? usage?.cacheReadInputTokens);
+  if (!write && !read) {
+    return null;
+  }
+  return (
+    <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+      {write ? <div>{l("缓存写", "cache write")} {formatInteger(write)}</div> : null}
+      {read ? <div>{l("缓存读", "cache read")} {formatInteger(read)}</div> : null}
+    </div>
+  );
+}
+
+function parseUsage(run: ChannelApiTestRunItem): Record<string, unknown> | null {
+  const fromUsageJson = parseJsonObject(run.usageJson);
+  if (fromUsageJson) {
+    return fromUsageJson;
+  }
+  const conversation = parseJsonObject(run.conversationJson);
+  const response = Array.isArray(conversation?.responses) ? conversation.responses[0] : null;
+  const usage = response && typeof response === "object" ? (response as Record<string, unknown>).usage : null;
+  return usage && typeof usage === "object" && !Array.isArray(usage) ? usage as Record<string, unknown> : null;
+}
+
+function parseJsonObject(value?: string | null): Record<string, unknown> | null {
+  if (!value) {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function numberValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function formatInteger(value: number) {
+  return new Intl.NumberFormat().format(value);
 }

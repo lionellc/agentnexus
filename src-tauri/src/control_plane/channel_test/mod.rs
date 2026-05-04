@@ -10,6 +10,7 @@ use crate::{db::AppState, error::AppError, utils::now_rfc3339};
 
 const PROTOCOL_OPENAI: &str = "openai";
 const PROTOCOL_ANTHROPIC: &str = "anthropic";
+const PROTOCOL_BEDROCK: &str = "bedrock";
 
 const CATEGORY_SMALL: &str = "small";
 const CATEGORY_MEDIUM: &str = "medium";
@@ -70,6 +71,9 @@ pub struct ChannelApiTestRunInput {
     base_url: String,
     api_key: String,
     stream: bool,
+    region: Option<String>,
+    max_tokens: Option<i64>,
+    timeout_ms: Option<i64>,
     category: String,
     case_id: String,
     run_mode: Option<String>,
@@ -160,11 +164,13 @@ struct ProtocolResponse {
     first_text_delta_ms: Option<i64>,
     completed_ms: Option<i64>,
     response_headers: Value,
+    bedrock: Option<Value>,
 }
 
 mod anthropic;
 mod api;
 mod attribution;
+mod bedrock;
 mod checks;
 mod http;
 mod openai;
